@@ -373,6 +373,52 @@ class BotFlowTest extends TestCase
         $this->assertSame(1, $in->media()->count());
     }
 
+    public function test_inspection_video_is_merged_in_queue_and_reuse_is_detected_on_raw_clip(): void
+    {
+        $this->register();
+        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
+        $in = Inspection::first();
+        $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501, 'accuracy' => 6])->assertOk();
+        $this->app('photo', ['clip' => $this->webm()])->assertOk();
+
+        $raw = "\x1A\x45\xDF\xA3".random_bytes(30000);
+        $clip = fn () => UploadedFile::fake()->createWithContent('v.webm', $raw);
+        $this->app('video', ['video' => $clip(), 'face' => $this->webm(8000), 'duration' => 8])->assertOk()->assertJsonPath('step', 'demolished');
+
+        // birlashtirish so'rov ichida emas, navbatda
+        $media = $in->refresh()->load('media')->mediaOf(\App\Models\InspectionMedia::BEFORE_VIDEO);
+        Storage::disk('local')->assertExists($media->path);
+        $facePath = null;
+        Queue::assertPushed(\App\Jobs\MergeInspectionVideo::class, function ($job) use ($media, &$facePath) {
+            $facePath = $job->facePath;
+
+            return $job->mediaId === $media->id;
+        });
+        Storage::disk('local')->assertExists($facePath);
+
+        // xuddi shu xom lavha "keyingi holat" videosi sifatida yuborilsa — rad (hash qayta kodlanmagan fayldan)
+        $this->app('demolished', ['value' => '1'])->assertOk();
+        $this->app('photo', ['clip' => $this->webm()])->assertOk();
+        $this->app('video', ['video' => $clip(), 'duration' => 8])->assertStatus(422);
+        $this->assertSame('after_video', $in->refresh()->step);
+
+        // job: birlashtirilgan fayl asosiy lavha va yuz lavhasi o'rnini egallaydi
+        $original = $media->path;
+        (new \App\Jobs\MergeInspectionVideo($media->id, $facePath))->handle(app(MediaTool::class));
+        $media->refresh();
+        $this->assertStringEndsWith('_merged.mp4', $media->path);
+        $this->assertSame('video/mp4', $media->mime);
+        Storage::disk('local')->assertExists($media->path);
+        Storage::disk('local')->assertMissing([$original, $facePath]);
+    }
+
+    public function test_merge_job_cleans_face_clip_when_inspection_is_gone(): void
+    {
+        Storage::disk('local')->put('inspections/5/before_video_x_face.webm', 'face');
+        (new \App\Jobs\MergeInspectionVideo(123456, 'inspections/5/before_video_x_face.webm'))->handle(app(MediaTool::class));
+        Storage::disk('local')->assertMissing('inspections/5/before_video_x_face.webm');
+    }
+
     public function test_deleted_drafts_remove_their_files_and_prune_cleans_orphans(): void
     {
         $this->register();

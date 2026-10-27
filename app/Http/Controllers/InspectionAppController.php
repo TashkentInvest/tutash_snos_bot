@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\MergeInspectionVideo;
 use App\Models\AuditLog;
 use App\Models\Inspection;
 use App\Models\InspectionMedia;
@@ -198,7 +199,10 @@ class InspectionAppController extends Controller
         return response()->json($this->snapshot($in->refresh()));
     }
 
-    /** Video: yuz lavhasi + hudud lavhasi bitta mp4 ga birlashtiriladi (bo'lmasa — asosiy lavha o'zi saqlanadi). */
+    /**
+     * Video: asosiy lavha darhol saqlanadi, yuz lavhasi bilan birlashtirish navbatda (MergeInspectionVideo) bajariladi —
+     * xodim ffmpeg kodlashini kutmaydi va PHP-FPM workerlari band bo'lib qolmaydi.
+     */
     public function video(Request $request, MediaTool $tool): JsonResponse
     {
         $request->validate([
@@ -236,20 +240,20 @@ class InspectionAppController extends Controller
             return $this->blackFail($in, $request, $user['id']);
         }
         $face = $request->file('face');
-        $faceOk = $face && isset(self::EXT[$face->getMimeType()]) && $face->getSize() >= 3_000 && ! $tool->isBlack($face->getRealPath());
+        $faceExt = $face ? (self::EXT[$face->getMimeType()] ?? null) : null;
+        $faceOk = $faceExt && $face->getSize() >= 3_000 && ! $tool->isBlack($face->getRealPath());
 
-        set_time_limit(180);
-        $merged = tempnam(sys_get_temp_dir(), 'snos').'.mp4';
-        try {
-            $mergedOk = $faceOk && $tool->merge($face->getRealPath(), $main->getRealPath(), $merged);
-            $error = $mergedOk
-                ? $this->saveMedia($in, $kind, $merged, 'mp4', 'video/mp4', $user['id'])
-                : $this->saveMedia($in, $kind, $main->getRealPath(), $ext, $main->getMimeType(), $user['id']);
-        } finally {
-            @unlink($merged);
-        }
-        if ($error) {
+        // Takroriy faylni aniqlash xom (qayta kodlanmagan) asosiy lavha bo'yicha — bir xil video har doim bir xil hash beradi.
+        if ($error = $this->saveMedia($in, $kind, $main->getRealPath(), $ext, $main->getMimeType(), $user['id'])) {
             return $error;
+        }
+
+        if ($faceOk) {
+            $media = $in->media()->where('kind', $kind)->first();
+            $facePath = dirname($media->path).'/'.pathinfo($media->path, PATHINFO_FILENAME)."_face.{$faceExt}";
+            if (Storage::disk(config('tutash.media_disk'))->putFileAs(dirname($facePath), $face, basename($facePath))) {
+                MergeInspectionVideo::dispatch($media->id, $facePath);
+            }
         }
 
         $in->update(['step' => $kind === InspectionMedia::BEFORE_VIDEO ? 'demolished' : 'confirm', 'device' => Device::clean($request->input('device')) ?? $in->device]);

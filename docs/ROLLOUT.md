@@ -91,7 +91,7 @@ Manba ma'lumot: `dataset.csv` (849 obyekt, 12 tuman).
 - [ ] `TELEGRAM_WEBHOOK_SECRET` (≥32 belgi) va `php artisan bot:webhook https://domen/telegram/webhook`
 - [ ] nginx: `limit_req` (IP bo'yicha), `client_max_body_size 5m`, `/admin` ni IP yoki VPN orqali cheklash, Cloudflare ortida bo'lsa — faqat Cloudflare IP'laridan qabul qilish
 - [ ] PostgreSQL: alohida foydalanuvchi (superuser emas), kunlik `pg_dump` + `storage/app/private` zaxirasi
-- [ ] Supervisor: `queue:work --tries=5`, `schedule:run` (cron har daqiqa)
+- [ ] Supervisor: `queue:work --tries=5` (`QUEUE_RETRY_AFTER` > eng uzun job timeout, ya'ni 180 s), `schedule:run` (cron har daqiqa)
 - [ ] `composer audit` — ayni paytda Laravel 10 bo'yicha advisory bor: PHP 8.2+ ga o'tib Laravel 11/12 ga yangilash rejalashtirilsin
 
 ## 6. Texnik ishga tushirish
