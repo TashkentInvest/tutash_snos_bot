@@ -1,0 +1,94 @@
+<?php
+
+namespace App\Filament\Resources;
+
+use App\Filament\Resources\StaffResource\Pages;
+use App\Models\Staff;
+use Filament\Forms;
+use Filament\Forms\Form;
+use Filament\Resources\Resource;
+use Filament\Tables;
+use Filament\Tables\Table;
+
+class StaffResource extends Resource
+{
+    protected static ?string $model = Staff::class;
+
+    protected static ?string $navigationIcon = 'heroicon-o-users';
+
+    protected static ?string $navigationGroup = 'Sozlamalar';
+
+    protected static ?string $modelLabel = 'xodim';
+
+    protected static ?string $pluralModelLabel = 'Xodimlar';
+
+    private const STATUSES = [
+        Staff::ACTIVE => 'Faol',
+        Staff::REGISTERING => 'Ro\'yxatdan o\'tmoqda',
+        Staff::AWAITING_PHONE => 'Telefon kutilmoqda',
+        Staff::REJECTED => 'Rad etilgan',
+        Staff::BLOCKED => 'Bloklangan',
+        Staff::CITIZEN => 'Aholi',
+    ];
+
+    private const ROLES = [
+        Staff::ROLE_EMPLOYEE => 'Xodim',
+        Staff::ROLE_CITIZEN => 'Aholi',
+    ];
+
+    public static function form(Form $form): Form
+    {
+        return $form->schema([
+            Forms\Components\TextInput::make('full_name')->label('F.I.SH')->required(),
+            Forms\Components\TextInput::make('phone')->label('Telefon (9 raqam)')->disabled(),
+            Forms\Components\Select::make('status')->label('Holat')->options(self::STATUSES)->required(),
+            Forms\Components\Select::make('role')->label('Rol')->options(self::ROLES),
+            Forms\Components\TextInput::make('failed_attempts')->label('Noto‘g‘ri urinishlar (0 — qayta ochish)')->numeric()->minValue(0),
+            Forms\Components\Toggle::make('attendance_required')->label('Kunlik davomat yuritiladi'),
+            Forms\Components\Toggle::make('is_global')->label('Barcha tumanlarni ko‘radi (admin)'),
+            Forms\Components\Select::make('districts')->label('Biriktirilgan tumanlar')
+                ->relationship('districts', 'name')->multiple()->preload(),
+        ]);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->columns([
+                Tables\Columns\TextColumn::make('full_name')->label('F.I.SH')->searchable(),
+                Tables\Columns\TextColumn::make('phone')->label('Telefon')->searchable(),
+                Tables\Columns\TextColumn::make('role')->label('Rol')->badge()->formatStateUsing(fn ($state) => self::ROLES[$state] ?? '—'),
+                Tables\Columns\TextColumn::make('districts.name')->label('Tumanlar')->badge(),
+                Tables\Columns\TextColumn::make('status')->label('Holat')->badge()
+                    ->formatStateUsing(fn ($state) => self::STATUSES[$state] ?? $state)
+                    ->color(fn ($state) => match ($state) {
+                        Staff::ACTIVE => 'success',
+                        Staff::BLOCKED, Staff::REJECTED => 'danger',
+                        default => 'warning',
+                    }),
+                Tables\Columns\TextColumn::make('inspections_count')->label('Tekshiruvlar')->counts('inspections'),
+                Tables\Columns\TextColumn::make('last_seen_at')->label('Oxirgi faollik')->since()->sortable(),
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('status')->label('Holat')->options(self::STATUSES),
+                Tables\Filters\SelectFilter::make('role')->label('Rol')->options(self::ROLES),
+            ])
+            ->actions([
+                Tables\Actions\EditAction::make(),
+                Tables\Actions\Action::make('block')->label('Bloklash')->color('danger')->icon('heroicon-o-no-symbol')
+                    ->requiresConfirmation()->visible(fn (Staff $record) => $record->status !== Staff::BLOCKED)
+                    ->action(fn (Staff $record) => $record->update(['status' => Staff::BLOCKED])),
+            ])
+            ->defaultSort('last_seen_at', 'desc');
+    }
+
+    public static function canCreate(): bool
+    {
+        return false; // xodimlar botda o'zi ro'yxatdan o'tadi
+    }
+
+    public static function getPages(): array
+    {
+        return ['index' => Pages\ManageStaff::route('/')];
+    }
+}
