@@ -371,6 +371,18 @@ class RolesAttendanceTest extends TestCase
             ->assertStatus(422)->assertJsonPath('message', 'Kenglik son bo‘lishi kerak. (yana 1 ta xato)');
     }
 
+    public function test_mini_app_rate_limit_is_per_telegram_user_not_shared_ip(): void
+    {
+        // bitta IP (mobil operator CGNAT) ortidagi xodim limitni tugatsa ham, boshqa xodim ishlay oladi
+        $a = $this->initData(self::UID);
+        for ($i = 0; $i < 20; $i++) {
+            $this->postJson('/tg/attendance-location', ['initData' => $a, 'lat' => 41.3, 'lng' => 69.25])->assertStatus(409);
+        }
+        $this->postJson('/tg/attendance-location', ['initData' => $a, 'lat' => 41.3, 'lng' => 69.25])->assertStatus(429);
+
+        $this->postJson('/tg/attendance-location', ['initData' => $this->initData(self::UID + 1), 'lat' => 41.3, 'lng' => 69.25])->assertStatus(409);
+    }
+
     public function test_convenience_commands(): void
     {
         $staff = $this->registerEmployee();

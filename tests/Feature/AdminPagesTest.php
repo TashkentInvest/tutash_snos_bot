@@ -34,6 +34,12 @@ class AdminPagesTest extends TestCase
         $this->assertSame(0, Inspection::counted()->where('suspicious', true)->count());
     }
 
+    public function test_guest_opening_media_link_is_redirected_to_admin_login(): void
+    {
+        $this->get('/admin-media/1')->assertRedirect('/admin/login');
+        $this->get('/admin-attendance/1')->assertRedirect('/admin/login');
+    }
+
     public function test_admin_pages_render(): void
     {
         $d = District::create(['name' => 'Test tumani', 'phone' => '991112233']);
