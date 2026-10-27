@@ -15,15 +15,18 @@
 | Bot | webhook rejimida: `POST /telegram/webhook` (maxfiy sarlavha bilan) |
 | HTTPS | certbot (avtomatik yangilanadi) |
 
-## Yangilash
-```bash
-# kodni /srv/snos ga yuklagandan keyin:
-cd /srv/snos
-sudo -u snos composer install --no-dev --optimize-autoloader
-sudo -u snos php artisan migrate --force
-sudo -u snos php artisan config:cache && sudo -u snos php artisan route:cache && sudo -u snos php artisan view:cache
-systemctl restart snos-queue
-```
+## Yangilash (CI/CD)
+`/srv/snos` — `TashkentInvest/tutash_snos_bot` repo'sining git checkout'i (`main`). Yangilash avtomatik:
+
+1. `main` ga push → GitHub Actions (`.github/workflows/ci.yml`) PHP 8.4 da testlarni ishga tushiradi.
+2. Testlar o'tsa → `deploy` jobi serverga SSH orqali ulanadi. Kalit `root` ning `authorized_keys` ida
+   `command="/usr/local/sbin/snos-deploy"` bilan cheklangan — boshqa buyruq bajara olmaydi.
+3. `/usr/local/sbin/snos-deploy` (root, repo'dan tashqarida): `git reset --hard origin/main`, `composer install --no-dev`,
+   `migrate --force`, `config/route/view:cache`, `systemctl restart snos-queue`, sog'liq tekshiruvi.
+   Xato bo'lsa — avvalgi commitga avtomatik qaytadi. Jurnal: `/var/log/snos-deploy.log`.
+
+GitHub secrets: `DEPLOY_SSH_KEY`, `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
+Qo'lda yangilash: `sudo snos-deploy`. Serverda fayllarni qo'lda tahrirlamang — keyingi deploy ularni qayta yozadi.
 Webhookni qayta o'rnatish: `sudo -u snos php artisan bot:webhook https://thudud-snos.toshkentinvest.uz/telegram/webhook`.
 
 ## Eslatmalar
