@@ -309,6 +309,68 @@ class RolesAttendanceTest extends TestCase
         $this->assertSame([], Storage::disk('local')->allFiles('attendance'));
     }
 
+    public function test_attendance_report_marks_suspicious_locations(): void
+    {
+        $staff = $this->registerEmployee();
+        Attendance::create(['staff_id' => $staff->id, 'date' => today(), 'status' => Attendance::PRESENT, 'lat' => 41.75, 'lng' => 69.25,
+            'responded_at' => now(), 'flags' => ['far_from_district', 'gps_mock_suspected']]);
+
+        $report = implode("\n", \App\Telegram\Support\AttendanceReport::chunks(today()));
+        $this->assertStringContainsString('🚩 shubhali: <b>1</b>', $report);
+        $this->assertStringContainsString('Biriktirilgan hududdan uzoqda, Soxta GPS gumoni', $report);
+    }
+
+    public function test_attendance_request_is_retried_after_transient_error(): void
+    {
+        $staff = $this->registerEmployee();
+
+        // Telegram vaqtincha xato qaytardi — so'rov "yuborilmagan" bo'lib qoladi
+        $this->bot()->willReceive([], false);
+        $this->artisan('attendance:send')->expectsOutputToContain('qayta uriniladi: 1')->assertSuccessful();
+        $row = Attendance::where('staff_id', $staff->id)->first();
+        $this->assertNull($row->sent_at);
+        $this->assertNull($row->flags);
+
+        // keyingi daqiqada (scheduler) qayta yuboriladi
+        $this->artisan('attendance:send')->expectsOutputToContain('Yuborildi: 1')->assertSuccessful();
+        $this->assertNotNull($row->refresh()->sent_at);
+
+        // doimiy xatolar (bot bloklangan, chat yo'q) qayta urinilmaydi
+        $this->assertTrue(\App\Console\Commands\SendAttendance::isPermanent(new \SergiX44\Nutgram\Telegram\Exceptions\TelegramException('Forbidden: bot was blocked by the user', 403)));
+        $this->assertFalse(\App\Console\Commands\SendAttendance::isPermanent(new \SergiX44\Nutgram\Telegram\Exceptions\TelegramException('Too Many Requests', 429)));
+        $this->assertFalse(\App\Console\Commands\SendAttendance::isPermanent(new \RuntimeException('cURL error 28')));
+    }
+
+    public function test_never_delivered_request_is_closed_as_undeliverable_and_not_sent_after_deadline(): void
+    {
+        $staff = $this->registerEmployee();
+        $row = Attendance::create(['staff_id' => $staff->id, 'date' => today(), 'status' => Attendance::SENT]);
+
+        $this->travelTo(Attendance::deadline()->addMinute());
+        $this->artisan('attendance:send')->expectsOutputToContain('muddati tugagan')->assertSuccessful();
+        $this->assertNull($row->refresh()->sent_at);
+
+        $this->artisan('attendance:close')->assertSuccessful();
+        $this->assertSame(Attendance::MISSED, $row->refresh()->status);
+        $this->assertSame(['undeliverable'], $row->flags);
+    }
+
+    public function test_upload_validation_errors_are_in_uzbek(): void
+    {
+        $staff = $this->registerEmployee();
+        $this->artisan('attendance:send')->assertSuccessful();
+        $this->bot()->hearCallbackQueryData('at:1')->reply();
+        $init = $this->initData(self::UID);
+        $this->postJson('/tg/attendance-location', ['initData' => $init, 'lat' => 41.3, 'lng' => 69.25, 'accuracy' => 10])->assertOk();
+
+        $big = UploadedFile::fake()->create('v.webm', 2500, 'video/webm');
+        $this->post('/tg/attendance-video', ['initData' => $init, 'duration' => 8, 'video' => $big], ['Accept' => 'application/json'])
+            ->assertStatus(422)->assertJsonPath('message', 'Video hajmi juda katta (1900 KB dan oshmasligi kerak). Videoni qisqaroq yozib, qayta yuboring.');
+
+        $this->postJson('/tg/attendance-location', ['initData' => $init, 'lat' => 'x', 'lng' => 'y'])
+            ->assertStatus(422)->assertJsonPath('message', 'Kenglik son bo‘lishi kerak. (yana 1 ta xato)');
+    }
+
     public function test_convenience_commands(): void
     {
         $staff = $this->registerEmployee();

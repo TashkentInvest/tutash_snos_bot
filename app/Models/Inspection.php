@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -38,6 +39,12 @@ class Inspection extends Model
     {
         // Yozuv o'chirilsa (bekor qilish, eski qoralama, prune) diskdagi rasm/videolar ham o'chiriladi — yetim fayl qolmaydi.
         static::deleted(fn (Inspection $in) => Storage::disk(config('tutash.media_disk'))->deleteDirectory("inspections/{$in->id}"));
+    }
+
+    /** Hisobga olinadigan natijalar: yuborilgan va moderator rad etmagan (rad etilganlar arxivlanadi). */
+    public function scopeCounted(Builder $query): Builder
+    {
+        return $query->where('status', self::SUBMITTED)->whereNull('archived_at');
     }
 
     public function site(): BelongsTo

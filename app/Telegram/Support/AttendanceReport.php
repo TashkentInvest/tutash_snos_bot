@@ -4,6 +4,7 @@ namespace App\Telegram\Support;
 
 use App\Models\Attendance;
 use App\Models\Staff;
+use App\Support\Gps;
 use Carbon\Carbon;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Attributes\ParseMode;
@@ -29,16 +30,23 @@ class AttendanceReport
         $who = fn (Attendance $a) => '<b>'.Ui::e($a->staff?->full_name ?: '—').'</b>'
             .($a->staff?->districts->isNotEmpty() ? ' ('.Ui::e($a->staff->districts->pluck('name')->join(', ')).')' : '');
 
+        // Joylashuv bo'yicha shubhali belgilar (hududdan uzoq, soxta GPS gumoni) — "Xabar yetkazilmadi" bu yerga kirmaydi.
+        $warnings = fn (Attendance $a) => collect($a->flags ?? [])->reject(fn ($f) => $f === 'undeliverable')
+            ->map(fn ($f) => Gps::flagLabel($f))->values();
+        $suspicious = $present->filter(fn ($a) => $warnings($a)->isNotEmpty())->count();
+
         $lines = [
             '📋 <b>Davomat xulosasi — '.$day->format('d.m.Y').'</b>',
-            "Jami: <b>{$rows->count()}</b> · ✅ ishda: <b>{$present->count()}</b> · ⚠️ sabab bilan yo‘q: <b>{$absent->count()}</b> · ❌ javob bermadi: <b>{$missed->count()}</b>",
+            "Jami: <b>{$rows->count()}</b> · ✅ ishda: <b>{$present->count()}</b> · ⚠️ sabab bilan yo‘q: <b>{$absent->count()}</b> · ❌ javob bermadi: <b>{$missed->count()}</b>"
+                .($suspicious ? " · 🚩 shubhali: <b>{$suspicious}</b>" : ''),
         ];
 
         if ($present->isNotEmpty()) {
             $lines[] = "\n✅ <b>Ishda ({$present->count()})</b>";
             foreach ($present as $i => $a) {
                 $map = $a->lat ? ' · <a href="'.\App\Support\Maps::url($a->lat, $a->lng).'">xaritada</a>' : '';
-                $lines[] = ($i + 1).'. '.$who($a).' — '.$a->responded_at?->format('H:i').$map;
+                $flags = $warnings($a)->isNotEmpty() ? ' · 🚩 <i>'.Ui::e($warnings($a)->join(', ')).'</i>' : '';
+                $lines[] = ($i + 1).'. '.$who($a).' — '.$a->responded_at?->format('H:i').$map.$flags;
             }
         }
         if ($absent->isNotEmpty()) {

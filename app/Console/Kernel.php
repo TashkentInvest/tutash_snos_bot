@@ -16,7 +16,10 @@ class Kernel extends ConsoleKernel
         $schedule->command('queue:prune-failed --hours=720')->daily();
 
         // Davomat: ish kunlari 08:45 da so'rov yuboriladi, 09:30 da yopiladi (app.timezone bo'yicha).
-        $schedule->command('attendance:send')->days(config('tutash.attendance.days'))->dailyAt(config('tutash.attendance.send_at'))->withoutOverlapping();
+        // send_at dan boshlab muddatgacha har daqiqa: vaqtinchalik xato tufayli yetmagan so'rovlar qayta yuboriladi
+        // (yuborilganlarga takror yubormaydi). Bitta yozuv — bir vaqtda ikki nusxa ishlab, qo'sh xabar ketmasligi uchun.
+        $schedule->command('attendance:send')->days(config('tutash.attendance.days'))->everyMinute()
+            ->between(config('tutash.attendance.send_at'), config('tutash.attendance.deadline'))->withoutOverlapping();
         $schedule->command('attendance:close')->days(config('tutash.attendance.days'))->dailyAt(config('tutash.attendance.deadline'))->withoutOverlapping();
     }
 

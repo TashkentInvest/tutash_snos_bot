@@ -11,23 +11,42 @@ class InspectionsChart extends ChartWidget
 
     protected static ?string $heading = 'Oxirgi 14 kun tekshiruvlari';
 
-    protected function getData(): array
+    /**
+     * Kunlar bo'yicha natijalar: "buzilgan" faqat moderator tasdiqlaganidan keyin hisoblanadi,
+     * tasdiq kutayotganlari alohida, rad etilganlari (arxiv) umuman hisoblanmaydi.
+     *
+     * @return array{labels: string[], approved: int[], pending: int[], not_demolished: int[]}
+     */
+    public static function series(int $days = 14): array
     {
-        $days = collect(range(13, 0))->map(fn ($i) => today()->subDays($i));
+        $range = collect(range($days - 1, 0))->map(fn ($i) => today()->subDays($i));
 
-        $rows = Inspection::where('status', Inspection::SUBMITTED)
-            ->where('submitted_at', '>=', $days->first())
-            ->get(['submitted_at', 'is_demolished'])
+        $rows = Inspection::counted()
+            ->where('submitted_at', '>=', $range->first())
+            ->get(['submitted_at', 'is_demolished', 'review_status'])
             ->groupBy(fn ($record) => $record->submitted_at->toDateString());
 
-        $count = fn (bool $demolished) => $days->map(fn ($d) => $rows->get($d->toDateString(), collect())->where('is_demolished', $demolished)->count())->all();
+        $count = fn (callable $match) => $range->map(fn ($d) => $rows->get($d->toDateString(), collect())->filter($match)->count())->all();
+
+        return [
+            'labels' => $range->map(fn ($d) => $d->format('d.m'))->all(),
+            'approved' => $count(fn ($r) => $r->is_demolished && $r->review_status === Inspection::REVIEW_APPROVED),
+            'pending' => $count(fn ($r) => $r->is_demolished && $r->review_status === Inspection::REVIEW_PENDING),
+            'not_demolished' => $count(fn ($r) => ! $r->is_demolished),
+        ];
+    }
+
+    protected function getData(): array
+    {
+        $s = self::series();
 
         return [
             'datasets' => [
-                ['label' => 'Buzilgan', 'data' => $count(true), 'backgroundColor' => '#16a34a'],
-                ['label' => 'Buzilmagan', 'data' => $count(false), 'backgroundColor' => '#f59e0b'],
+                ['label' => 'Buzilgan (tasdiqlangan)', 'data' => $s['approved'], 'backgroundColor' => '#16a34a'],
+                ['label' => 'Tasdiq kutilmoqda', 'data' => $s['pending'], 'backgroundColor' => '#60a5fa'],
+                ['label' => 'Buzilmagan', 'data' => $s['not_demolished'], 'backgroundColor' => '#f59e0b'],
             ],
-            'labels' => $days->map(fn ($d) => $d->format('d.m'))->all(),
+            'labels' => $s['labels'],
         ];
     }
 

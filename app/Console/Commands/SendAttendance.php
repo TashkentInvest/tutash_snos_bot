@@ -9,6 +9,7 @@ use App\Telegram\Support\Script;
 use Illuminate\Console\Command;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Attributes\ParseMode;
+use SergiX44\Nutgram\Telegram\Exceptions\TelegramException;
 
 class SendAttendance extends Command
 {
@@ -18,10 +19,16 @@ class SendAttendance extends Command
 
     public function handle(Nutgram $bot): int
     {
-        $sent = $failed = 0;
+        if (now()->greaterThan(Attendance::deadline())) {
+            $this->info('Davomat muddati tugagan — yuborilmaydi.');
+
+            return self::SUCCESS;
+        }
+
+        $sent = $failed = $retry = 0;
 
         Staff::where('status', Staff::ACTIVE)->where('role', Staff::ROLE_EMPLOYEE)->where('attendance_required', true)
-            ->each(function (Staff $staff) use ($bot, &$sent, &$failed) {
+            ->each(function (Staff $staff) use ($bot, &$sent, &$failed, &$retry) {
                 $row = Attendance::firstOrCreate(['staff_id' => $staff->id, 'date' => today()->toDateString()], ['status' => Attendance::SENT]);
                 if ($row->sent_at) {
                     return; // allaqachon yuborilgan
@@ -36,16 +43,27 @@ class SendAttendance extends Command
                     $row->update(['sent_at' => now(), 'message_id' => $message?->message_id]);
                     $sent++;
                 } catch (\Throwable $e) {
-                    $row->update(['sent_at' => now(), 'flags' => ['undeliverable']]);
-                    $failed++;
+                    if (self::isPermanent($e)) {
+                        $row->update(['sent_at' => now(), 'flags' => ['undeliverable']]);
+                        $failed++;
+                    } else {
+                        // vaqtinchalik xato (tarmoq, 429, 5xx): sent_at bo'sh qoladi, keyingi ishga tushishda qayta yuboriladi
+                        $retry++;
+                    }
                     $this->warn("Yuborilmadi: {$staff->full_name} — {$e->getMessage()}");
                 }
 
                 usleep(60_000); // Telegram limiti (~30 xabar/soniya) dan ancha past
             });
 
-        $this->info("Yuborildi: {$sent}, xato: {$failed}");
+        $this->info("Yuborildi: {$sent}, yetkazib bo‘lmaydi: {$failed}, qayta uriniladi: {$retry}");
 
         return self::SUCCESS;
+    }
+
+    /** Qayta urinish foyda bermaydigan xato: xodim botni bloklagan (403) yoki chat mavjud emas (400). */
+    public static function isPermanent(\Throwable $e): bool
+    {
+        return $e instanceof TelegramException && in_array($e->getCode(), [400, 403], true);
     }
 }

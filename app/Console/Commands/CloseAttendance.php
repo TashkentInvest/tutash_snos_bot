@@ -19,7 +19,8 @@ class CloseAttendance extends Command
         $closed = 0;
 
         Attendance::with('staff')->whereDate('date', today())->whereIn('status', Attendance::OPEN)->each(function (Attendance $row) use ($bot, &$closed) {
-            $row->update(['status' => Attendance::MISSED]);
+            // muddatgacha hech yetkazib bo'lmagan so'rov — xodim aybi emas, hisobotda ajratib ko'rsatiladi
+            $row->update(['status' => Attendance::MISSED] + ($row->sent_at ? [] : ['flags' => ['undeliverable']]));
             $closed++;
 
             if (in_array('undeliverable', $row->flags ?? [], true)) {

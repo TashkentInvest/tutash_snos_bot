@@ -15,6 +15,25 @@ class AdminPagesTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_dashboard_counts_only_confirmed_demolitions_and_skips_rejected(): void
+    {
+        $d = District::create(['name' => 'Test tumani', 'phone' => '991112233']);
+        $site = Site::create(['district_id' => $d->id, 'source_no' => 1, 'address' => 'Ko\'cha 1']);
+        $staff = Staff::create(['telegram_id' => 5, 'full_name' => 'Test Xodim', 'status' => 'active']);
+        $make = fn (array $a) => Inspection::create($a + ['site_id' => $site->id, 'staff_id' => $staff->id, 'status' => 'submitted', 'step' => 'done', 'submitted_at' => now()]);
+
+        $make(['is_demolished' => true, 'review_status' => Inspection::REVIEW_APPROVED]);
+        $make(['is_demolished' => true, 'review_status' => Inspection::REVIEW_PENDING]);
+        $make(['is_demolished' => true, 'review_status' => Inspection::REVIEW_REJECTED, 'archived_at' => now(), 'suspicious' => true]);
+        $make(['is_demolished' => false, 'reason' => 'sabab sabab sabab']);
+
+        $s = \App\Filament\Widgets\InspectionsChart::series();
+        $this->assertSame([1, 1, 1], [end($s['approved']), end($s['pending']), end($s['not_demolished'])]);
+
+        $this->assertSame(3, Inspection::counted()->whereDate('submitted_at', today())->count()); // rad etilgani hisoblanmaydi
+        $this->assertSame(0, Inspection::counted()->where('suspicious', true)->count());
+    }
+
     public function test_admin_pages_render(): void
     {
         $d = District::create(['name' => 'Test tumani', 'phone' => '991112233']);

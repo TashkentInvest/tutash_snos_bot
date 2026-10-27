@@ -85,7 +85,8 @@ class HelpHandler
         }
 
         // Hali javob berilmagan — so'rovni qayta ko'rsatamiz (jarayon boshidan boshlanadi).
-        $row->update(['status' => Attendance::SENT]);
+        // so'rov hali yetkazilmagan bo'lsa (qayta urinish kutilayotgan) — endi yetkazildi, scheduler takror yubormaydi
+        $row->update(['status' => Attendance::SENT] + ($row->sent_at ? [] : ['sent_at' => now()]));
         Ui::say($bot, AttendanceHandler::promptText($staff), AttendanceHandler::promptMarkup());
     }
 

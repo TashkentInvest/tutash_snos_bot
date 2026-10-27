@@ -19,8 +19,8 @@ class StatsOverview extends StatsOverviewWidget
     {
         $total = Site::count();
         $demolished = Site::where('status', Site::DEMOLISHED)->count();
-        $today = Inspection::where('status', Inspection::SUBMITTED)->whereDate('submitted_at', today())->count();
-        $suspicious = Inspection::where('status', Inspection::SUBMITTED)->where('suspicious', true)->count();
+        $today = Inspection::counted()->whereDate('submitted_at', today())->count();
+        $suspicious = Inspection::counted()->where('suspicious', true)->count();
         $awaiting = Inspection::where('status', Inspection::SUBMITTED)->where('review_status', Inspection::REVIEW_PENDING)->count();
 
         $sites = fn (array $filters = []) => SiteResource::getUrl('index', $filters ? ['tableFilters' => $filters] : []);
