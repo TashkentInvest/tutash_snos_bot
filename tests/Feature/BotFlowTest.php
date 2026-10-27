@@ -448,6 +448,9 @@ class BotFlowTest extends TestCase
 
     public function test_csv_import_is_idempotent(): void
     {
+        if (! is_file(base_path('dataset.csv'))) {
+            $this->markTestSkipped('dataset.csv repoda yo‘q (shaxsiy ma’lumotlar) — test faqat fayl mavjud muhitda ishlaydi.');
+        }
         $this->seed(\Database\Seeders\DistrictSeeder::class);
         $this->artisan('sites:import', ['file' => 'dataset.csv'])->assertSuccessful();
         $count = Site::count();
