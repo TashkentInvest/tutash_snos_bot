@@ -28,7 +28,11 @@ jobs:
       - run: composer install --no-interaction --no-progress --prefer-dist
 
       - name: Test muhiti
-        run: cp .env.example .env && php artisan key:generate
+        # Nutgram bo'sh token bilan ishga tushmaydi; testlarda Telegram'ga so'rov yuborilmaydi (FakeNutgram).
+        run: |
+          cp .env.example .env
+          sed -i 's/^TELEGRAM_TOKEN=.*/TELEGRAM_TOKEN=123:TEST/' .env
+          php artisan key:generate
 
       - run: vendor/bin/phpunit
 
