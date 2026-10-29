@@ -37,8 +37,10 @@ class SiteResource extends Resource
                     ->options(fn (Forms\Get $get) => Mahalla::where('district_id', $get('district_id'))->orderBy('name')->pluck('name', 'id'))
                     ->searchable(),
                 Forms\Components\TextInput::make('address')->label('Manzil (ko\'cha)')->required()->columnSpanFull(),
-                Forms\Components\TextInput::make('lat')->label('Kenglik (lat)')->numeric(),
-                Forms\Components\TextInput::make('lng')->label('Uzunlik (lng)')->numeric(),
+                Forms\Components\ViewField::make('map_picker')->hiddenLabel()->dehydrated(false)
+                    ->view('filament.forms.site-map-picker')->columnSpanFull(),
+                Forms\Components\TextInput::make('lat')->label('Kenglik (lat)')->numeric()->minValue(-90)->maxValue(90),
+                Forms\Components\TextInput::make('lng')->label('Uzunlik (lng)')->numeric()->minValue(-180)->maxValue(180),
             ]),
             Forms\Components\Section::make('Huquqbuzar')->columns(2)->schema([
                 Forms\Components\TextInput::make('violator_name')->label('F.I.SH / tashkilot'),

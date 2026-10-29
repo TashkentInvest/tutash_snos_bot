@@ -40,6 +40,34 @@ class AdminPagesTest extends TestCase
         $this->get('/admin-attendance/1')->assertRedirect('/admin/login');
     }
 
+    public function test_site_form_has_map_picker_and_saves_coordinates(): void
+    {
+        $d = District::create(['name' => 'Test tumani', 'phone' => '991112233']);
+        $site = Site::create(['district_id' => $d->id, 'source_no' => 48, 'address' => 'Guliston ko‘chasi 7-uy']);
+        $user = (new User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $user->save();
+
+        foreach (['/admin/sites/create', "/admin/sites/{$site->id}/edit"] as $url) {
+            $this->actingAs($user)->get($url)->assertOk()->assertSee('Xaritada obyekt joyini bosing', false)->assertSee('leaflet@1.9.4', false);
+        }
+
+        // xaritadan tanlangan nuqta (lat/lng maydonlariga yoziladi) saqlanadi; xarita maydonining o'zi bazaga yozilmaydi
+        \Livewire\Livewire::actingAs($user)
+            ->test(\App\Filament\Resources\SiteResource\Pages\EditSite::class, ['record' => $site->getRouteKey()])
+            ->fillForm(['lat' => 41.3264512, 'lng' => 69.3304187])
+            ->call('save')
+            ->assertHasNoFormErrors();
+        $this->assertEqualsWithDelta(41.3264512, $site->refresh()->lat, 0.0000001);
+        $this->assertEqualsWithDelta(69.3304187, $site->lng, 0.0000001);
+
+        \Livewire\Livewire::actingAs($user)
+            ->test(\App\Filament\Resources\SiteResource\Pages\CreateSite::class)
+            ->fillForm(['district_id' => $d->id, 'address' => 'Yangi ko‘cha', 'status' => Site::NOT_DEMOLISHED, 'lat' => 41.31, 'lng' => 69.27])
+            ->call('create')
+            ->assertHasNoFormErrors();
+        $this->assertDatabaseHas('sites', ['address' => 'Yangi ko‘cha', 'lat' => 41.31, 'lng' => 69.27]);
+    }
+
     public function test_admin_pages_render(): void
     {
         $d = District::create(['name' => 'Test tumani', 'phone' => '991112233']);
