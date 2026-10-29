@@ -309,6 +309,49 @@ class RolesAttendanceTest extends TestCase
         $this->assertSame([], Storage::disk('local')->allFiles('attendance'));
     }
 
+    public function test_attendance_report_also_goes_to_configured_phones(): void
+    {
+        $staff = $this->registerEmployee();
+        Attendance::create(['staff_id' => $staff->id, 'date' => today(), 'status' => Attendance::PRESENT, 'responded_at' => now()]);
+        Staff::create(['telegram_id' => 801, 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true, 'full_name' => 'Global Admin', 'phone' => '900000101']);
+        Staff::create(['telegram_id' => 802, 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'full_name' => 'Nazoratchi Bir', 'phone' => '900000102', 'attendance_required' => true]);
+        Staff::create(['telegram_id' => 803, 'status' => Staff::BLOCKED, 'role' => Staff::ROLE_EMPLOYEE, 'full_name' => 'Bloklangan', 'phone' => '900000103']);
+
+        $this->assertSame([801], \App\Telegram\Support\AttendanceReport::recipients()->pluck('telegram_id')->all());
+
+        config(['tutash.attendance.report_phones' => '+998 90 000 01 02, +998900000103']);
+        $this->assertEqualsCanonicalizing([801, 802], \App\Telegram\Support\AttendanceReport::recipients()->pluck('telegram_id')->all());
+        $this->artisan('attendance:report')->expectsOutputToContain('Yuborilgan xabarlar: 2')->assertSuccessful();
+    }
+
+    public function test_daily_demolition_report(): void
+    {
+        $staff = $this->registerEmployee();
+        Staff::create(['telegram_id' => 801, 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true, 'full_name' => 'Global Admin', 'phone' => '900000101']);
+        $other = Site::create(['district_id' => $this->district->id, 'source_no' => 3, 'address' => 'Uchinchi kocha 3']);
+        $make = fn (Site $s, array $a) => Inspection::create($a + ['site_id' => $s->id, 'staff_id' => $staff->id, 'status' => Inspection::SUBMITTED, 'step' => 'done', 'submitted_at' => now()]);
+
+        $make($this->site, ['is_demolished' => true, 'review_status' => Inspection::REVIEW_PENDING, 'suspicious' => true]);
+        $make($other, ['is_demolished' => false, 'reason' => 'Egasi hujjat olib kelishini aytdi']);
+        $make($other, ['is_demolished' => true, 'review_status' => Inspection::REVIEW_REJECTED, 'archived_at' => now()]); // rad etilgan — hisoblanmaydi
+        $make($this->site, ['is_demolished' => true, 'review_status' => Inspection::REVIEW_APPROVED, 'submitted_at' => now()->subDay()]); // kecha
+
+        $report = implode("\n", \App\Telegram\Support\InspectionReport::chunks(today()));
+        $this->assertStringContainsString('Tekshiruvlar: <b>2</b> · 🏚 buzilgan: <b>1</b> (✅ tasdiqlangan: 0, ⏳ tasdiq kutilmoqda: 1) · 🏠 buzilmagan: <b>1</b>', $report);
+        $this->assertStringContainsString('• Yunusobod tumani: 🏚 1 · 🏠 1', $report);
+        $this->assertStringContainsString('1. ⏳ Yunusobod, Test MFY, <b>Birinchi kocha 1</b> (№1) — Aliyev Ali Aliyevich', $report);
+        $this->assertStringContainsString('🚩', $report);
+        $this->assertStringContainsString('Egasi hujjat olib kelishini aytdi', $report);
+        $this->assertStringContainsString('Umumiy bajarilish: <b>1</b> / 3', $report); // $this->demolished
+
+        $this->artisan('inspections:report')->expectsOutputToContain('Yuborilgan xabarlar: 1')->assertSuccessful();
+
+        // dam olish kuni natija yo'q — yuborilmaydi; ish kunida natija bo'lmasa ham "kiritilmagan" deb yuboriladi
+        $this->travelTo(now()->next(\Carbon\Carbon::SUNDAY)->setTime(18, 0));
+        $this->artisan('inspections:report')->expectsOutputToContain('yuborilmadi')->assertSuccessful();
+        $this->assertStringContainsString('tekshiruv natijasi kiritilmagan', implode("\n", \App\Telegram\Support\InspectionReport::chunks(today())));
+    }
+
     public function test_attendance_report_marks_suspicious_locations(): void
     {
         $staff = $this->registerEmployee();

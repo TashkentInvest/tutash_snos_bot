@@ -20,6 +20,8 @@ class Kernel extends ConsoleKernel
         // (yuborilganlarga takror yubormaydi). Bitta yozuv — bir vaqtda ikki nusxa ishlab, qo'sh xabar ketmasligi uchun.
         $schedule->command('attendance:send')->days(config('tutash.attendance.days'))->everyMinute()
             ->between(config('tutash.attendance.send_at'), config('tutash.attendance.deadline'))->withoutOverlapping();
+        // Kunlik buzilish (tekshiruvlar) hisoboti — har kuni kechqurun (dam olish kuni natija bo'lmasa yuborilmaydi).
+        $schedule->command('inspections:report')->dailyAt(config('tutash.daily_report_at'))->withoutOverlapping();
         $schedule->command('attendance:close')->days(config('tutash.attendance.days'))->dailyAt(config('tutash.attendance.deadline'))->withoutOverlapping();
     }
 

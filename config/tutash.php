@@ -34,7 +34,12 @@ return [
         'min_video_seconds' => 3,
         // Xodim biriktirilgan tumanlardagi eng yaqin obyektdan shu masofadan (metr) uzoqda bo'lsa davomat "shubhali" deb belgilanadi.
         'max_distance_m' => (int) env('ATTENDANCE_MAX_DISTANCE_M', 5000),
+        // Kunlik davomat hisobotini global adminlardan tashqari oladigan telefonlar (vergul bilan).
+        'report_phones' => env('ATTENDANCE_REPORT_PHONES', ''),
     ],
+
+    // Kunlik buzilish (tekshiruvlar) hisoboti yuboriladigan vaqt.
+    'daily_report_at' => env('DAILY_REPORT_AT', '18:00'),
 
     // Bot matnlari alifbosi: classic (o‘, g‘, sh, ch) yoki new (ö, ğ, ş, ç).
     'alphabet' => env('BOT_ALPHABET', 'classic'),

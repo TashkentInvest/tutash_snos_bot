@@ -62,11 +62,16 @@ class AttendanceReport
             }
         }
 
-        // Qatorlarni 4096 belgidan oshmaydigan bo'laklarga ajratish
+        return self::split($lines);
+    }
+
+    /** Qatorlarni Telegram 4096 belgi limitidan oshmaydigan bo'laklarga ajratadi (boshqa hisobotlar uchun ham). */
+    public static function split(array $lines): array
+    {
         $chunks = [];
         $current = '';
         foreach ($lines as $line) {
-            if (mb_strlen($current) + mb_strlen($line) + 1 > 3800) {
+            if ($current !== '' && mb_strlen($current) + mb_strlen($line) + 1 > 3800) {
                 $chunks[] = $current;
                 $current = '';
             }
@@ -80,10 +85,15 @@ class AttendanceReport
     /** Barcha tumanlarni ko'radigan faol adminlarga yuboradi; yuborilgan xabarlar soni qaytadi. */
     public static function sendToAdmins(Nutgram $bot, Carbon $day): int
     {
-        $chunks = self::chunks($day);
+        return self::send($bot, self::chunks($day));
+    }
+
+    /** Hisobot bo'laklarini barcha oluvchilarga yuboradi; yuborilgan xabarlar soni qaytadi. */
+    public static function send(Nutgram $bot, array $chunks): int
+    {
         $sent = 0;
 
-        foreach (Staff::where('status', Staff::ACTIVE)->where('is_global', true)->get() as $admin) {
+        foreach (self::recipients() as $admin) {
             foreach ($chunks as $text) {
                 try {
                     $bot->sendMessage(Script::apply($text), [
@@ -99,5 +109,15 @@ class AttendanceReport
         }
 
         return $sent;
+    }
+
+    /** Hisobot oluvchilar: global adminlar + ATTENDANCE_REPORT_PHONES dagi faol foydalanuvchilar (rolidan qat'i nazar). */
+    public static function recipients(): \Illuminate\Support\Collection
+    {
+        $phones = array_values(array_filter(array_map([Staff::class, 'normalizePhone'], explode(',', (string) config('tutash.attendance.report_phones')))));
+
+        return Staff::where('status', Staff::ACTIVE)
+            ->where(fn ($q) => $q->where('is_global', true)->when($phones, fn ($q) => $q->orWhereIn('phone', $phones)))
+            ->get();
     }
 }
