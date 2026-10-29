@@ -120,6 +120,21 @@ class BotFlowTest extends TestCase
         $this->assertEquals([$this->yunus->id], $staff->districts->pluck('id')->all());
     }
 
+    public function test_changing_district_phone_relinks_registered_staff(): void
+    {
+        $this->register(); // 999075300 — Yunusobod
+        $staff = Staff::where('telegram_id', self::UID)->first();
+        $this->assertSame(['Yunusobod tumani'], $staff->districts()->pluck('name')->all());
+
+        // ikkinchi tuman ham shu xodimga berildi
+        $this->olmazor->update(['phone' => '999075300']);
+        $this->assertEqualsCanonicalizing(['Yunusobod tumani', 'Olmazor tumani'], $staff->districts()->pluck('name')->all());
+
+        // birinchi tumanning mas'uli almashdi — eski xodimdan olib tashlanadi
+        $this->yunus->update(['phone' => '901112233']);
+        $this->assertSame(['Olmazor tumani'], $staff->districts()->pluck('name')->all());
+    }
+
     public function test_global_phone_sees_all_districts(): void
     {
         config(['tutash.all_districts_phones' => '+998901756545, +998997906699']);

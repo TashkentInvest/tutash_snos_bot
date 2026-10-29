@@ -51,6 +51,23 @@ class Staff extends Model
         return $phone !== null && in_array($phone, array_filter($list), true);
     }
 
+    /**
+     * Tuman mas'ul telefoni bo'yicha ro'yxatdan o'tgan xodimlarning tumanlarini qayta bog'laydi
+     * (admin tuman telefonini o'zgartirganda). Barcha tumanlarga biriktirilganlar va global adminlarga tegilmaydi.
+     */
+    public static function resyncDistrictsByPhone(array $phones): void
+    {
+        $phones = array_values(array_filter($phones));
+        if ($phones === []) {
+            return;
+        }
+
+        self::where('status', self::ACTIVE)->where('role', self::ROLE_EMPLOYEE)->where('is_global', false)
+            ->whereIn('phone', $phones)->get()
+            ->reject(fn (Staff $s) => self::isAllDistrictsEmployeePhone($s->phone))
+            ->each(fn (Staff $s) => $s->districts()->sync(District::where('phone', $s->phone)->pluck('id')));
+    }
+
     public function inspections(): HasMany
     {
         return $this->hasMany(Inspection::class);

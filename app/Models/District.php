@@ -10,6 +10,16 @@ class District extends Model
 {
     protected $fillable = ['name', 'responsible_name', 'phone'];
 
+    protected static function booted(): void
+    {
+        // Mas'ul telefon almashsa — eski va yangi raqamdagi xodimlarning tumanlari darhol yangilanadi.
+        static::saved(function (District $district) {
+            if ($district->wasChanged('phone')) {
+                Staff::resyncDistrictsByPhone([$district->getOriginal('phone'), $district->phone]);
+            }
+        });
+    }
+
     public function mahallas(): HasMany
     {
         return $this->hasMany(Mahalla::class);
