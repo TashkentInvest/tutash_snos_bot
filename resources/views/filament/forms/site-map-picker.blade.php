@@ -1,7 +1,7 @@
 {{--
     Obyekt joyini xaritadan tanlash (yaratish va tahrirlash formasi).
     Xarita bosilganda yoki belgi sudralganda "lat"/"lng" maydonlari to'ldiriladi; maydonlarga qo'lda yozilsa — belgi ko'chadi.
-    Leaflet + OpenStreetMap faqat shu sahifada, birinchi marta kerak bo'lganda yuklanadi.
+    Leaflet (2GIS / Esri / OSM plitkalari) faqat shu sahifada, birinchi marta kerak bo'lganda yuklanadi.
 --}}
 @php
     $base = \Illuminate\Support\Str::beforeLast($getStatePath(), '.');
@@ -42,11 +42,22 @@
 
             const point = this.current();
             // Toshkent markazi — koordinata hali kiritilmagan bo'lsa
-            this.map = L.map(this.$refs.map).setView(point ?? [41.3111, 69.2797], point ? 17 : 11);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; OpenStreetMap',
-            }).addTo(this.map);
+            this.map = L.map(this.$refs.map).setView(point ?? [41.3111, 69.2797], point ? 17 : 12);
+            // Asosiy qatlam — 2GIS (Toshkent bo'yicha batafsil, kalit talab qilmaydi). tile.openstreetmap.org bizning sahifalardan
+            // (Referrer-Policy: same-origin) 'Access blocked' qaytargani uchun asosiy qilinmadi; unga sayt domeni yuboriladi.
+            const layers = {
+                'Xarita (2GIS)': L.tileLayer('https://tile{s}.maps.2gis.com/tiles?x={x}&y={y}&z={z}', {
+                    subdomains: '0123', maxZoom: 18, attribution: '&copy; 2GIS',
+                }),
+                'Sun’iy yo‘ldosh': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                    maxZoom: 19, attribution: 'Tiles &copy; Esri',
+                }),
+                'OpenStreetMap': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19, referrerPolicy: 'strict-origin-when-cross-origin', attribution: '&copy; OpenStreetMap',
+                }),
+            };
+            layers['Xarita (2GIS)'].addTo(this.map);
+            L.control.layers(layers, null, { collapsed: false }).addTo(this.map);
             if (point) this.place(point);
 
             this.map.on('click', (e) => this.pick(e.latlng.lat, e.latlng.lng));
