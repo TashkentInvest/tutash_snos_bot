@@ -120,6 +120,41 @@ class BotFlowTest extends TestCase
         $this->assertEquals([$this->yunus->id], $staff->districts->pluck('id')->all());
     }
 
+    public function test_one_phone_responsible_for_two_districts(): void
+    {
+        // bitta raqam ikki tumanga mas'ul bo'lgan holat
+        $this->olmazor->update(['phone' => '999075300']);
+        $third = District::create(['name' => 'Chilonzor tumani', 'phone' => '901234567']);
+        $thirdSite = $this->makeSite($third, 3);
+
+        $this->register();
+        $staff = Staff::where('telegram_id', self::UID)->first();
+        $this->assertSame(Staff::ACTIVE, $staff->status);
+        $this->assertEqualsCanonicalizing(['Yunusobod tumani', 'Olmazor tumani'], $staff->districts()->pluck('name')->all());
+        $this->assertTrue($staff->attendance_required);
+
+        // bosh sahifada ikkala tuman tugmasi chiqadi, uchinchisi yo'q
+        $this->bot()->hearText('/menu')->reply();
+        $sent = '';
+        foreach ($this->bot()->getRequestHistory() as $pair) {
+            $sent .= json_encode(json_decode((string) array_values($pair)[0]->getBody(), true), JSON_UNESCAPED_UNICODE);
+        }
+        $this->assertStringContainsString("d:{$this->yunus->id}", $sent);
+        $this->assertStringContainsString("d:{$this->olmazor->id}", $sent);
+        $this->assertStringNotContainsString("d:{$third->id}", $sent);
+
+        // ikkala tumandagi obyekt bo'yicha tekshiruv boshlanadi, begona tumanda — yo'q
+        $this->bot()->hearCallbackQueryData("go:{$this->foreignSite->id}")->reply(); // Olmazor
+        $this->assertSame($this->foreignSite->id, Inspection::where('status', Inspection::DRAFT)->value('site_id'));
+        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply(); // Yunusobod (eski qoralama almashadi)
+        $this->assertSame($this->site->id, Inspection::where('status', Inspection::DRAFT)->value('site_id'));
+        $this->bot()->hearCallbackQueryData("go:{$thirdSite->id}")->reply(); // Chilonzor — ruxsat yo'q
+        $this->assertSame($this->site->id, Inspection::where('status', Inspection::DRAFT)->value('site_id'));
+
+        // davomatdagi "hududdan uzoq" tekshiruvi ikkala tuman obyektlarini hisobga oladi
+        $this->assertSame(0, \App\Support\Gps::nearestSiteDistance($staff, 41.3, 69.25));
+    }
+
     public function test_changing_district_phone_relinks_registered_staff(): void
     {
         $this->register(); // 999075300 — Yunusobod
