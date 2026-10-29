@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -18,6 +20,19 @@ class District extends Model
                 Staff::resyncDistrictsByPhone([$district->getOriginal('phone'), $district->phone]);
             }
         });
+    }
+
+    /** Shu tuman mas'ul telefoni bilan botda ro'yxatdan o'tgan faol xodim (bo'lsa). */
+    public function responsibleStaff(): HasOne
+    {
+        return $this->hasOne(Staff::class, 'phone', 'phone')
+            ->where('status', Staff::ACTIVE)->where('role', Staff::ROLE_EMPLOYEE);
+    }
+
+    /** Mas'ul telefoni kiritilgan, lekin o'sha raqam bilan hali hech kim botda ro'yxatdan o'tmagan tumanlar. */
+    public function scopeUnregistered(Builder $query): Builder
+    {
+        return $query->whereNotNull('phone')->whereDoesntHave('responsibleStaff');
     }
 
     public function mahallas(): HasMany

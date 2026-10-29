@@ -29,7 +29,7 @@ class AdminPanelProvider extends PanelProvider
             ->login()
             ->brandName('Tutash Snos')
             ->sidebarCollapsibleOnDesktop()
-            ->renderHook(\Filament\View\PanelsRenderHook::USER_MENU_BEFORE, fn () => \Illuminate\Support\Facades\Blade::render("@livewire('pending-inspections-bell')"))
+            ->renderHook(\Filament\View\PanelsRenderHook::USER_MENU_BEFORE, fn () => \Illuminate\Support\Facades\Blade::render("@livewire('unregistered-districts-bell') @livewire('pending-inspections-bell')"))
             ->colors([
                 'primary' => Color::Blue,
             ])

@@ -68,6 +68,37 @@ class AdminPagesTest extends TestCase
         $this->assertDatabaseHas('sites', ['address' => 'Yangi ko‘cha', 'lat' => 41.31, 'lng' => 69.27]);
     }
 
+    public function test_unregistered_district_responsibles_are_flagged(): void
+    {
+        $a = District::create(['name' => 'A tumani', 'phone' => '900000001', 'responsible_name' => 'Azim']);
+        $b = District::create(['name' => 'B tumani', 'phone' => '900000001']); // o'sha xodim, ikkinchi tuman
+        $c = District::create(['name' => 'C tumani', 'phone' => '900000002', 'responsible_name' => 'Xasan']);
+        District::create(['name' => 'D tumani']); // telefon kiritilmagan — hisoblanmaydi
+        Staff::create(['telegram_id' => 7, 'full_name' => 'Azim Testov', 'phone' => '900000001', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE]);
+        Staff::create(['telegram_id' => 8, 'full_name' => 'Aholi', 'phone' => '900000002', 'status' => Staff::CITIZEN, 'role' => Staff::ROLE_CITIZEN]); // aholi hisoblanmaydi
+
+        $this->assertSame(['C tumani'], District::unregistered()->pluck('name')->all());
+        $this->assertSame('1', \App\Filament\Resources\DistrictResource::getNavigationBadge());
+
+        $user = (new User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $user->save();
+
+        \Livewire\Livewire::actingAs($user)->test(\App\Livewire\UnregisteredDistrictsBell::class)
+            ->assertSee('Ro‘yxatdan o‘tmagan: 1')->assertSee('C tumani — Xasan');
+
+        \Livewire\Livewire::actingAs($user)->test(\App\Filament\Resources\DistrictResource\Pages\ManageDistricts::class)
+            ->assertSee('✅ Azim Testov')->assertSee('❌ Ro‘yxatdan o‘tmagan')
+            ->filterTable('registered', false)
+            ->assertCanSeeTableRecords([$c])->assertCanNotSeeTableRecords([$a, $b]);
+
+        $this->actingAs($user)->get('/admin')->assertOk()->assertSee('Ro‘yxatdan o‘tmagan: 1');
+
+        // hammasi ro'yxatdan o'tsa — ogohlantirish yo'qoladi
+        Staff::create(['telegram_id' => 9, 'full_name' => 'Xasan Testov', 'phone' => '900000002', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE]);
+        $this->assertNull(\App\Filament\Resources\DistrictResource::getNavigationBadge());
+        \Livewire\Livewire::actingAs($user)->test(\App\Livewire\UnregisteredDistrictsBell::class)->assertDontSee('Ro‘yxatdan o‘tmagan');
+    }
+
     public function test_admin_pages_render(): void
     {
         $d = District::create(['name' => 'Test tumani', 'phone' => '991112233']);
