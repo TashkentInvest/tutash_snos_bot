@@ -150,4 +150,26 @@ class AdminPagesTest extends TestCase
         $plain->save();
         $this->actingAs($plain)->get('/admin')->assertForbidden();
     }
+
+    public function test_staff_delete_keeps_history_of_staff_with_submitted_results(): void
+    {
+        $d = District::create(['name' => 'Test tumani']);
+        $site = Site::create(['district_id' => $d->id, 'source_no' => 1, 'address' => 'Ko\'cha 1', 'lat' => 41.3, 'lng' => 69.2]);
+        $worker = Staff::create(['telegram_id' => 5, 'full_name' => 'Ishlagan', 'status' => 'active']);
+        Inspection::create(['site_id' => $site->id, 'staff_id' => $worker->id, 'status' => 'submitted', 'step' => 'done', 'submitted_at' => now()]);
+        $idle = Staff::create(['telegram_id' => 6, 'full_name' => 'Keraksiz', 'status' => 'active']);
+        $idle->districts()->attach($d->id);
+        Inspection::create(['site_id' => $site->id, 'staff_id' => $idle->id, 'status' => 'draft', 'step' => 'location']);
+        \App\Models\Attendance::create(['staff_id' => $idle->id, 'date' => today(), 'status' => 'missed']);
+        $user = (new User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $user->save();
+
+        $page = \Livewire\Livewire::actingAs($user)->test(\App\Filament\Resources\StaffResource\Pages\ManageStaff::class);
+        $page->callTableAction('delete', $worker)->assertNotified('O‘chirib bo‘lmaydi: xodimning yuborilgan natijalari bor');
+        $this->assertModelExists($worker);
+
+        $page->callTableAction('delete', $idle);
+        $this->assertModelMissing($idle);
+        $this->assertSame(0, Inspection::where('staff_id', $idle->id)->count());
+    }
 }

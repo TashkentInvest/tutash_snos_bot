@@ -6,9 +6,12 @@ use App\Filament\Resources\StaffResource\Pages;
 use App\Models\Staff;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class StaffResource extends Resource
 {
@@ -78,8 +81,33 @@ class StaffResource extends Resource
                 Tables\Actions\Action::make('block')->label('Bloklash')->color('danger')->icon('heroicon-o-no-symbol')
                     ->requiresConfirmation()->visible(fn (Staff $record) => $record->status !== Staff::BLOCKED)
                     ->action(fn (Staff $record) => $record->update(['status' => Staff::BLOCKED])),
+                Tables\Actions\DeleteAction::make()->label('O‘chirish')
+                    ->modalDescription('Xodim, uning davomat yozuvlari va tugallanmagan qoralamalari o‘chiriladi. Qayta ro‘yxatdan o‘tishi mumkin.')
+                    ->using(fn (Staff $record) => self::deleteStaff($record)),
             ])
             ->defaultSort('last_seen_at', 'desc');
+    }
+
+    /** Yuborilgan natijasi bor xodim o'chirilmaydi (tarix saqlanadi) — uni bloklash kerak. */
+    public static function deleteStaff(Staff $staff): bool
+    {
+        if ($staff->inspections()->where('status', '!=', 'draft')->exists()) {
+            Notification::make()->title('O‘chirib bo‘lmaydi: xodimning yuborilgan natijalari bor')
+                ->body('Natijalar tarixi saqlanishi uchun xodimni bloklang.')->danger()->send();
+
+            return false;
+        }
+
+        $disk = Storage::disk(config('tutash.media_disk'));
+        DB::transaction(function () use ($staff, $disk) {
+            $staff->inspections()->get()->each->delete(); // qoralamalar fayllari bilan
+            foreach ($staff->attendances()->get() as $a) {
+                $disk->delete(array_filter([$a->video_path, $a->face_video_path]));
+            }
+            $staff->delete(); // davomat va tuman bog'lanishlari cascade
+        });
+
+        return true;
     }
 
     public static function canCreate(): bool
