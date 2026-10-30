@@ -99,7 +99,7 @@
 <button id="cancelLink" class="hidden">❌ Tekshiruvni bekor qilish</button>
 
 <script src="/js/tg-camera.js?v=2"></script>
-<script src="/js/tg-location.js?v=1"></script>
+<script src="/js/tg-location.js?v=2"></script>
 <script>
 const MIN = {{ (int) $minSeconds }}, MAX = 15;
 const tg = window.Telegram && window.Telegram.WebApp;

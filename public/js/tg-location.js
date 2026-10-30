@@ -41,5 +41,11 @@
         else if (tg && tg.showAlert) tg.showAlert('Telegram: bot menyusi (⋯) → Sozlamalar → Joylashuv ruxsatini yoqing.');
     };
 
+    // Mini App menyusiga (⋯) «Sozlamalar» bandi: bot ruxsatlarini (joylashuv) ochadi.
+    if (tg && tg.SettingsButton && tg.isVersionAtLeast && tg.isVersionAtLeast('7.0')) {
+        tg.SettingsButton.onClick(() => T.openSettings());
+        tg.SettingsButton.show();
+    }
+
     w.TgLoc = T;
 })(window);

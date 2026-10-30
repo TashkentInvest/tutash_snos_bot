@@ -120,6 +120,17 @@ class BotFlowTest extends TestCase
         $this->assertEquals([$this->yunus->id], $staff->districts->pluck('id')->all());
     }
 
+    public function test_start_offers_permissions_check_to_staff(): void
+    {
+        $this->register();
+        $bot = $this->bot();
+        $bot->hearText('/start')->reply();
+        $bodies = collect($bot->getRequestHistory())->map(fn ($r) => urldecode((string) $r['request']->getBody()))->implode("\n");
+        $this->assertStringContainsString('tg\/permissions', $bodies);
+
+        $this->get('/tg/permissions')->assertOk()->assertSee('Ruxsatlarni tekshirish')->assertSee('/js/tg-location.js', false);
+    }
+
     public function test_one_phone_responsible_for_two_districts(): void
     {
         // bitta raqam ikki tumanga mas'ul bo'lgan holat

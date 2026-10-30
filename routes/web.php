@@ -12,6 +12,8 @@ Route::get('/admin-attendance/{attendance}', [MediaController::class, 'attendanc
 
 // Davomat joylashuvi (Telegram Mini App). Imzo (initData) controllerda tekshiriladi.
 Route::get('/tg/attendance-location', [\App\Http\Controllers\AttendanceLocationController::class, 'page']);
+// Ruxsatlarni tekshirish (joylashuv, kamera, mikrofon) — faqat brauzer tomonida, ma'lumot yuborilmaydi.
+Route::get('/tg/permissions', fn () => response()->view('permissions')->header('Cache-Control', 'no-store'));
 Route::post('/tg/attendance-state', [\App\Http\Controllers\AttendanceLocationController::class, 'state'])->middleware('throttle:tg-state');
 Route::post('/tg/attendance-video', [\App\Http\Controllers\AttendanceLocationController::class, 'video'])->middleware('throttle:tg-video');
 Route::post('/tg/attendance-location', [\App\Http\Controllers\AttendanceLocationController::class, 'store'])->middleware('throttle:tg-location');

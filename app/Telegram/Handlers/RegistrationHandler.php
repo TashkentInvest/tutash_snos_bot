@@ -7,6 +7,9 @@ use App\Models\District;
 use App\Models\Staff;
 use App\Telegram\Support\Ui;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
+use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\WebApp\WebAppInfo;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\KeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardMarkup;
 
@@ -35,7 +38,26 @@ class RegistrationHandler
 
         // Tasdiqlangan xodim to'g'ridan-to'g'ri ishga kiradi; qolganlarga har safar kirish turi taklif etiladi
         // (noto'g'ri tanlov yoki ruxsat etilmagan raqam holatida administrator panelda tuzatishi mumkin).
-        $staff->isActive() ? (new BrowseHandler)->home($bot) : $this->askRole($bot);
+        if (! $staff->isActive()) {
+            $this->askRole($bot);
+
+            return;
+        }
+        $staff->isCitizen() || self::permissionsPrompt($bot);
+        (new BrowseHandler)->home($bot);
+    }
+
+    /**
+     * Joylashuv, kamera va mikrofon ruxsatlarini tekshiruvchi Mini App tugmasi (xodimlarga /start da yuboriladi).
+     * Telegram joylashuv ruxsatini har bir bot uchun alohida saqlaydi — bir marta rad etilsa, shu yerdan qayta yoqiladi.
+     */
+    public static function permissionsPrompt(Nutgram $bot): void
+    {
+        Ui::say($bot, "🔐 Tekshiruv va davomat uchun botga <b>joylashuv, kamera va mikrofon</b> ruxsati kerak.\nTugmani bosib, ruxsatlarni tekshiring.",
+            InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make(
+                Ui::t('🔐 Ruxsatlarni tekshirish'),
+                web_app: new WebAppInfo(rtrim((string) config('app.url'), '/').'/tg/permissions'),
+            )));
     }
 
     /** Kirish turini (xodim yoki aholi) tanlash. */
@@ -156,6 +178,7 @@ class RegistrationHandler
         AuditLog::record('registration.ok', $bot->userId(), ['districts' => $districts->pluck('name')]);
 
         Ui::say($bot, "✅ Shaxsingiz muvaffaqiyatli tasdiqlandi.\nSizga biriktirilgan hudud: <b>".Ui::e($districts->count() === District::count() && $districts->count() > 1 ? 'barcha tumanlar' : $districts->pluck('name')->join(', '))."</b>", Ui::removeKeyboard());
+        self::permissionsPrompt($bot);
         (new BrowseHandler)->home($bot);
     }
 }
