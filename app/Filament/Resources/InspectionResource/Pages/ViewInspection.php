@@ -20,12 +20,14 @@ class ViewInspection extends ViewRecord
 
         return [
             Action::make('approve')->label('Tasdiqlash')->icon('heroicon-o-check-circle')->color('success')
-                ->requiresConfirmation()->modalHeading('Obyekt buzilganini tasdiqlaysizmi?')
-                ->modalDescription('Tasdiqlangach obyekt «Buzilgan» holatiga o‘tadi va hisoblarga qo‘shiladi.')
+                ->requiresConfirmation()->modalHeading(fn () => $this->record->isCourtCancelled() ? 'Sud qarori bekor qilinganini tasdiqlaysizmi?' : 'Obyekt buzilganini tasdiqlaysizmi?')
+                ->modalDescription(fn () => $this->record->isCourtCancelled()
+                    ? 'Ilova qilingan hujjatni tekshiring. Tasdiqlangach obyekt «Buzilmaydi» holatiga o‘tadi va umumiy sondan chiqariladi.'
+                    : 'Tasdiqlangach obyekt «Buzilgan» holatiga o‘tadi va hisoblarga qo‘shiladi.')
                 ->visible($pending)
                 ->action(function () {
                     $ok = InspectionReview::approve($this->record, auth()->id());
-                    Notification::make()->title($ok ? 'Tasdiqlandi: obyekt «Buzilgan» deb belgilandi' : 'Bu natija allaqachon ko‘rib chiqilgan')->{$ok ? 'success' : 'warning'}()->send();
+                    Notification::make()->title($ok ? ($this->record->isCourtCancelled() ? 'Tasdiqlandi: obyekt umumiy hisobdan chiqarildi' : 'Tasdiqlandi: obyekt «Buzilgan» deb belgilandi') : 'Bu natija allaqachon ko‘rib chiqilgan')->{$ok ? 'success' : 'warning'}()->send();
                     $this->record->refresh();
                 }),
             Action::make('reject')->label('Rad etish')->icon('heroicon-o-x-circle')->color('danger')

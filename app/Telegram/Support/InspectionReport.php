@@ -19,16 +19,18 @@ class InspectionReport
         $demolished = $rows->where('is_demolished', true);
         $approved = $demolished->where('review_status', Inspection::REVIEW_APPROVED)->count();
         $pending = $demolished->where('review_status', Inspection::REVIEW_PENDING)->count();
-        $progress = $rows->where('is_demolished', false)->where('in_progress', true);
-        $standing = $rows->where('is_demolished', false)->where('in_progress', false);
+        $issues = $rows->where('is_demolished', false)->whereNotNull('exempt_type');
+        $progress = $rows->where('is_demolished', false)->whereNull('exempt_type')->where('in_progress', true);
+        $standing = $rows->where('is_demolished', false)->whereNull('exempt_type')->where('in_progress', false);
 
-        $total = Site::count();
+        $total = Site::countable()->count();
         $done = Site::where('status', Site::DEMOLISHED)->count();
 
         $lines = [
             '📊 <b>Kunlik hisobot (buzilish) — '.$day->format('d.m.Y').'</b>',
             "Tekshiruvlar: <b>{$rows->count()}</b> · 🏚 buzilgan: <b>{$demolished->count()}</b>"
-                ." (✅ tasdiqlangan: {$approved}, ⏳ tasdiq kutilmoqda: {$pending}) · 🚧 jarayonda: <b>{$progress->count()}</b> · 🏠 buzilmagan: <b>{$standing->count()}</b>",
+                ." (✅ tasdiqlangan: {$approved}, ⏳ tasdiq kutilmoqda: {$pending}) · 🚧 jarayonda: <b>{$progress->count()}</b> · 🏠 buzilmagan: <b>{$standing->count()}</b>"
+                .($issues->isNotEmpty() ? " · ⚖️ muammo: <b>{$issues->count()}</b>" : ''),
             "Umumiy bajarilish: <b>{$done}</b> / {$total}".($total ? ' ('.round($done / $total * 100, 1).'%)' : ''),
         ];
 
@@ -41,8 +43,9 @@ class InspectionReport
         $lines[] = "\n<b>Tumanlar kesimida</b>";
         foreach ($rows->groupBy(fn ($i) => $i->site->district->name)->sortKeys() as $district => $items) {
             $d = $items->where('is_demolished', true)->count();
-            $p = $items->where('is_demolished', false)->where('in_progress', true)->count();
-            $lines[] = '• '.Ui::e($district).": 🏚 {$d} · 🚧 {$p} · 🏠 ".($items->count() - $d - $p);
+            $p = $items->where('is_demolished', false)->whereNull('exempt_type')->where('in_progress', true)->count();
+            $x = $items->where('is_demolished', false)->whereNotNull('exempt_type')->count();
+            $lines[] = '• '.Ui::e($district).": 🏚 {$d} · 🚧 {$p} · 🏠 ".($items->count() - $d - $p - $x).($x ? " · ⚖️ {$x}" : '');
         }
 
         if ($demolished->isNotEmpty()) {
@@ -58,6 +61,14 @@ class InspectionReport
             $lines[] = "\n🚧 <b>Buzish jarayonida ({$progress->count()})</b>";
             foreach ($progress->values() as $i => $in) {
                 $lines[] = ($i + 1).'. '.self::where($in).' — <i>'.Ui::e(Ui::cut((string) $in->reason, 120)).'</i>';
+            }
+        }
+
+        if ($issues->isNotEmpty()) {
+            $lines[] = "\n⚖️ <b>Muammo bor ({$issues->count()})</b>";
+            foreach ($issues->values() as $i => $in) {
+                $type = $in->isCourtCancelled() ? 'sud qarori bekor'.($in->review_status === Inspection::REVIEW_APPROVED ? ' ✅' : ' ⏳') : 'boshqa';
+                $lines[] = ($i + 1).'. '.self::where($in)." — {$type}: <i>".Ui::e(Ui::cut((string) $in->reason, 120)).'</i>';
             }
         }
 

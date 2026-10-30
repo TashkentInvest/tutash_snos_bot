@@ -128,11 +128,11 @@ class InspectionHandler
             // "Buzilgan" natijasi moderator tasdiqlamaguncha obyekt holatini o'zgartirmaydi (InspectionReview::approve).
             $in->update([
                 'status' => Inspection::SUBMITTED, 'step' => 'done', 'submitted_at' => now(),
-                'review_status' => $in->is_demolished ? Inspection::REVIEW_PENDING : null,
+                'review_status' => $in->needsReview() ? Inspection::REVIEW_PENDING : null,
             ]);
             $site = $in->site;
             $site->last_inspected_at = now();
-            if (! $site->isDemolished() && ! $in->is_demolished) {
+            if (! $site->isDemolished() && ! $site->isExempt() && ! $in->needsReview()) {
                 $site->status = $in->in_progress ? Site::IN_PROGRESS : Site::NOT_DEMOLISHED;
             }
             $site->save();
@@ -147,9 +147,12 @@ class InspectionHandler
             return false;
         }
 
-        return $in->is_demolished === true
-            ? $in->mediaOf(InspectionMedia::AFTER_PHOTO) && $in->mediaOf(InspectionMedia::AFTER_VIDEO)
-            : ($in->is_demolished === false && mb_strlen((string) $in->reason) >= 10);
+        if ($in->is_demolished === true) {
+            return $in->mediaOf(InspectionMedia::AFTER_PHOTO) && $in->mediaOf(InspectionMedia::AFTER_VIDEO);
+        }
+
+        return $in->is_demolished === false && mb_strlen((string) $in->reason) >= 10
+            && (! $in->isCourtCancelled() || $in->documents()->isNotEmpty());
     }
 
     // ---------------------------------------------------------------- xabarlar (chatga yuborilgan narsalar qabul qilinmaydi)

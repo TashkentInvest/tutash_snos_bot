@@ -24,7 +24,10 @@ class InspectionReview
             }
 
             $in->update(['review_status' => Inspection::REVIEW_APPROVED, 'reviewed_by' => $userId, 'reviewed_at' => now()]);
-            $in->site->update(['status' => Site::DEMOLISHED, 'demolished_at' => ($in->submitted_at ?? now())->toDateString()]);
+            // sud qarori bekor qilingan obyekt buzilmaydi va jami sondan chiqariladi
+            $in->site->update($in->isCourtCancelled()
+                ? ['status' => Site::EXEMPT, 'demolished_at' => null]
+                : ['status' => Site::DEMOLISHED, 'demolished_at' => ($in->submitted_at ?? now())->toDateString()]);
 
             return $in;
         });
@@ -34,7 +37,7 @@ class InspectionReview
         }
 
         AuditLog::record('inspection.approved', null, ['inspection' => $done->id, 'site' => $done->site_id, 'by' => $userId]);
-        self::notify($done, '✅ <b>Obyekt buzilgani tasdiqlandi.</b>'."\n".'📍 '.Ui::e($done->site->address));
+        self::notify($done, ($done->isCourtCancelled() ? '✅ <b>Sud qarori bekor qilingani tasdiqlandi</b> — obyekt hisobdan chiqarildi.' : '✅ <b>Obyekt buzilgani tasdiqlandi.</b>')."\n".'📍 '.Ui::e($done->site->address));
 
         return true;
     }
@@ -59,7 +62,7 @@ class InspectionReview
         }
 
         AuditLog::record('inspection.rejected', null, ['inspection' => $done->id, 'site' => $done->site_id, 'by' => $userId]);
-        self::notify($done, '❌ <b>Obyekt buzilgani tasdiqlanmadi.</b>'."\n".'📍 '.Ui::e($done->site->address)."\n".'Sabab: <i>'.Ui::e($note).'</i>'."\n\nObyekt bo‘yicha tekshiruvni qayta o‘tkazishingiz mumkin.");
+        self::notify($done, ($done->isCourtCancelled() ? '❌ <b>Sud qarori bekor qilingani tasdiqlanmadi.</b>' : '❌ <b>Obyekt buzilgani tasdiqlanmadi.</b>')."\n".'📍 '.Ui::e($done->site->address)."\n".'Sabab: <i>'.Ui::e($note).'</i>'."\n\nObyekt bo‘yicha tekshiruvni qayta o‘tkazishingiz mumkin.");
 
         return true;
     }

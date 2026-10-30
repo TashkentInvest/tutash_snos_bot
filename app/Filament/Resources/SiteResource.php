@@ -26,7 +26,7 @@ class SiteResource extends Resource
 
     protected static ?int $navigationSort = 1;
 
-    private const STATUS = [Site::NOT_DEMOLISHED => 'Buzilmagan', Site::IN_PROGRESS => 'Jarayonda', Site::DEMOLISHED => 'Buzilgan'];
+    private const STATUS = [Site::NOT_DEMOLISHED => 'Buzilmagan', Site::IN_PROGRESS => 'Jarayonda', Site::DEMOLISHED => 'Buzilgan', Site::EXEMPT => 'Buzilmaydi (sud qarori bekor)'];
 
     public static function form(Form $form): Form
     {

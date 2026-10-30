@@ -26,6 +26,11 @@
         .cam video.front { transform: scaleX(-1); }
         #timer { font-size: 22px; font-weight: 600; }
         .sum { text-align: left; background: #8881; border-radius: 10px; padding: 12px; font-size: 15px; line-height: 1.5; }
+        label.opt { display: block; text-align: left; padding: 12px; margin-top: 8px; border: 1px solid #8884; border-radius: 10px; font-size: 15px; }
+        .doc { display: flex; align-items: center; gap: 10px; text-align: left; padding: 8px; margin-top: 8px; background: #8881; border-radius: 10px; font-size: 15px; }
+        .doc img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; }
+        .doc span { flex: 1; }
+        .doc button { width: auto; margin: 0; padding: 6px 10px; font-size: 14px; background: transparent; color: #c0392b; }
         #cancelLink { margin-top: 26px; font-size: 14px; background: transparent; color: #c0392b; padding: 8px; }
     </style>
 </head>
@@ -58,6 +63,24 @@
     <button class="ok" data-v="1">✅ Ha, buzilgan</button>
     <button class="secondary" data-v="2">🚧 Jarayonda (qisman buzilgan)</button>
     <button class="danger" data-v="0">❌ Yo‘q, buzilmagan</button>
+    <button class="secondary" data-v="3">⚖️ Muammo bor (sud qarori bekor / boshqa)</button>
+</div>
+
+<div id="sIssue" class="hidden">
+    <p>Qanday muammo?</p>
+    <label class="opt"><input type="radio" name="issueType" value="court_cancelled" checked> ⚖️ Sud qarori bekor qilingan (hujjat ilova qilinadi)</label>
+    <label class="opt"><input type="radio" name="issueType" value="other"> 📝 Boshqa muammo</label>
+    <p id="issueHint">Izoh yozing: qaysi sud, qaror raqami va sanasi (kamida 10 ta belgi).</p>
+    <textarea id="issueText" maxlength="1000" placeholder="Masalan: Mirzo Ulug‘bek tumanlararo sudi, 08.01.2025, №2-1001-2412/47918"></textarea>
+    <button id="goIssue">Davom etish</button>
+</div>
+
+<div id="sDocs" class="hidden">
+    <p>Sud qarorining <b>barcha sahifalarini</b> rasmga olib yoki PDF faylini yuklang (ko‘pi bilan <span id="docMax">10</span> ta).</p>
+    <div id="docList"></div>
+    <input type="file" id="docFile" accept="image/*,application/pdf" multiple class="hidden">
+    <button id="goDocAdd" class="secondary">📎 Fayl qo‘shish (rasm yoki PDF)</button>
+    <button id="goDocsDone" class="ok">Davom etish</button>
 </div>
 
 <div id="sReason" class="hidden">
@@ -82,11 +105,11 @@ tg && (tg.ready(), tg.expand());
 const $ = id => document.getElementById(id), msg = $('msg');
 const say = (t, c) => { msg.textContent = t; msg.className = c || ''; };
 const initData = () => (tg ? tg.initData : '');
-const SECTIONS = ['sLocation', 'sPhoto', 'sVideo', 'sDemo', 'sReason', 'sConfirm'];
+const SECTIONS = ['sLocation', 'sPhoto', 'sVideo', 'sDemo', 'sReason', 'sIssue', 'sDocs', 'sConfirm'];
 const show = id => SECTIONS.forEach(s => $(s).classList.toggle('hidden', s !== id));
 const TITLES = {
     location: '1. Joylashuv', before_photo: '2. Hozirgi holat rasmi', before_video: '3. Hudud videosi (ixtiyoriy)', demolished: '4. Natija',
-    reason: '5. Sabab', after_photo: '5. Buzilgandan keyingi rasm', after_video: '6. Buzilgan hudud videosi (majburiy)', confirm: 'Tasdiqlash',
+    reason: '5. Sabab', issue: '5. Muammo', documents: '6. Sud qarori nusxasi', after_photo: '5. Buzilgandan keyingi rasm', after_video: '6. Buzilgan hudud videosi (majburiy)', confirm: 'Tasdiqlash',
 };
 
 // Sust/uzilib qoladigan mobil internet: so'rov cheksiz osilib qolmasligi uchun vaqt chegarasi.
@@ -163,15 +186,22 @@ async function render(s) {
                 : 'Obyekt nima uchun buzilmagan? <b>Sababini yozing</b> (kamida 10 ta belgi).';
             $('reason').placeholder = s.in_progress ? 'Masalan: 70% buzilgan, tadbirkor o‘zi buzmoqda…' : 'Sabab…';
             break;
+        case 'issue': show('sIssue'); break;
+        case 'documents': show('sDocs'); renderDocs(s); break;
         case 'confirm': show('sConfirm'); renderSummary(s); break;
         default: say('Tekshiruv yakunlangan.', 'ok-t');
     }
 }
 
 function renderSummary(s) {
-    const lines = ['📍 ' + s.address, s.demolished ? '✅ Natija: BUZILGAN' : (s.in_progress ? '🚧 Natija: JARAYONDA (qisman buzilgan)' : '❌ Natija: BUZILMAGAN')];
-    if (!s.demolished && s.reason) lines.push((s.in_progress ? 'Izoh: ' : 'Sabab: ') + s.reason);
-    lines.push('Rasm va video: ' + (s.media || []).length + ' ta');
+    const result = s.demolished ? '✅ Natija: BUZILGAN'
+        : s.exempt_type === 'court_cancelled' ? '⚖️ Natija: SUD QARORI BEKOR QILINGAN'
+        : s.exempt_type === 'other' ? '📝 Natija: BOSHQA MUAMMO'
+        : s.in_progress ? '🚧 Natija: JARAYONDA (qisman buzilgan)' : '❌ Natija: BUZILMAGAN';
+    const lines = ['📍 ' + s.address, result];
+    if (!s.demolished && s.reason) lines.push((s.in_progress || s.exempt_type ? 'Izoh: ' : 'Sabab: ') + s.reason);
+    if ((s.documents || []).length) lines.push('Ilova qilingan hujjatlar: ' + s.documents.length + ' ta');
+    lines.push('Rasm va video: ' + (s.media || []).filter(k => !k.startsWith('document_')).length + ' ta');
     if (s.distance !== null && s.distance !== undefined) lines.push('Obyektgacha masofa: ' + s.distance + ' m' + (s.far ? ' ⚠️' : ''));
     $('sum').innerHTML = '';
     lines.forEach(l => { const d = document.createElement('div'); d.textContent = l; $('sum').appendChild(d); });
@@ -304,6 +334,84 @@ document.querySelectorAll('#sDemo button').forEach(b => b.onclick = async () => 
 
 $('goReason').onclick = async () => {
     const { ok, j } = await api('reason', { reason: $('reason').value });
+    ok ? render(j) : say(j.message || 'Xatolik yuz berdi.', 'err');
+};
+
+// ---------------------------------------------------------------- muammo: sud qarori bekor / boshqa
+document.querySelectorAll('input[name=issueType]').forEach(r => r.onchange = () => {
+    const court = r.value === 'court_cancelled' && r.checked;
+    $('issueHint').textContent = court
+        ? 'Izoh yozing: qaysi sud, qaror raqami va sanasi (kamida 10 ta belgi).'
+        : 'Muammoni batafsil yozing (kamida 10 ta belgi).';
+    $('issueText').placeholder = court ? 'Masalan: Mirzo Ulug‘bek tumanlararo sudi, 08.01.2025, №2-1001-2412/47918' : 'Muammo…';
+});
+
+$('goIssue').onclick = async () => {
+    const type = document.querySelector('input[name=issueType]:checked').value;
+    const { ok, j } = await api('issue', { type, reason: $('issueText').value });
+    ok ? render(j) : say(j.message || 'Xatolik yuz berdi.', 'err');
+};
+
+function renderDocs(s) {
+    const docs = s.documents || [];
+    $('docMax').textContent = s.max_documents;
+    $('docList').innerHTML = '';
+    docs.forEach((d, i) => {
+        const row = document.createElement('div');
+        row.className = 'doc';
+        const name = document.createElement('span');
+        name.textContent = (d.pdf ? '📄 PDF fayl ' : '🖼 Sahifa ') + (i + 1);
+        const del = document.createElement('button');
+        del.textContent = '✕ O‘chirish';
+        del.onclick = async () => { const { ok, j } = await api('document/remove', { kind: d.kind }); ok ? render(j) : say(j.message || 'Xatolik yuz berdi.', 'err'); };
+        row.append(name, del);
+        $('docList').appendChild(row);
+    });
+    $('goDocAdd').disabled = docs.length >= s.max_documents;
+    $('goDocsDone').disabled = docs.length === 0;
+}
+
+// Telefon rasmi bir necha MB bo'ladi: sust internet uchun 1600 px gacha kichraytirib, JPEG qilib yuboriladi.
+function shrink(file) {
+    if (!file.type.startsWith('image/')) return Promise.resolve(file);
+    return new Promise(resolve => {
+        const img = new Image(), url = URL.createObjectURL(file);
+        img.onload = () => {
+            const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+            const c = document.createElement('canvas');
+            c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+            c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+            URL.revokeObjectURL(url);
+            c.toBlob(b => resolve(b || file), 'image/jpeg', 0.82);
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+        img.src = url;
+    });
+}
+
+$('goDocAdd').onclick = () => $('docFile').click();
+$('docFile').onchange = async () => {
+    const files = Array.from($('docFile').files || []);
+    $('docFile').value = '';
+    if (!files.length || busy) return;
+    busy = true; $('goDocAdd').disabled = true;
+    let last = null;
+    for (let i = 0; i < files.length; i++) {
+        say('Yuklanmoqda: ' + (i + 1) + ' / ' + files.length + '…');
+        const blob = await shrink(files[i]);
+        if (blob.size > 4500 * 1024) { say('Fayl juda katta (4.5 MB dan oshmasin): ' + files[i].name, 'err'); continue; }
+        const fd = new FormData();
+        fd.append('file', blob, blob.type === 'application/pdf' ? 'doc.pdf' : 'doc.jpg');
+        const { ok, j } = await api('document', fd);
+        if (!ok) { say(j.message || 'Fayl yuklanmadi.', 'err'); break; }
+        last = j;
+    }
+    busy = false;
+    if (last) { render(last); say('Yuklandi.', 'ok-t'); } else { $('goDocAdd').disabled = false; }
+};
+
+$('goDocsDone').onclick = async () => {
+    const { ok, j } = await api('documents/done');
     ok ? render(j) : say(j.message || 'Xatolik yuz berdi.', 'err');
 };
 

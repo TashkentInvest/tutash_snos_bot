@@ -23,6 +23,16 @@ class InspectionMedia extends Model
         return $this->belongsTo(Inspection::class);
     }
 
+    public function isDocument(): bool
+    {
+        return str_starts_with($this->kind, 'document_');
+    }
+
+    public function isPdf(): bool
+    {
+        return $this->mime === 'application/pdf';
+    }
+
     public function isVideo(): bool
     {
         return str_ends_with($this->kind, 'video');

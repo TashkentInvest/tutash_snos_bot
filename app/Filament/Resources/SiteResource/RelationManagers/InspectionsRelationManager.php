@@ -23,7 +23,7 @@ class InspectionsRelationManager extends RelationManager
                 Tables\Columns\TextColumn::make('staff.full_name')->label('Xodim'),
                 Tables\Columns\TextColumn::make('result')->label('Natija')->badge()
                     ->state(fn (Inspection $record) => InspectionResource::result($record))
-                    ->color(fn (Inspection $record) => $record->is_demolished ? 'success' : ($record->in_progress ? 'info' : 'warning')),
+                    ->color(fn (Inspection $record) => InspectionResource::resultColor($record)),
                 Tables\Columns\TextColumn::make('reason')->label('Sabab')->limit(50)->placeholder('—'),
             ])
             ->actions([

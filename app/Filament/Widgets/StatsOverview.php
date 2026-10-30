@@ -17,7 +17,8 @@ class StatsOverview extends StatsOverviewWidget
 
     protected function getStats(): array
     {
-        $total = Site::count();
+        $total = Site::countable()->count();
+        $exempt = Site::where('status', Site::EXEMPT)->count();
         $demolished = Site::where('status', Site::DEMOLISHED)->count();
         $today = Inspection::counted()->whereDate('submitted_at', today())->count();
         $suspicious = Inspection::counted()->where('suspicious', true)->count();
@@ -27,14 +28,15 @@ class StatsOverview extends StatsOverviewWidget
         $inspections = fn (array $filters) => InspectionResource::getUrl('index', ['tableFilters' => $filters]);
 
         return [
-            Stat::make('Jami obyektlar', number_format($total, 0, '', ' '))->url($sites()),
+            Stat::make('Jami obyektlar', number_format($total, 0, '', ' '))->url($sites())
+                ->description($exempt ? "Sud qarori bekor qilingan {$exempt} ta obyekt hisobga olinmagan" : ''),
             Stat::make('Buzilgan', number_format($demolished, 0, '', ' '))
                 ->description($total ? round($demolished / $total * 100, 1).'% bajarildi' : '')->color('success')
                 ->url($sites(['status' => ['value' => Site::DEMOLISHED]])),
             Stat::make('Buzilmagan', number_format($total - $demolished, 0, '', ' '))->color('warning')
                 ->url($sites(['status' => ['value' => Site::NOT_DEMOLISHED]])),
             Stat::make('Tasdiqlanmagan', $awaiting)->color($awaiting ? 'danger' : 'gray')
-                ->description('Moderator tasdig‘ini kutayotgan «buzilgan» natijalar')
+                ->description('Moderator tasdig‘ini kutayotgan natijalar (buzilgan / sud qarori bekor)')
                 ->url($inspections(['review_status' => ['value' => Inspection::REVIEW_PENDING]])),
             Stat::make('Bugungi tekshiruvlar', $today)
                 ->url($inspections(['date' => ['from' => today()->toDateString(), 'to' => today()->toDateString()]])),

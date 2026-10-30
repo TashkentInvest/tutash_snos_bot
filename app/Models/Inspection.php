@@ -18,8 +18,17 @@ class Inspection extends Model
     public const REVIEW_APPROVED = 'approved';
     public const REVIEW_REJECTED = 'rejected';
 
+    // "Muammo bor" natijasi: court_cancelled — sud qarori bekor qilingan (hujjat ilova qilinadi, moderator tasdiqlasa obyekt
+    // jami sondan chiqariladi), other — boshqa muammo (faqat izoh, obyekt ro'yxatda qoladi).
+    public const EXEMPT_COURT = 'court_cancelled';
+    public const EXEMPT_OTHER = 'other';
+
+    public const EXEMPT_TYPES = [self::EXEMPT_COURT => 'Sud qarori bekor qilingan', self::EXEMPT_OTHER => 'Boshqa muammo'];
+
+    public const MAX_DOCUMENTS = 10;
+
     protected $fillable = [
-        'site_id', 'staff_id', 'status', 'step', 'is_demolished', 'in_progress', 'reason',
+        'site_id', 'staff_id', 'status', 'step', 'is_demolished', 'in_progress', 'exempt_type', 'reason',
         'staff_lat', 'staff_lng', 'distance_m', 'suspicious', 'flags', 'submitted_at', 'device',
         'review_status', 'reviewed_by', 'reviewed_at', 'review_note', 'archived_at',
     ];
@@ -66,5 +75,22 @@ class Inspection extends Model
     public function mediaOf(string $kind): ?InspectionMedia
     {
         return $this->media->firstWhere('kind', $kind);
+    }
+
+    /** Ilova qilingan hujjatlar (sud qarori va h.k.): document_1 ... document_N */
+    public function documents(): \Illuminate\Support\Collection
+    {
+        return $this->media->filter(fn (InspectionMedia $m) => $m->isDocument())->sortBy('id')->values();
+    }
+
+    public function isCourtCancelled(): bool
+    {
+        return $this->exempt_type === self::EXEMPT_COURT;
+    }
+
+    /** Moderator tasdig'ini talab qiladigan natija: obyekt holatini o'zgartiradi. */
+    public function needsReview(): bool
+    {
+        return $this->is_demolished === true || $this->isCourtCancelled();
     }
 }

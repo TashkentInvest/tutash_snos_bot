@@ -52,7 +52,7 @@ class BrowseHandler
         }
 
         $districts = $staff->accessibleDistricts()
-            ->withCount(['sites', 'sites as demolished_count' => fn ($query) => $query->where('status', Site::DEMOLISHED)])
+            ->withCount(['sites' => fn ($query) => $query->countable(), 'sites as demolished_count' => fn ($query) => $query->where('status', Site::DEMOLISHED)])
             ->orderBy('name')->get();
 
         if ($districts->count() === 1) {
@@ -84,7 +84,7 @@ class BrowseHandler
 
         $perPage = config('tutash.page_size');
         $mahallas = Mahalla::where('district_id', $district->id)
-            ->withCount(['sites', 'sites as pending_count' => fn ($query) => $query->pending(), 'sites as demolished_count' => fn ($query) => $query->where('status', Site::DEMOLISHED)])
+            ->withCount(['sites' => fn ($query) => $query->countable(), 'sites as pending_count' => fn ($query) => $query->pending(), 'sites as demolished_count' => fn ($query) => $query->where('status', Site::DEMOLISHED)])
             ->orderByDesc('pending_count')->orderBy('name')
             ->get()->filter(fn ($m) => $m->sites_count > 0)->values();
 

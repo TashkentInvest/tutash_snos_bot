@@ -85,7 +85,7 @@ class Ui
 
     public static function statusEmoji(Site $site): string
     {
-        return $site->isDemolished() ? '✅' : ($site->status === Site::IN_PROGRESS ? '🚧' : ($site->last_inspected_at ? '🔁' : '⏳'));
+        return $site->isDemolished() ? '✅' : ($site->isExempt() ? '⚖️' : ($site->status === Site::IN_PROGRESS ? '🚧' : ($site->last_inspected_at ? '🔁' : '⏳')));
     }
 
     /**
@@ -116,7 +116,8 @@ class Ui
             ? '✅ <b>Buzilgan</b>'.($site->demolished_at ? ' ('.$site->demolished_at->format('d.m.Y').')' : '')
             : ($site->relationLoaded('pendingReview') && $site->pendingReview
                 ? '🕓 <b>Ko‘rib chiqilmoqda</b> (natija moderator tasdig‘ini kutmoqda)'
-                : ($site->status === Site::IN_PROGRESS ? '🚧 <b>Buzish jarayonida</b> (qisman buzilgan)' : '⏳ <b>Buzilmagan</b>')));
+                : ($site->isExempt() ? '⚖️ <b>Buzilmaydi</b> (sud qarori bekor qilingan)'
+                : ($site->status === Site::IN_PROGRESS ? '🚧 <b>Buzish jarayonida</b> (qisman buzilgan)' : '⏳ <b>Buzilmagan</b>'))));
         if (! $citizen && $site->last_inspected_at) {
             $lines[] = 'Oxirgi tekshiruv: '.$site->last_inspected_at->format('d.m.Y H:i');
         }

@@ -15,6 +15,8 @@ class Site extends Model
 
     public const IN_PROGRESS = 'in_progress'; // qisman buzilgan, buzish davom etmoqda
 
+    public const EXEMPT = 'exempt'; // buzilmaydi: sud qarori bekor qilingan yoki boshqa sabab (moderator tasdiqlagan)
+
     protected $fillable = [
         'district_id', 'mahalla_id', 'source_no', 'address', 'lat', 'lng',
         'violator_name', 'violator_passport', 'org_inn', 'area_m2', 'is_tutash',
@@ -52,6 +54,17 @@ class Site extends Model
     public function pendingReview(): HasOne
     {
         return $this->hasOne(Inspection::class)->where('status', Inspection::SUBMITTED)->where('review_status', Inspection::REVIEW_PENDING)->latestOfMany();
+    }
+
+    /** Umumiy hisobga kiradigan obyektlar: sud qarori bekor qilingani tasdiqlanganlar jami sondan chiqariladi. */
+    public function scopeCountable(Builder $query): Builder
+    {
+        return $query->where('status', '!=', self::EXEMPT);
+    }
+
+    public function isExempt(): bool
+    {
+        return $this->status === self::EXEMPT;
     }
 
     public function scopePending(Builder $query): Builder

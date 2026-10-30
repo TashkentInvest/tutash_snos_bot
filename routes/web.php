@@ -26,6 +26,10 @@ Route::prefix('tg/inspection')->middleware('throttle:tg-app')->group(function ()
     Route::post('/skip', [\App\Http\Controllers\InspectionAppController::class, 'skip']);
     Route::post('/demolished', [\App\Http\Controllers\InspectionAppController::class, 'demolished']);
     Route::post('/reason', [\App\Http\Controllers\InspectionAppController::class, 'reason']);
+    Route::post('/issue', [\App\Http\Controllers\InspectionAppController::class, 'issue']);
+    Route::post('/document', [\App\Http\Controllers\InspectionAppController::class, 'document'])->middleware('throttle:tg-media');
+    Route::post('/document/remove', [\App\Http\Controllers\InspectionAppController::class, 'documentRemove']);
+    Route::post('/documents/done', [\App\Http\Controllers\InspectionAppController::class, 'documentsDone']);
     Route::post('/submit', [\App\Http\Controllers\InspectionAppController::class, 'submit']);
     Route::post('/cancel', [\App\Http\Controllers\InspectionAppController::class, 'cancel']);
 });

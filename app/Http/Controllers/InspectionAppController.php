@@ -36,6 +36,10 @@ class InspectionAppController extends Controller
 
     private const MAX_SECONDS = 15;
 
+    private const MAX_DOC_KB = 4500; // nginx client_max_body_size 5m
+
+    private const DOC_EXT = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'application/pdf' => 'pdf'];
+
     private const EXT = ['video/webm' => 'webm', 'video/mp4' => 'mp4', 'video/quicktime' => 'mov', 'video/x-matroska' => 'webm'];
 
     public function page()
@@ -83,6 +87,9 @@ class InspectionAppController extends Controller
             'mahalla' => $in->site->mahalla?->name,
             'demolished' => $in->is_demolished,
             'in_progress' => $in->in_progress,
+            'exempt_type' => $in->exempt_type,
+            'documents' => $in->documents()->map(fn ($m) => ['kind' => $m->kind, 'pdf' => $m->isPdf()])->all(),
+            'max_documents' => Inspection::MAX_DOCUMENTS,
             'reason' => $in->reason,
             'distance' => $in->distance_m,
             'far' => in_array('far_from_site', $in->flags ?? [], true),
@@ -327,8 +334,9 @@ class InspectionAppController extends Controller
 
     public function demolished(Request $request): JsonResponse
     {
-        // 1 — buzilgan, 0 — buzilmagan, 2 — jarayonda (qisman buzilgan; izoh talab qilinadi)
-        $request->validate(['initData' => 'required|string|max:4096', 'value' => 'required|in:0,1,2']);
+        // 1 — buzilgan, 0 — buzilmagan, 2 — jarayonda (qisman buzilgan; izoh talab qilinadi),
+        // 3 — muammo bor (sud qarori bekor qilingan — hujjat bilan, yoki boshqa muammo — izoh bilan)
+        $request->validate(['initData' => 'required|string|max:4096', 'value' => 'required|in:0,1,2,3']);
 
         [, , $in, $error] = $this->context($request);
         if ($error) {
@@ -340,7 +348,122 @@ class InspectionAppController extends Controller
 
         $value = (string) $request->input('value');
         $yes = $value === '1';
-        $in->update(['is_demolished' => $yes, 'in_progress' => $value === '2', 'step' => $yes ? 'after_photo' : 'reason']);
+        $in->update([
+            'is_demolished' => $yes, 'in_progress' => $value === '2', 'exempt_type' => null,
+            'step' => $yes ? 'after_photo' : ($value === '3' ? 'issue' : 'reason'),
+        ]);
+
+        return response()->json($this->snapshot($in->refresh()));
+    }
+
+    /** "Muammo bor": sabab turi va izoh. Sud qarori bekor qilingan bo'lsa — keyin hujjatlar yuklanadi. */
+    public function issue(Request $request): JsonResponse
+    {
+        $request->validate([
+            'initData' => 'required|string|max:4096',
+            'type' => 'required|in:'.implode(',', array_keys(Inspection::EXEMPT_TYPES)),
+            'reason' => 'required|string|max:2000',
+        ]);
+
+        [, , $in, $error] = $this->context($request);
+        if ($error) {
+            return $error;
+        }
+        if ($in->step !== 'issue') {
+            return $this->wrongStep();
+        }
+
+        $text = trim(preg_replace('/\s+/u', ' ', (string) $request->input('reason')));
+        if (mb_strlen($text) < 10 || mb_strlen($text) > 1000) {
+            return $this->fail('Izoh 10 tadan 1000 tagacha belgidan iborat bo‘lishi kerak.');
+        }
+
+        $court = $request->input('type') === Inspection::EXEMPT_COURT;
+        $in->update(['exempt_type' => $request->input('type'), 'reason' => $text, 'step' => $court ? 'documents' : 'confirm']);
+
+        return response()->json($this->snapshot($in->refresh()));
+    }
+
+    /** Sud qarori nusxasi: rasm yoki PDF, bittadan yuklanadi. */
+    public function document(Request $request): JsonResponse
+    {
+        $request->validate([
+            'initData' => 'required|string|max:4096',
+            'file' => 'required|file|max:'.self::MAX_DOC_KB,
+        ]);
+
+        [$user, , $in, $error] = $this->context($request);
+        if ($error) {
+            return $error;
+        }
+        if ($in->step !== 'documents') {
+            return $this->wrongStep();
+        }
+
+        $file = $request->file('file');
+        $ext = self::DOC_EXT[$file->getMimeType()] ?? null;
+        if (! $ext || $file->getSize() < 1_000) {
+            return $this->fail('Faqat rasm (JPG, PNG) yoki PDF fayl yuklash mumkin.');
+        }
+
+        $docs = $in->documents();
+        if ($docs->count() >= Inspection::MAX_DOCUMENTS) {
+            return $this->fail('Ko‘pi bilan '.Inspection::MAX_DOCUMENTS.' ta fayl yuklash mumkin.');
+        }
+
+        // bitta qaror bir nechta obyektga tegishli bo'lishi mumkin — takror tekshiruvi faqat shu tekshiruv ichida
+        $hash = sha1_file($file->getRealPath());
+        if ($docs->contains('file_unique_id', "doc:{$in->id}:{$hash}")) {
+            return $this->fail('Bu fayl allaqachon yuklangan.');
+        }
+
+        $n = 1 + (int) $docs->map(fn ($m) => (int) substr($m->kind, strlen('document_')))->max();
+        $kind = "document_{$n}";
+        $relative = "inspections/{$in->id}/{$kind}_".substr($hash, 0, 12).".{$ext}";
+        if (! Storage::disk(config('tutash.media_disk'))->putFileAs(dirname($relative), $file, basename($relative))) {
+            return $this->fail('Faylni saqlab bo‘lmadi. Qayta urinib ko‘ring.', 500);
+        }
+        $in->media()->create([
+            'kind' => $kind, 'telegram_file_id' => 'webapp', 'file_unique_id' => "doc:{$in->id}:{$hash}",
+            'mime' => $file->getMimeType(), 'size' => $file->getSize(), 'path' => $relative, 'downloaded_at' => now(),
+        ]);
+        AuditLog::record('inspection.document_uploaded', $user['id'], ['inspection' => $in->id, 'kind' => $kind]);
+
+        return response()->json($this->snapshot($in->refresh()));
+    }
+
+    public function documentRemove(Request $request): JsonResponse
+    {
+        $request->validate(['initData' => 'required|string|max:4096', 'kind' => ['required', 'string', 'regex:/^document_\d{1,2}$/']]);
+
+        [, , $in, $error] = $this->context($request);
+        if ($error) {
+            return $error;
+        }
+        if ($in->step !== 'documents') {
+            return $this->wrongStep();
+        }
+        if ($media = $in->media()->where('kind', $request->input('kind'))->first()) {
+            Storage::disk(config('tutash.media_disk'))->delete($media->path);
+            $media->delete();
+        }
+
+        return response()->json($this->snapshot($in->refresh()));
+    }
+
+    public function documentsDone(Request $request): JsonResponse
+    {
+        [, , $in, $error] = $this->context($request);
+        if ($error) {
+            return $error;
+        }
+        if ($in->step !== 'documents') {
+            return $this->wrongStep();
+        }
+        if ($in->documents()->isEmpty()) {
+            return $this->fail('Sud qarori nusxasini (rasm yoki PDF) yuklang.');
+        }
+        $in->update(['step' => 'confirm']);
 
         return response()->json($this->snapshot($in->refresh()));
     }
@@ -382,7 +505,9 @@ class InspectionAppController extends Controller
         AuditLog::record('inspection.submitted', $user['id'], ['inspection' => $done->id, 'site' => $done->site_id, 'demolished' => $done->is_demolished, 'suspicious' => $done->suspicious]);
 
         $bot->sendMessage(Script::apply('✅ Tekshiruv natijasi saqlandi.'."\n".($done->is_demolished ? 'Obyekt «buzilgan» deb yuborildi. Natija <b>moderator tasdig‘idan keyin</b> hisobga olinadi.'
-            : ($done->in_progress ? 'Obyekt <b>buzish jarayonida</b> deb belgilandi. To‘liq buzilgach, qayta tekshiruv yuboring.' : 'Obyekt <b>buzilmagan</b> holatda qoldi.'))), [
+            : ($done->isCourtCancelled() ? 'Obyekt bo‘yicha <b>sud qarori bekor qilingani</b> yuborildi. Moderator tasdiqlagach, obyekt umumiy hisobdan chiqariladi.'
+            : ($done->in_progress ? 'Obyekt <b>buzish jarayonida</b> deb belgilandi. To‘liq buzilgach, qayta tekshiruv yuboring.'
+            : ($done->exempt_type ? 'Muammo qayd etildi, obyekt ro‘yxatda qoldi.' : 'Obyekt <b>buzilmagan</b> holatda qoldi.'))))), [
             'chat_id' => $user['id'], 'parse_mode' => ParseMode::HTML,
             'reply_markup' => Ui::markup([[Ui::btn('🏠 Bosh sahifa', 'home')]]),
         ]);

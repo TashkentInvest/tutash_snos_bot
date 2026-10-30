@@ -26,7 +26,7 @@ class DistrictProgress extends BaseWidget
     {
         return $table
             ->query(District::query()
-                ->withCount(['sites', 'sites as demolished_count' => fn ($q) => $q->where('status', 'demolished')]))
+                ->withCount(['sites' => fn ($q) => $q->countable(), 'sites as demolished_count' => fn ($q) => $q->where('status', 'demolished')]))
             ->columns([
                 Tables\Columns\TextColumn::make('name')->label('Tuman')->sortable()->url(fn (District $record) => self::sitesUrl($record)),
                 Tables\Columns\TextColumn::make('sites_count')->label('Jami')->sortable()->url(fn (District $record) => self::sitesUrl($record)),

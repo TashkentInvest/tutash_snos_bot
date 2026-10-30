@@ -330,6 +330,67 @@ class BotFlowTest extends TestCase
         $this->assertSame(Inspection::SUBMITTED, $in->refresh()->status);
     }
 
+    public function test_court_cancelled_needs_documents_and_approval_removes_site_from_total(): void
+    {
+        $this->register();
+        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
+        $in = Inspection::first();
+        $totalBefore = Site::countable()->count();
+
+        $this->app('location', ['lat' => 41.3, 'lng' => 69.25])->assertOk();
+        $this->app('photo', ['clip' => $this->webm()])->assertOk();
+        $this->app('skip')->assertOk();
+        $this->app('demolished', ['value' => '3'])->assertOk()->assertJsonPath('step', 'issue');
+        $this->app('issue', ['type' => 'court_cancelled', 'reason' => 'Mirzo Ulug‘bek tumanlararo sudi, 08.01.2025'])
+            ->assertOk()->assertJsonPath('step', 'documents');
+
+        // hujjatsiz davom etib bo'lmaydi; faqat rasm/PDF qabul qilinadi
+        $this->app('documents/done')->assertStatus(422);
+        $this->app('document', ['file' => UploadedFile::fake()->createWithContent('x.txt', str_repeat('a', 5000))])->assertStatus(422);
+        $pdf = UploadedFile::fake()->createWithContent('q.pdf', "%PDF-1.4\n".random_bytes(6000));
+        $this->app('document', ['file' => $pdf])->assertOk()->assertJsonCount(1, 'documents');
+        $jpg = UploadedFile::fake()->image('p.jpg', 800, 1100);
+        $this->app('document', ['file' => $jpg])->assertOk()->assertJsonCount(2, 'documents');
+        $this->app('document/remove', ['kind' => 'document_2'])->assertOk()->assertJsonCount(1, 'documents');
+        $this->app('documents/done')->assertOk()->assertJsonPath('step', 'confirm');
+        $this->app('submit')->assertOk();
+
+        $in->refresh();
+        $this->assertSame(Inspection::REVIEW_PENDING, $in->review_status);
+        $this->assertSame(Site::NOT_DEMOLISHED, $this->site->refresh()->status); // tasdiqqacha o'zgarmaydi
+        $doc = $in->documents()->first();
+        Storage::disk(config('tutash.media_disk'))->assertExists($doc->path);
+        $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin)->get("/admin/inspections/{$in->id}")->assertOk()
+            ->assertSee('Sud qarori bekor')->assertSee('PDF faylni ochish')->assertSee('Tasdiqlash');
+
+        $this->assertTrue(\App\Support\InspectionReview::approve($in, null));
+        $this->assertSame(Site::EXEMPT, $this->site->refresh()->status);
+        $this->assertSame($totalBefore - 1, Site::countable()->count());
+        $this->assertFalse(Site::pending()->whereKey($this->site->id)->exists());
+        $this->assertStringContainsString('sud qarori bekor', implode("\n", \App\Telegram\Support\InspectionReport::chunks(today())));
+    }
+
+    public function test_other_issue_is_text_only_and_keeps_site_in_work_list(): void
+    {
+        $this->register();
+        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
+        $in = Inspection::first();
+
+        $this->app('location', ['lat' => 41.3, 'lng' => 69.25])->assertOk();
+        $this->app('photo', ['clip' => $this->webm()])->assertOk();
+        $this->app('skip')->assertOk();
+        $this->app('demolished', ['value' => '3'])->assertOk();
+        $this->app('issue', ['type' => 'other', 'reason' => 'Obyekt egasi chet elda, eshik yopiq'])->assertOk()->assertJsonPath('step', 'confirm');
+        $this->app('submit')->assertOk();
+
+        $in->refresh();
+        $this->assertNull($in->review_status);
+        $this->assertSame(Inspection::EXEMPT_OTHER, $in->exempt_type);
+        $this->assertTrue(Site::pending()->whereKey($this->site->id)->exists());
+    }
+
     public function test_in_progress_result_marks_site_and_keeps_it_in_work_list(): void
     {
         $this->register();
