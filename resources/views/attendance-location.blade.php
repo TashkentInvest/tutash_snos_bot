@@ -11,6 +11,7 @@
         p { color: var(--tg-theme-hint-color, #666); font-size: 15px; line-height: 1.4; }
         button { width: 100%; padding: 14px; border: 0; border-radius: 10px; font-size: 17px; background: var(--tg-theme-button-color, #2481cc); color: var(--tg-theme-button-text-color, #fff); margin-top: 16px; }
         button:disabled { opacity: .6; }
+        button.secondary { background: transparent; color: var(--tg-theme-link-color, #2481cc); border: 1px solid currentColor; }
         #msg { margin-top: 16px; font-size: 15px; }
         .err { color: #d33; } .ok { color: #2a9d4a; }
         .hidden { display: none; }
@@ -25,6 +26,7 @@
     <h1>📍 1/2. Joylashuvni aniqlash</h1>
     <p>Pastdagi tugmani bosing. Telefoningiz GPS’idan joriy joylashuvingiz olinadi va davomatga qayd etiladi.</p>
     <button id="goLoc">Joylashuvni yuborish</button>
+    <button id="goLocSettings" class="secondary hidden">⚙️ Ruxsatni yoqish</button>
 </div>
 
 <div id="stepVideo" class="hidden">
@@ -37,6 +39,7 @@
 </div>
 
 <div id="msg"></div>
+<script src="/js/tg-location.js?v=1"></script>
 <script>
 const MIN = {{ (int) $minSeconds }}, MAX = 15;
 const tg = window.Telegram && window.Telegram.WebApp;
@@ -70,35 +73,20 @@ function deviceInfo() {
     });
 }
 
-// ---------------------------------------------------------------- joylashuv
-function getPosition() {
-    return new Promise((resolve, reject) => {
-        const lm = tg && tg.LocationManager;
-        if (lm && tg.isVersionAtLeast && tg.isVersionAtLeast('8.0')) {
-            lm.init(() => {
-                if (!lm.isLocationAvailable) return reject(new Error('Qurilmada joylashuv xizmati mavjud emas.'));
-                lm.getLocation(loc => loc
-                    ? resolve({ lat: loc.latitude, lng: loc.longitude, accuracy: loc.horizontal_accuracy })
-                    : reject(new Error('Joylashuvga ruxsat berilmadi. Sozlamalarda ruxsat bering va qayta urinib ko‘ring.')));
-            });
-            return;
-        }
-        navigator.geolocation.getCurrentPosition(
-            p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy }),
-            () => reject(new Error('Joylashuvga ruxsat berilmadi. Telegram uchun joylashuvga ruxsat bering.')),
-            { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
-    });
-}
-
+// ---------------------------------------------------------------- joylashuv (public/js/tg-location.js)
 $('goLoc').onclick = async () => {
-    $('goLoc').disabled = true; say('Joylashuv aniqlanmoqda…');
+    $('goLoc').disabled = true; $('goLocSettings').classList.add('hidden'); say('Joylashuv aniqlanmoqda…');
     try {
-        const { ok, j } = await api('/tg/attendance-location', { initData: initData(), device: deviceInfo(), ...(await getPosition()) });
+        const { ok, j } = await api('/tg/attendance-location', { initData: initData(), device: deviceInfo(), ...(await TgLoc.get()) });
         if (ok) { say(''); show('stepVideo'); startCamera(); return; }
         say(j.message || 'Xatolik yuz berdi. Qayta urinib ko‘ring.', 'err');
-    } catch (e) { say(e.message || 'Xatolik yuz berdi.', 'err'); }
+    } catch (e) {
+        say(e.message || 'Xatolik yuz berdi.', 'err');
+        $('goLocSettings').classList.toggle('hidden', !e.settings);
+    }
     $('goLoc').disabled = false;
 };
+$('goLocSettings').onclick = () => TgLoc.openSettings();
 
 // ---------------------------------------------------------------- video
 // Kamera oqimi to'g'ridan-to'g'ri yoziladi (kanvas ishlatilmaydi: ba'zi Android qurilmalarda u qora kadr beradi).

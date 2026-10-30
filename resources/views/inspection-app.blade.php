@@ -41,6 +41,7 @@
 <div id="sLocation" class="hidden">
     <p>Tekshiruv faqat <b>obyekt hududida</b> (belgilangan radius ichida) o‘tkaziladi. Joylashuvingiz telefon GPS’idan avtomatik aniqlanadi.</p>
     <button id="goLoc">📍 Joylashuvni yuborish</button>
+    <button id="goLocSettings" class="secondary hidden">⚙️ Ruxsatni yoqish</button>
 </div>
 
 <div id="sPhoto" class="hidden">
@@ -98,6 +99,7 @@
 <button id="cancelLink" class="hidden">❌ Tekshiruvni bekor qilish</button>
 
 <script src="/js/tg-camera.js?v=2"></script>
+<script src="/js/tg-location.js?v=1"></script>
 <script>
 const MIN = {{ (int) $minSeconds }}, MAX = 15;
 const tg = window.Telegram && window.Telegram.WebApp;
@@ -207,41 +209,26 @@ function renderSummary(s) {
     lines.forEach(l => { const d = document.createElement('div'); d.textContent = l; $('sum').appendChild(d); });
 }
 
-// ---------------------------------------------------------------- joylashuv
-function getPosition() {
-    return new Promise((resolve, reject) => {
-        const lm = tg && tg.LocationManager;
-        if (lm && tg.isVersionAtLeast && tg.isVersionAtLeast('8.0')) {
-            lm.init(() => {
-                if (!lm.isLocationAvailable) return reject(new Error('Qurilmada joylashuv xizmati mavjud emas.'));
-                lm.getLocation(loc => loc
-                    ? resolve({ lat: loc.latitude, lng: loc.longitude, accuracy: loc.horizontal_accuracy })
-                    : reject(new Error('Joylashuvga ruxsat berilmadi. Sozlamalarda ruxsat bering va qayta urinib ko‘ring.')));
-            });
-            return;
-        }
-        navigator.geolocation.getCurrentPosition(
-            p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy }),
-            () => reject(new Error('Joylashuvga ruxsat berilmadi. Telegram uchun joylashuvga ruxsat bering.')),
-            { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
-    });
-}
-
+// ---------------------------------------------------------------- joylashuv (public/js/tg-location.js)
 // Oyna ochilishi bilanoq joylashuv aniqlanadi va obyekt hududidan uzoq bo'lsa, rad etiladi.
 async function checkLocation() {
     if (busy) return;
-    busy = true; $('goLoc').disabled = true; say('Joylashuv aniqlanmoqda…');
+    busy = true; $('goLoc').disabled = true; $('goLocSettings').classList.add('hidden'); say('Joylashuv aniqlanmoqda…');
     try {
-        const { ok, j } = await api('location', await getPosition());
+        const { ok, j } = await api('location', await TgLoc.get());
         busy = false;
         if (ok) return render(j);
         say(j.message || 'Xatolik yuz berdi. Qayta urinib ko‘ring.', 'err');
-    } catch (e) { say(e.message || 'Xatolik yuz berdi.', 'err'); }
+    } catch (e) {
+        say(e.message || 'Xatolik yuz berdi.', 'err');
+        $('goLocSettings').classList.toggle('hidden', !e.settings);
+    }
     busy = false;
     $('goLoc').textContent = '🔄 Qayta tekshirish'; $('goLoc').disabled = false;
 }
 
 $('goLoc').onclick = checkLocation;
+$('goLocSettings').onclick = () => TgLoc.openSettings();
 
 // ---------------------------------------------------------------- rasm
 async function openPhotoCam() {
