@@ -89,16 +89,36 @@ const TITLES = {
     reason: '5. Sabab', after_photo: '5. Buzilgandan keyingi rasm', after_video: '6. Buzilgan hudud videosi (majburiy)', confirm: 'Tasdiqlash',
 };
 
+// Sust/uzilib qoladigan mobil internet: so'rov cheksiz osilib qolmasligi uchun vaqt chegarasi.
+async function post(path, body, ms) {
+    const isForm = body instanceof FormData;
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), ms);
+    try {
+        const r = await fetch('/tg/inspection/' + path, {
+            method: 'POST', signal: ctl.signal,
+            headers: { 'Accept': 'application/json', ...(isForm ? {} : { 'Content-Type': 'application/json' }) },
+            body: isForm ? body : JSON.stringify({ initData: initData(), device: TgCam.info(), ...(body || {}) }),
+        });
+        const j = await r.json().catch(() => ({}));
+        return { ok: r.ok && j.ok, j };
+    } finally { clearTimeout(timer); }
+}
+
 async function api(path, body) {
     const isForm = body instanceof FormData;
     if (isForm) { body.append('initData', initData()); body.append('device', TgCam.info()); }
-    const r = await fetch('/tg/inspection/' + path, {
-        method: 'POST',
-        headers: { 'Accept': 'application/json', ...(isForm ? {} : { 'Content-Type': 'application/json' }) },
-        body: isForm ? body : JSON.stringify({ initData: initData(), device: TgCam.info(), ...(body || {}) }),
-    });
-    const j = await r.json().catch(() => ({}));
-    return { ok: r.ok && j.ok, j };
+    try {
+        return await post(path, body, isForm ? 180000 : 25000);
+    } catch (e) {
+        // Javob yo'qolgan bo'lishi mumkin: serverdagi holatni so'raymiz — so'rov yetib borgan bo'lsa, keyingi bosqichga o'tamiz.
+        const lost = { ok: false, j: { message: 'Internet aloqasi sust yoki uzildi. Aloqani tekshirib, qayta urinib ko‘ring.' } };
+        if (path === 'state') return lost;
+        try {
+            const s = await post('state', null, 15000);
+            if (s.ok && state && s.j.step !== state.step) return s;
+        } catch (_) {}
+        return lost;
+    }
 }
 
 let busy = false, session = null, state = null;

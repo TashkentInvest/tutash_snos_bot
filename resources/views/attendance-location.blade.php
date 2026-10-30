@@ -46,10 +46,17 @@ const say = (t, c) => { msg.textContent = t; msg.className = c || ''; };
 const show = id => ['stepLocation', 'stepVideo'].forEach(s => $(s).classList.toggle('hidden', s !== id));
 const initData = () => (tg ? tg.initData : '');
 
+// Sust mobil internetda so'rov cheksiz osilib qolmasin: vaqt chegarasi o'tsa — xato (qayta urinish tugmasi chiqadi).
 async function api(path, body) {
-    const r = await fetch(path, { method: 'POST', headers: { 'Accept': 'application/json', ...(body instanceof FormData ? {} : { 'Content-Type': 'application/json' }) }, body: body instanceof FormData ? body : JSON.stringify(body) });
-    const j = await r.json().catch(() => ({}));
-    return { ok: r.ok && j.ok, j };
+    const isForm = body instanceof FormData;
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), isForm ? 180000 : 25000);
+    try {
+        const r = await fetch(path, { method: 'POST', signal: ctl.signal, headers: { 'Accept': 'application/json', ...(isForm ? {} : { 'Content-Type': 'application/json' }) }, body: isForm ? body : JSON.stringify(body) });
+        const j = await r.json().catch(() => ({}));
+        return { ok: r.ok && j.ok, j };
+    } catch (e) {
+        return { ok: false, j: { message: 'Internet aloqasi sust yoki uzildi. Aloqani tekshirib, qayta urinib ko‘ring.' } };
+    } finally { clearTimeout(timer); }
 }
 
 function deviceInfo() {
