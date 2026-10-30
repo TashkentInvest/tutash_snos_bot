@@ -11,6 +11,11 @@ use Filament\Widgets\TableWidget as BaseWidget;
 /** Dashboard: bugungi davomat ro'yxati (vaqt, joylashuv xaritasi, video, sabab). */
 class AttendanceList extends BaseWidget
 {
+    public static function canView(): bool
+    {
+        return \App\Models\User::currentIsAdmin();
+    }
+
     protected static ?int $sort = 2;
 
     protected static ?string $heading = 'Bugungi davomat ro‘yxati';

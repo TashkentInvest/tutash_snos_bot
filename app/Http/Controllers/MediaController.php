@@ -10,7 +10,7 @@ class MediaController extends Controller
 {
     public function __invoke(InspectionMedia $media)
     {
-        abort_unless(auth()->user()?->is_admin, 403);
+        abort_unless(auth()->user()?->is_admin || auth()->user()?->is_viewer, 403);
 
         $disk = Storage::disk(config('tutash.media_disk'));
         abort_unless($media->path && $disk->exists($media->path), 404);

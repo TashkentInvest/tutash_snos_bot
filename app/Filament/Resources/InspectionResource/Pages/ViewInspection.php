@@ -16,7 +16,7 @@ class ViewInspection extends ViewRecord
 
     protected function getHeaderActions(): array
     {
-        $pending = fn () => $this->record->review_status === Inspection::REVIEW_PENDING;
+        $pending = fn () => $this->record->review_status === Inspection::REVIEW_PENDING && \App\Models\User::currentIsAdmin();
 
         return [
             Action::make('approve')->label('Tasdiqlash')->icon('heroicon-o-check-circle')->color('success')

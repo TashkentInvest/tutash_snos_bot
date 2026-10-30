@@ -7,6 +7,7 @@ use App\Models\Staff;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
+use App\Models\User;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -16,6 +17,12 @@ use Illuminate\Support\Facades\Storage;
 class StaffResource extends Resource
 {
     protected static ?string $model = Staff::class;
+
+    // Kuzatuvchi (is_viewer) bu bo'limni ko'rmaydi — faqat admin.
+    public static function canViewAny(): bool
+    {
+        return User::currentIsAdmin();
+    }
 
     protected static ?string $navigationIcon = 'heroicon-o-users';
 

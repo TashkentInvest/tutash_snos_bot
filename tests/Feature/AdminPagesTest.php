@@ -151,6 +151,40 @@ class AdminPagesTest extends TestCase
         $this->actingAs($plain)->get('/admin')->assertForbidden();
     }
 
+    public function test_viewer_sees_only_sites_read_only(): void
+    {
+        $d = District::create(['name' => 'Test tumani']);
+        $site = Site::create(['district_id' => $d->id, 'source_no' => 1, 'address' => 'Ko\'cha 1', 'lat' => 41.3, 'lng' => 69.2]);
+        $staff = Staff::create(['telegram_id' => 5, 'full_name' => 'Test Xodim', 'status' => 'active']);
+        $in = Inspection::create(['site_id' => $site->id, 'staff_id' => $staff->id, 'status' => 'submitted', 'step' => 'done', 'is_demolished' => true, 'review_status' => 'pending', 'submitted_at' => now()]);
+        $media = $in->media()->create(['kind' => 'before_photo', 'telegram_file_id' => 'webapp', 'file_unique_id' => 'x1', 'path' => 'inspections/x.jpg', 'mime' => 'image/jpeg']);
+        $att = \App\Models\Attendance::create(['staff_id' => $staff->id, 'date' => today(), 'status' => 'present', 'video_path' => 'attendance/x.mp4']);
+        \Illuminate\Support\Facades\Storage::fake('local');
+        \Illuminate\Support\Facades\Storage::disk('local')->put('inspections/x.jpg', 'img');
+        \Illuminate\Support\Facades\Storage::disk('local')->put('attendance/x.mp4', 'vid');
+        $viewer = (new User)->forceFill(['name' => 'Kuzatuvchi', 'email' => 'v@t.test', 'password' => 'secret-pass-3', 'is_viewer' => true]);
+        $viewer->save();
+
+        foreach (['/admin', '/admin/sites', "/admin/sites/{$site->id}", "/admin/inspections/{$in->id}", "/admin-media/{$media->id}"] as $url) {
+            $this->actingAs($viewer)->get($url)->assertOk();
+        }
+        foreach (['/admin/staff', '/admin/districts', '/admin/attendances', '/admin/sites/create', "/admin/sites/{$site->id}/edit", route('admin.attendance-video', $att)] as $url) {
+            $this->actingAs($viewer)->get($url)->assertForbidden();
+        }
+
+        $this->actingAs($viewer)->get('/admin')->assertDontSee('pending-inspections-bell', false)->assertDontSee('Davomat');
+        $this->actingAs($viewer)->get("/admin/inspections/{$in->id}")->assertDontSee('Tasdiqlash');
+        \Livewire\Livewire::actingAs($viewer)->test(\App\Filament\Resources\SiteResource\Pages\ListSites::class)
+            ->assertTableActionHidden('edit', $site);
+        $this->assertFalse(\App\Filament\Widgets\AttendanceToday::canView());
+
+        $this->artisan('panel:user', ['email' => 'Kuz@T.test', '--viewer' => true, '--name' => 'Kuz'])
+            ->expectsQuestion('Parol (kamida 10 belgi)', 'uzun-parol-123')->assertSuccessful();
+        $created = User::where('email', 'kuz@t.test')->first();
+        $this->assertTrue($created->is_viewer);
+        $this->assertFalse($created->is_admin);
+    }
+
     public function test_staff_delete_keeps_history_of_staff_with_submitted_results(): void
     {
         $d = District::create(['name' => 'Test tumani']);

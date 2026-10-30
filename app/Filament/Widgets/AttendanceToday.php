@@ -9,6 +9,11 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class AttendanceToday extends StatsOverviewWidget
 {
+    public static function canView(): bool
+    {
+        return \App\Models\User::currentIsAdmin();
+    }
+
     protected static ?int $sort = 1;
 
     protected ?string $heading = 'Bugungi davomat';

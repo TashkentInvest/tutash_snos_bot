@@ -10,6 +10,7 @@ use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Infolists;
 use Filament\Infolists\Infolist;
+use App\Models\User;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -17,6 +18,27 @@ use Filament\Tables\Table;
 class SiteResource extends Resource
 {
     protected static ?string $model = Site::class;
+
+    // Kuzatuvchi obyektlarni faqat ko'radi: qo'shish, tahrirlash, o'chirish — faqat admin.
+    public static function canCreate(): bool
+    {
+        return User::currentIsAdmin();
+    }
+
+    public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return User::currentIsAdmin();
+    }
+
+    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return User::currentIsAdmin();
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return User::currentIsAdmin();
+    }
 
     protected static ?string $navigationIcon = 'heroicon-o-building-office-2';
 

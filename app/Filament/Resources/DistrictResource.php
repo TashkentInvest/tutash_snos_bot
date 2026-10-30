@@ -6,6 +6,7 @@ use App\Filament\Resources\DistrictResource\Pages;
 use App\Models\District;
 use Filament\Forms;
 use Filament\Forms\Form;
+use App\Models\User;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -13,6 +14,12 @@ use Filament\Tables\Table;
 class DistrictResource extends Resource
 {
     protected static ?string $model = District::class;
+
+    // Kuzatuvchi (is_viewer) bu bo'limni ko'rmaydi — faqat admin.
+    public static function canViewAny(): bool
+    {
+        return User::currentIsAdmin();
+    }
 
     protected static ?string $navigationIcon = 'heroicon-o-map';
 

@@ -8,6 +8,7 @@ use Filament\Forms;
 use Filament\Infolists;
 use Filament\Notifications\Notification;
 use Filament\Infolists\Infolist;
+use App\Models\User;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -16,6 +17,17 @@ use Filament\Tables\Table;
 class InspectionResource extends Resource
 {
     protected static ?string $model = Inspection::class;
+
+    // Kuzatuvchi menyuda tekshiruvlar bo'limini ko'rmaydi (natijani obyekt sahifasidan ochadi), tasdiqlash — faqat admin.
+    public static function shouldRegisterNavigation(): bool
+    {
+        return User::currentIsAdmin();
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return User::currentIsAdmin();
+    }
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
 
@@ -58,7 +70,7 @@ class InspectionResource extends Resource
                 ->modalDescription(fn (Inspection $record) => $record->isCourtCancelled()
                     ? 'Ilova qilingan hujjatni tekshiring. Tasdiqlangach obyekt «Buzilmaydi» holatiga o‘tadi va umumiy sondan chiqariladi.'
                     : 'Tasdiqlangach obyekt «Buzilgan» holatiga o‘tadi va hisoblarga qo‘shiladi.')
-                ->visible(fn (Inspection $record) => $record->review_status === Inspection::REVIEW_PENDING)
+                ->visible(fn (Inspection $record) => $record->review_status === Inspection::REVIEW_PENDING && User::currentIsAdmin())
                 ->action(function (Inspection $record) {
                     $ok = \App\Support\InspectionReview::approve($record, auth()->id());
                     Notification::make()->title($ok ? ($record->isCourtCancelled() ? 'Tasdiqlandi: obyekt umumiy hisobdan chiqarildi' : 'Tasdiqlandi: obyekt «Buzilgan» deb belgilandi') : 'Bu natija allaqachon ko‘rib chiqilgan')->{$ok ? 'success' : 'warning'}()->send();
@@ -66,7 +78,7 @@ class InspectionResource extends Resource
             Tables\Actions\Action::make('reject')->label('Rad etish')->icon('heroicon-o-x-circle')->color('danger')
                 ->modalHeading('Natijani rad etish')
                 ->form([Forms\Components\Textarea::make('note')->label('Sabab (xodimga yuboriladi)')->required()->minLength(5)->maxLength(500)])
-                ->visible(fn (Inspection $record) => $record->review_status === Inspection::REVIEW_PENDING)
+                ->visible(fn (Inspection $record) => $record->review_status === Inspection::REVIEW_PENDING && User::currentIsAdmin())
                 ->action(function (Inspection $record, array $data) {
                     $ok = \App\Support\InspectionReview::reject($record, auth()->id(), $data['note']);
                     Notification::make()->title($ok ? 'Natija rad etildi, obyekt holati o‘zgarmadi' : 'Bu natija allaqachon ko‘rib chiqilgan')->{$ok ? 'success' : 'warning'}()->send();

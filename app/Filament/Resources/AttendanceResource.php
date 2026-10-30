@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\AttendanceResource\Pages;
 use App\Models\Attendance;
+use App\Models\User;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -12,6 +13,12 @@ use Filament\Tables\Table;
 class AttendanceResource extends Resource
 {
     protected static ?string $model = Attendance::class;
+
+    // Kuzatuvchi (is_viewer) bu bo'limni ko'rmaydi — faqat admin.
+    public static function canViewAny(): bool
+    {
+        return User::currentIsAdmin();
+    }
 
     protected static ?string $navigationIcon = 'heroicon-o-clock';
 

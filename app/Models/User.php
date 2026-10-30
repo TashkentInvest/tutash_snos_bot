@@ -27,10 +27,17 @@ class User extends Authenticatable implements FilamentUser
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'is_admin' => 'boolean',
+        'is_viewer' => 'boolean',
     ];
 
     public function canAccessPanel(Panel $panel): bool
     {
-        return (bool) $this->is_admin;
+        return (bool) $this->is_admin || (bool) $this->is_viewer;
+    }
+
+    /** Joriy foydalanuvchi to'liq admin (kuzatuvchi emas) — boshqaruv amallari, davomat va sozlamalar faqat unga. */
+    public static function currentIsAdmin(): bool
+    {
+        return (bool) auth()->user()?->is_admin;
     }
 }
