@@ -66,13 +66,14 @@ class InspectionResource extends Resource
     {
         return [
             Tables\Actions\Action::make('approve')->label('Tasdiqlash')->icon('heroicon-o-check-circle')->color('success')
-                ->requiresConfirmation()->modalHeading(fn (Inspection $record) => $record->isCourtCancelled() ? 'Sud qarori bekor qilinganini tasdiqlaysizmi?' : 'Obyekt buzilganini tasdiqlaysizmi?')
+                ->modalHeading(fn (Inspection $record) => $record->isCourtCancelled() ? 'Sud qarori bekor qilinganini tasdiqlaysizmi?' : 'Obyekt buzilganini tasdiqlaysizmi?')
                 ->modalDescription(fn (Inspection $record) => $record->isCourtCancelled()
                     ? 'Ilova qilingan hujjatni tekshiring. Tasdiqlangach obyekt «Buzilmaydi» holatiga o‘tadi va umumiy sondan chiqariladi.'
                     : 'Tasdiqlangach obyekt «Buzilgan» holatiga o‘tadi va hisoblarga qo‘shiladi.')
+                ->form([self::approveNote()])->modalSubmitActionLabel('Tasdiqlash')
                 ->visible(fn (Inspection $record) => $record->review_status === Inspection::REVIEW_PENDING && User::currentIsAdmin())
-                ->action(function (Inspection $record) {
-                    $ok = \App\Support\InspectionReview::approve($record, auth()->id());
+                ->action(function (Inspection $record, array $data) {
+                    $ok = \App\Support\InspectionReview::approve($record, auth()->id(), $data['note'] ?? null);
                     Notification::make()->title($ok ? ($record->isCourtCancelled() ? 'Tasdiqlandi: obyekt umumiy hisobdan chiqarildi' : 'Tasdiqlandi: obyekt «Buzilgan» deb belgilandi') : 'Bu natija allaqachon ko‘rib chiqilgan')->{$ok ? 'success' : 'warning'}()->send();
                 }),
             Tables\Actions\Action::make('reject')->label('Rad etish')->icon('heroicon-o-x-circle')->color('danger')
@@ -83,12 +84,54 @@ class InspectionResource extends Resource
                     $ok = \App\Support\InspectionReview::reject($record, auth()->id(), $data['note']);
                     Notification::make()->title($ok ? 'Natija rad etildi, obyekt holati o‘zgarmadi' : 'Bu natija allaqachon ko‘rib chiqilgan')->{$ok ? 'success' : 'warning'}()->send();
                 }),
+            ...self::followupActions(),
         ];
+    }
+
+    public static function approveNote(): Forms\Components\Textarea
+    {
+        return Forms\Components\Textarea::make('note')->label('Izoh (ixtiyoriy)')->maxLength(500)
+            ->placeholder('Masalan: qolgan devorni ham buzib, oxiriga yetkazing')
+            ->helperText('Izoh yozilsa, xodimga yuboriladi va u bajarilgan ishni rasm/video bilan tasdiqlaydi. Bajarilishi «Izoh holati» ustunida kuzatiladi.');
+    }
+
+    /** Moderator izohi bajarilishini nazorat qilish: yopish yoki (tasdiqlanganda) qayta izoh berish. */
+    public static function followupActions(): array
+    {
+        return [
+            Tables\Actions\Action::make('closeFollowup')->label('Izohni yopish')->icon('heroicon-o-check-badge')->color('success')
+                ->requiresConfirmation()->modalHeading('Izoh bajarildi deb yopilsinmi?')
+                ->modalDescription('Xodim yuborgan rasm va videolarni tekshirib chiqing.')
+                ->visible(fn (Inspection $record) => $record->followup === Inspection::FOLLOWUP_DONE && User::currentIsAdmin())
+                ->action(function (Inspection $record) {
+                    $ok = \App\Support\InspectionReview::closeFollowup($record, auth()->id());
+                    Notification::make()->title($ok ? 'Izoh yopildi' : 'Izoh allaqachon yopilgan')->{$ok ? 'success' : 'warning'}()->send();
+                }),
+            Tables\Actions\Action::make('reopenFollowup')->label('Bajarilmagan')->icon('heroicon-o-arrow-path')->color('warning')
+                ->modalHeading('Izoh to‘liq bajarilmagan')
+                ->form([Forms\Components\Textarea::make('note')->label('Yangi izoh (xodimga yuboriladi)')->required()->minLength(5)->maxLength(500)])
+                ->visible(fn (Inspection $record) => $record->followup === Inspection::FOLLOWUP_DONE && $record->review_status === Inspection::REVIEW_APPROVED && User::currentIsAdmin())
+                ->action(function (Inspection $record, array $data) {
+                    $ok = \App\Support\InspectionReview::reopenFollowup($record, auth()->id(), $data['note']);
+                    Notification::make()->title($ok ? 'Izoh xodimga qayta yuborildi' : 'Holat o‘zgargan, sahifani yangilang')->{$ok ? 'success' : 'warning'}()->send();
+                }),
+        ];
+    }
+
+    public static function followupColor(?string $state): string
+    {
+        return match ($state) {
+            Inspection::FOLLOWUP_OPEN => 'warning',
+            Inspection::FOLLOWUP_DONE => 'danger',
+            Inspection::FOLLOWUP_CLOSED => 'success',
+            default => 'gray',
+        };
     }
 
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {
-        return parent::getEloquentQuery()->where('status', Inspection::SUBMITTED);
+        // izoh bo'yicha yuborilgan rasm/videolar asosiy natija sahifasida ko'rsatiladi
+        return parent::getEloquentQuery()->where('status', Inspection::SUBMITTED)->whereNull('followup_of');
     }
 
     public static function result(Inspection $in): string
@@ -126,7 +169,12 @@ class InspectionResource extends Resource
                         Inspection::REVIEW_APPROVED => 'success',
                         Inspection::REVIEW_REJECTED => 'gray',
                         default => 'gray',
-                    }),
+                    })
+                    ->description(fn (Inspection $record) => $record->rework_of ? '🔁 Tuzatib qayta yuborilgan' : null),
+                Tables\Columns\TextColumn::make('followup')->label('Izoh holati')->badge()
+                    ->formatStateUsing(fn ($state) => Inspection::FOLLOWUPS[$state] ?? '—')
+                    ->color(fn ($state) => self::followupColor($state))
+                    ->tooltip(fn (Inspection $record) => $record->review_note),
                 Tables\Columns\TextColumn::make('distance_m')->label('Masofa (m)')->placeholder('—'),
                 Tables\Columns\IconColumn::make('suspicious')->label('Shubhali')->boolean()
                     ->trueIcon('heroicon-o-exclamation-triangle')->trueColor('danger')->falseIcon('')->falseColor('gray'),
@@ -144,6 +192,7 @@ class InspectionResource extends Resource
                         default => $query,
                     }),
                 Tables\Filters\SelectFilter::make('review_status')->label('Tasdiq')->options(self::REVIEW),
+                Tables\Filters\SelectFilter::make('followup')->label('Izoh holati')->options(Inspection::FOLLOWUPS),
                 Tables\Filters\TernaryFilter::make('suspicious')->label('Shubhali'),
                 Tables\Filters\Filter::make('date')->label('Sana')
                     ->form([
@@ -171,7 +220,20 @@ class InspectionResource extends Resource
                 Infolists\Components\TextEntry::make('review_status')->label('Tasdiq holati')->badge()
                     ->formatStateUsing(fn ($state) => self::REVIEW[$state] ?? 'Talab etilmaydi')
                     ->color(fn ($state) => $state === Inspection::REVIEW_PENDING ? 'danger' : ($state === Inspection::REVIEW_APPROVED ? 'success' : 'gray')),
-                Infolists\Components\TextEntry::make('review_note')->label('Rad etish sababi')->visible(fn (Inspection $record) => (bool) $record->review_note),
+                Infolists\Components\TextEntry::make('review_note')->label(fn (Inspection $record) => $record->review_status === Inspection::REVIEW_REJECTED ? 'Rad etish sababi' : 'Moderator izohi')
+                    ->visible(fn (Inspection $record) => (bool) $record->review_note),
+                Infolists\Components\TextEntry::make('followup')->label('Izoh holati')->badge()
+                    ->formatStateUsing(fn ($state) => Inspection::FOLLOWUPS[$state] ?? '—')
+                    ->color(fn ($state) => self::followupColor($state))
+                    ->visible(fn (Inspection $record) => (bool) $record->followup),
+                Infolists\Components\TextEntry::make('rework_of')->label('Tuzatilgan natija')
+                    ->formatStateUsing(fn ($state) => "Avval rad etilgan natija #{$state}")
+                    ->url(fn (Inspection $record) => $record->rework_of ? self::getUrl('view', ['record' => $record->rework_of]) : null)
+                    ->visible(fn (Inspection $record) => (bool) $record->rework_of),
+                Infolists\Components\TextEntry::make('reworks')->label('Tuzatib yuborilgan')
+                    ->state(fn (Inspection $record) => $record->reworks->map(fn (Inspection $r) => "#{$r->id} — ".$r->submitted_at?->format('d.m.Y H:i'))->join(', ') ?: null)
+                    ->url(fn (Inspection $record) => ($r = $record->reworks->last()) ? self::getUrl('view', ['record' => $r->id]) : null)
+                    ->visible(fn (Inspection $record) => $record->reworks->isNotEmpty()),
                 Infolists\Components\TextEntry::make('submitted_at')->label('Yuborilgan')->dateTime('d.m.Y H:i'),
                 Infolists\Components\TextEntry::make('distance_m')->label('Obyektdan masofa (m)')->placeholder('—'),
                 Infolists\Components\TextEntry::make('device')->label('Qurilma')->formatStateUsing(fn ($state) => \App\Support\Device::label($state))->columnSpanFull(),
@@ -182,6 +244,15 @@ class InspectionResource extends Resource
             Infolists\Components\Section::make('Rasm va videolar')->schema([
                 Infolists\Components\ViewEntry::make('media')->hiddenLabel()->view('filament.infolists.inspection-media'),
             ]),
+            // izoh bo'yicha xodim yuborgan bajarilgan ish (rasm, video, izoh)
+            Infolists\Components\RepeatableEntry::make('followups')->label('Izoh bo‘yicha bajarilgan ish')->columnSpanFull()
+                ->visible(fn (Inspection $record) => $record->followups->isNotEmpty())
+                ->schema([
+                    Infolists\Components\TextEntry::make('submitted_at')->label('Yuborilgan')->dateTime('d.m.Y H:i'),
+                    Infolists\Components\TextEntry::make('distance_m')->label('Obyektdan masofa (m)')->placeholder('—'),
+                    Infolists\Components\TextEntry::make('reason')->label('Xodim izohi')->columnSpanFull(),
+                    Infolists\Components\ViewEntry::make('media')->hiddenLabel()->view('filament.infolists.inspection-media')->columnSpanFull(),
+                ])->columns(2),
         ]);
     }
 

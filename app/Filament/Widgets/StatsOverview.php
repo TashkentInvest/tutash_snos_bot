@@ -23,7 +23,9 @@ class StatsOverview extends StatsOverviewWidget
         $inProgress = Site::where('status', Site::IN_PROGRESS)->count();
         $today = Inspection::counted()->whereDate('submitted_at', today())->count();
         $suspicious = Inspection::counted()->where('suspicious', true)->count();
-        $awaiting = Inspection::where('status', Inspection::SUBMITTED)->where('review_status', Inspection::REVIEW_PENDING)->count();
+        $followDone = Inspection::where('followup', Inspection::FOLLOWUP_DONE)->count();
+        $followOpen = Inspection::where('followup', Inspection::FOLLOWUP_OPEN)->count();
+        $awaiting =Inspection::where('status', Inspection::SUBMITTED)->where('review_status', Inspection::REVIEW_PENDING)->count();
 
         $sites = fn (array $filters = []) => SiteResource::getUrl('index', $filters ? ['tableFilters' => $filters] : []);
         $inspections = fn (array $filters) => InspectionResource::getUrl('index', ['tableFilters' => $filters]);
@@ -42,6 +44,9 @@ class StatsOverview extends StatsOverviewWidget
             Stat::make('Tasdiqlanmagan', $awaiting)->color($awaiting ? 'danger' : 'gray')
                 ->description('Moderator tasdig‘ini kutayotgan natijalar (buzilgan / sud qarori bekor)')
                 ->url($inspections(['review_status' => ['value' => Inspection::REVIEW_PENDING]])),
+            Stat::make('Moderator izohlari', $followDone)->color($followDone ? 'danger' : 'gray')
+                ->description("Xodim bajardi, tekshirish kerak · bajarilmagan: {$followOpen}")
+                ->url($inspections(['followup' => ['value' => $followDone || ! $followOpen ? Inspection::FOLLOWUP_DONE : Inspection::FOLLOWUP_OPEN]])),
             Stat::make('Bugungi tekshiruvlar', $today)
                 ->url($inspections(['date' => ['from' => today()->toDateString(), 'to' => today()->toDateString()]])),
             Stat::make('Shubhali tekshiruvlar', $suspicious)->color($suspicious ? 'danger' : 'gray')

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\District;
 use App\Models\Inspection;
+use App\Models\InspectionMedia;
 use App\Models\Mahalla;
 use App\Models\Site;
 use App\Models\Staff;
@@ -468,6 +469,133 @@ class BotFlowTest extends TestCase
 
         $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
         $this->assertSame(1, Inspection::where('status', Inspection::DRAFT)->count());
+    }
+
+    /** "Buzilgan" natijasini yuboradi (moderator tasdig'ini kutadi). */
+    private function submitDemolished(): Inspection
+    {
+        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
+        $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501])->assertOk();
+        $this->app('photo', ['clip' => $this->webm()])->assertOk();
+        $this->app('skip')->assertOk();
+        $this->app('demolished', ['value' => '1'])->assertOk();
+        $this->app('photo', ['clip' => $this->webm()])->assertOk();
+        $this->app('video', ['video' => $this->webm(), 'duration' => 8])->assertOk();
+        $this->app('submit')->assertOk();
+
+        return Inspection::where('status', Inspection::SUBMITTED)->latest('id')->first();
+    }
+
+    public function test_rejected_result_is_reworked_by_retaking_only_chosen_media(): void
+    {
+        $this->register();
+        $old = $this->submitDemolished();
+        $this->assertTrue(\App\Support\InspectionReview::reject($old, null, 'Keyingi rasm xira, qayta oling'));
+        $this->assertSame(Inspection::FOLLOWUP_OPEN, $old->refresh()->followup);
+        $oldAfter = $old->mediaOf(InspectionMedia::AFTER_PHOTO);
+        $oldBefore = $old->mediaOf(InspectionMedia::BEFORE_PHOTO);
+
+        $this->bot()->hearCallbackQueryData("rw:{$old->id}")->reply();
+        $draft = Inspection::where('status', Inspection::DRAFT)->first();
+        $this->assertSame($old->id, $draft->rework_of);
+        $this->assertSame(3, $draft->media()->count()); // fayllar ko'chirildi
+        $draft->media->each(fn ($m) => Storage::disk('local')->assertExists($m->path));
+        $this->assertSame($oldBefore->file_unique_id, $draft->mediaOf(InspectionMedia::BEFORE_PHOTO)->file_unique_id);
+
+        $this->app('state')->assertOk()->assertJsonPath('step', 'edit')->assertJsonPath('rework', true)
+            ->assertJsonPath('note', 'Keyingi rasm xira, qayta oling')->assertJsonPath('complete', true);
+
+        // faqat keyingi rasm qayta olinadi: avval joylashuv, keyin rasm, so'ng menyuga qaytadi
+        $this->app('edit', ['item' => 'reason'])->assertStatus(409); // buzilgan natijada sabab yo'q
+        $this->app('edit', ['item' => 'after_photo'])->assertOk()->assertJsonPath('step', 'location');
+        $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501])->assertOk()->assertJsonPath('step', 'after_photo');
+        $this->app('photo', ['clip' => $this->webm()])->assertOk()->assertJsonPath('step', 'edit')->assertJsonPath('located', true);
+        $this->assertNotSame($oldAfter->file_unique_id, $draft->refresh()->mediaOf(InspectionMedia::AFTER_PHOTO)->file_unique_id);
+
+        // ikkinchi marta joylashuv so'ralmaydi
+        $this->app('edit', ['item' => 'before_photo'])->assertOk()->assertJsonPath('step', 'before_photo');
+        $this->app('photo', ['clip' => $this->webm()])->assertOk()->assertJsonPath('step', 'edit');
+
+        $this->app('edit', ['item' => 'confirm'])->assertOk()->assertJsonPath('step', 'confirm');
+        $this->app('submit')->assertOk();
+
+        $draft->refresh();
+        $this->assertSame(Inspection::REVIEW_PENDING, $draft->review_status);
+        $this->assertSame(Inspection::FOLLOWUP_DONE, $old->refresh()->followup);
+        $this->assertSame(3, $draft->media()->count());
+        // almashtirilgan eski fayllar hashi qaytarildi — boshqa obyektda qayta ishlatilsa aniqlanadi
+        $this->assertSame($oldAfter->file_unique_id, $oldAfter->refresh()->file_unique_id);
+
+        $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin)->get('/admin/inspections')->assertOk()->assertSee('Tuzatib qayta yuborilgan')->assertSee('Xodim bajardi');
+
+        $this->assertTrue(\App\Support\InspectionReview::approve($draft, null));
+        $this->assertSame(Inspection::FOLLOWUP_CLOSED, $old->refresh()->followup);
+        $this->assertSame(Site::DEMOLISHED, $this->site->refresh()->status);
+
+        // qayta tuzatib bo'lmaydi
+        $this->bot()->hearCallbackQueryData("rw:{$old->id}")->reply();
+        $this->assertSame(0, Inspection::where('status', Inspection::DRAFT)->count());
+    }
+
+    public function test_cancelled_rework_keeps_rejected_result_and_its_files(): void
+    {
+        $this->register();
+        $old = $this->submitDemolished();
+        \App\Support\InspectionReview::reject($old, null, 'Video yo‘q');
+        $hashes = $old->media()->orderBy('id')->pluck('file_unique_id')->all();
+
+        $this->bot()->hearCallbackQueryData("rw:{$old->id}")->reply();
+        $this->assertNotSame($hashes, $old->media()->orderBy('id')->pluck('file_unique_id')->all());
+        $this->app('cancel')->assertOk();
+
+        $this->assertSame(0, Inspection::where('status', Inspection::DRAFT)->count());
+        $this->assertSame($hashes, $old->media()->orderBy('id')->pluck('file_unique_id')->all());
+        $old->media->each(fn ($m) => Storage::disk('local')->assertExists($m->path));
+        $this->assertSame(Inspection::FOLLOWUP_OPEN, $old->refresh()->followup);
+    }
+
+    public function test_approval_note_is_followed_up_with_photo_and_video(): void
+    {
+        $this->register();
+        $in = $this->submitDemolished();
+        $this->assertTrue(\App\Support\InspectionReview::approve($in, null, 'Qolgan devorni ham buzib, oxiriga yetkazing'));
+        $in->refresh();
+        $this->assertSame(Inspection::FOLLOWUP_OPEN, $in->followup);
+        $this->assertSame(Site::DEMOLISHED, $this->site->refresh()->status);
+        $counted = Inspection::counted()->count();
+
+        $this->bot()->hearCallbackQueryData("fu:{$in->id}")->reply();
+        $fu = Inspection::where('status', Inspection::DRAFT)->first();
+        $this->assertSame($in->id, $fu->followup_of);
+
+        $this->app('state')->assertOk()->assertJsonPath('followup', true)->assertJsonPath('note', 'Qolgan devorni ham buzib, oxiriga yetkazing');
+        $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501])->assertOk()->assertJsonPath('step', 'after_photo');
+        $this->app('photo', ['clip' => $this->webm()])->assertOk()->assertJsonPath('step', 'after_video');
+        $this->app('video', ['video' => $this->webm(), 'duration' => 8])->assertOk()->assertJsonPath('step', 'reason');
+        $this->app('reason', ['reason' => 'Qolgan devor ham buzildi, chiqindi olib ketildi'])->assertOk()->assertJsonPath('step', 'confirm');
+        $this->app('submit')->assertOk();
+
+        $fu->refresh();
+        $this->assertSame(Inspection::SUBMITTED, $fu->status);
+        $this->assertNull($fu->review_status);
+        $this->assertSame(Inspection::FOLLOWUP_DONE, $in->refresh()->followup);
+        $this->assertSame($counted, Inspection::counted()->count()); // hisobotlarda takror sanalmaydi
+
+        $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin)->get("/admin/inspections/{$in->id}")->assertOk()
+            ->assertSee('Izoh bo‘yicha bajarilgan ish')->assertSee('Qolgan devor ham buzildi')->assertSee('Izohni yopish');
+
+        // bajarilmagan deb topildi -> qayta ochiladi, keyin yopiladi
+        $this->assertTrue(\App\Support\InspectionReview::reopenFollowup($in, null, 'Chiqindi hali turibdi'));
+        $this->assertSame(Inspection::FOLLOWUP_OPEN, $in->refresh()->followup);
+        $this->assertTrue(\App\Support\InspectionReview::closeFollowup($in, null));
+        $this->assertSame(Inspection::FOLLOWUP_CLOSED, $in->refresh()->followup);
+
+        $this->bot()->hearCallbackQueryData("fu:{$in->id}")->reply();
+        $this->assertSame(0, Inspection::where('status', Inspection::DRAFT)->count());
     }
 
     public function test_inspection_can_be_cancelled_from_app(): void

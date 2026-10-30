@@ -97,7 +97,8 @@ class HelpHandler
 
         Cache::forget("tg-await:{$bot->userId()}");
         if ($staff->isActive()) {
-            Inspection::where('staff_id', $staff->id)->where('status', Inspection::DRAFT)->delete();
+            // model orqali: fayllar o'chiriladi, tuzatish qoralamasida esa avvalgi fayllar hashi qaytariladi
+            Inspection::where('staff_id', $staff->id)->where('status', Inspection::DRAFT)->get()->each->delete();
         }
 
         Ui::say($bot, 'Joriy amal bekor qilindi.', Ui::removeKeyboard());

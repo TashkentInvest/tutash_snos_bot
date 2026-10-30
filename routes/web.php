@@ -26,6 +26,7 @@ Route::prefix('tg/inspection')->middleware('throttle:tg-app')->group(function ()
     Route::post('/photo', [\App\Http\Controllers\InspectionAppController::class, 'photo'])->middleware('throttle:tg-media');
     Route::post('/video', [\App\Http\Controllers\InspectionAppController::class, 'video'])->middleware('throttle:tg-media');
     Route::post('/skip', [\App\Http\Controllers\InspectionAppController::class, 'skip']);
+    Route::post('/edit', [\App\Http\Controllers\InspectionAppController::class, 'edit']);
     Route::post('/demolished', [\App\Http\Controllers\InspectionAppController::class, 'demolished']);
     Route::post('/reason', [\App\Http\Controllers\InspectionAppController::class, 'reason']);
     Route::post('/issue', [\App\Http\Controllers\InspectionAppController::class, 'issue']);

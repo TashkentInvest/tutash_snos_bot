@@ -76,13 +76,37 @@ class InspectionAppController extends Controller
         return $this->fail('Bu bosqich hozir kutilmayapti. Oynani yopib, qayta oching.', 409);
     }
 
+    /**
+     * Keyingi bosqich. Tuzatishda (rework) bitta rasm/video qayta olingach yoki natija zanjiri tugagach,
+     * tanlash menyusiga ('edit') qaytiladi; izoh bo'yicha tasdiqda (followup) videodan keyin izoh so'raladi.
+     */
+    private function next(Inspection $in, string $finished, string $normal): array
+    {
+        if ($in->isFollowup()) {
+            return ['step' => $finished === 'after_video' ? 'reason' : $normal];
+        }
+        if ($in->isRework() && ($normal === 'confirm' || ($in->edit_target === $finished && in_array($finished, self::MEDIA_STEPS, true)))) {
+            return ['step' => 'edit', 'edit_target' => null];
+        }
+
+        return ['step' => $normal];
+    }
+
+    private const MEDIA_STEPS = ['before_photo', 'before_video', 'after_photo', 'after_video'];
+
     private function snapshot(Inspection $in): array
     {
         $in->loadMissing('site.mahalla', 'media');
+        $parent = $in->rework_of ? $in->reworkOf : ($in->followup_of ? $in->followupOf : null);
 
         return [
             'ok' => true,
             'step' => $in->step,
+            'rework' => $in->isRework(),
+            'followup' => $in->isFollowup(),
+            'note' => $parent?->review_note,
+            'located' => (bool) $in->rework_located,
+            'complete' => $in->isRework() && (new InspectionHandler)->complete($in),
             'address' => $in->site->address,
             'mahalla' => $in->site->mahalla?->name,
             'demolished' => $in->is_demolished,
@@ -151,7 +175,11 @@ class InspectionAppController extends Controller
         $in->update([
             'staff_lat' => $lat, 'staff_lng' => $lng, 'distance_m' => $distance,
             'suspicious' => $flags !== [], 'flags' => $flags ?: null,
-            'step' => 'before_photo',
+            ...match (true) {
+                $in->isFollowup() => ['step' => 'after_photo'],
+                $in->isRework() => ['step' => $in->edit_target ?? 'edit', 'rework_located' => true],
+                default => ['step' => 'before_photo'],
+            },
             'device' => Device::clean($request->input('device')) ?? $in->device,
         ]);
 
@@ -202,7 +230,7 @@ class InspectionAppController extends Controller
             return $error;
         }
 
-        $in->update(['step' => $kind === InspectionMedia::BEFORE_PHOTO ? 'before_video' : 'after_video', 'device' => Device::clean($request->input('device')) ?? $in->device]);
+        $in->update([...$this->next($in, $in->step, $kind === InspectionMedia::BEFORE_PHOTO ? 'before_video' : 'after_video'), 'device' => Device::clean($request->input('device')) ?? $in->device]);
 
         return response()->json($this->snapshot($in->refresh()));
     }
@@ -264,7 +292,7 @@ class InspectionAppController extends Controller
             }
         }
 
-        $in->update(['step' => $kind === InspectionMedia::BEFORE_VIDEO ? 'demolished' : 'confirm', 'device' => Device::clean($request->input('device')) ?? $in->device]);
+        $in->update([...$this->next($in, $in->step, $kind === InspectionMedia::BEFORE_VIDEO ? 'demolished' : 'confirm'), 'device' => Device::clean($request->input('device')) ?? $in->device]);
 
         return response()->json($this->snapshot($in->refresh()));
     }
@@ -327,7 +355,55 @@ class InspectionAppController extends Controller
         if ($in->step !== 'before_video') {
             return $this->wrongStep();
         }
-        $in->update(['step' => 'demolished']);
+        // tuzatishda ixtiyoriy video olib tashlanadi (qayta olish o'rniga)
+        if ($in->isRework() && ($media = $in->media()->where('kind', InspectionMedia::BEFORE_VIDEO)->first())) {
+            Storage::disk(config('tutash.media_disk'))->delete($media->path);
+            $media->delete();
+        }
+        $in->update($this->next($in, 'before_video', 'demolished'));
+
+        return response()->json($this->snapshot($in->refresh()));
+    }
+
+    /** Tuzatish menyusi: qaysi qismini qayta olish (rasm/video uchun avval joylashuv tekshiriladi) yoki yuborishga o'tish. */
+    public function edit(Request $request): JsonResponse
+    {
+        $request->validate([
+            'initData' => 'required|string|max:4096',
+            'item' => 'required|in:before_photo,before_video,after_photo,after_video,demolished,reason,issue,documents,confirm',
+        ]);
+
+        [, , $in, $error] = $this->context($request);
+        if ($error) {
+            return $error;
+        }
+        if (! $in->isRework() || $in->step !== 'edit') {
+            return $this->wrongStep();
+        }
+
+        $item = $request->input('item');
+        $allowed = match ($item) {
+            'after_photo', 'after_video' => $in->is_demolished === true,
+            'reason' => $in->is_demolished === false && ! $in->exempt_type,
+            'issue' => (bool) $in->exempt_type,
+            'documents' => $in->isCourtCancelled(),
+            default => true,
+        };
+        if (! $allowed) {
+            return $this->wrongStep();
+        }
+        if ($item === 'confirm') {
+            if (! (new InspectionHandler)->complete($in)) {
+                return $this->fail('Natija to‘liq emas: kerakli rasm, video yoki izohni qayta oling.');
+            }
+            $in->update(['step' => 'confirm']);
+
+            return response()->json($this->snapshot($in->refresh()));
+        }
+
+        // rasm, video yoki natijani qayta olish faqat obyekt hududida — joylashuv bir marta qayta tekshiriladi
+        $here = in_array($item, ['reason', 'issue', 'documents'], true) || $in->rework_located;
+        $in->update(['edit_target' => $item, 'step' => $here ? $item : 'location']);
 
         return response()->json($this->snapshot($in->refresh()));
     }
@@ -350,7 +426,7 @@ class InspectionAppController extends Controller
         $yes = $value === '1';
         $in->update([
             'is_demolished' => $yes, 'in_progress' => $value === '2', 'exempt_type' => null,
-            'step' => $yes ? 'after_photo' : ($value === '3' ? 'issue' : 'reason'),
+            ...$this->next($in, 'demolished', $yes ? 'after_photo' : ($value === '3' ? 'issue' : 'reason')),
         ]);
 
         return response()->json($this->snapshot($in->refresh()));
@@ -379,7 +455,7 @@ class InspectionAppController extends Controller
         }
 
         $court = $request->input('type') === Inspection::EXEMPT_COURT;
-        $in->update(['exempt_type' => $request->input('type'), 'reason' => $text, 'step' => $court ? 'documents' : 'confirm']);
+        $in->update(['exempt_type' => $request->input('type'), 'reason' => $text, ...$this->next($in, 'issue', $court ? 'documents' : 'confirm')]);
 
         return response()->json($this->snapshot($in->refresh()));
     }
@@ -463,7 +539,7 @@ class InspectionAppController extends Controller
         if ($in->documents()->isEmpty()) {
             return $this->fail('Sud qarori nusxasini (rasm yoki PDF) yuklang.');
         }
-        $in->update(['step' => 'confirm']);
+        $in->update($this->next($in, 'documents', 'confirm'));
 
         return response()->json($this->snapshot($in->refresh()));
     }
@@ -482,10 +558,10 @@ class InspectionAppController extends Controller
 
         $text = trim(preg_replace('/\s+/u', ' ', (string) $request->input('reason')));
         if (mb_strlen($text) < 10 || mb_strlen($text) > 1000) {
-            return $this->fail(($in->in_progress ? 'Izoh' : 'Sabab').' 10 tadan 1000 tagacha belgidan iborat bo‘lishi kerak.');
+            return $this->fail(($in->in_progress || $in->isFollowup() ? 'Izoh' : 'Sabab').' 10 tadan 1000 tagacha belgidan iborat bo‘lishi kerak.');
         }
 
-        $in->update(['reason' => $text, 'step' => 'confirm']);
+        $in->update(['reason' => $text, ...$this->next($in, 'reason', 'confirm')]);
 
         return response()->json($this->snapshot($in->refresh()));
     }
@@ -504,10 +580,11 @@ class InspectionAppController extends Controller
 
         AuditLog::record('inspection.submitted', $user['id'], ['inspection' => $done->id, 'site' => $done->site_id, 'demolished' => $done->is_demolished, 'suspicious' => $done->suspicious]);
 
-        $bot->sendMessage(Script::apply('✅ Tekshiruv natijasi saqlandi.'."\n".($done->is_demolished ? 'Obyekt «buzilgan» deb yuborildi. Natija <b>moderator tasdig‘idan keyin</b> hisobga olinadi.'
+        $bot->sendMessage(Script::apply('✅ Tekshiruv natijasi saqlandi.'."\n".($done->isFollowup() ? 'Moderator izohi bo‘yicha bajarilgan ish yuborildi. Moderator ko‘rib chiqadi.'
+            : ($done->isRework() ? 'Tuzatilgan natija qayta yuborildi. ' : '').($done->is_demolished ?'Obyekt «buzilgan» deb yuborildi. Natija <b>moderator tasdig‘idan keyin</b> hisobga olinadi.'
             : ($done->isCourtCancelled() ? 'Obyekt bo‘yicha <b>sud qarori bekor qilingani</b> yuborildi. Moderator tasdiqlagach, obyekt umumiy hisobdan chiqariladi.'
             : ($done->in_progress ? 'Obyekt <b>buzish jarayonida</b> deb belgilandi. To‘liq buzilgach, qayta tekshiruv yuboring.'
-            : ($done->exempt_type ? 'Muammo qayd etildi, obyekt ro‘yxatda qoldi.' : 'Obyekt <b>buzilmagan</b> holatda qoldi.'))))), [
+            : ($done->exempt_type ? 'Muammo qayd etildi, obyekt ro‘yxatda qoldi.' : 'Obyekt <b>buzilmagan</b> holatda qoldi.')))))), [
             'chat_id' => $user['id'], 'parse_mode' => ParseMode::HTML,
             'reply_markup' => Ui::markup([[Ui::btn('🏠 Bosh sahifa', 'home')]]),
         ]);

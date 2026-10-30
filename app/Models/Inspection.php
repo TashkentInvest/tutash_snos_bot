@@ -27,20 +27,37 @@ class Inspection extends Model
 
     public const MAX_DOCUMENTS = 10;
 
+    // Moderator izohi holati: open — bajarilmagan, done — xodim bajardi (tekshirish kerak), closed — moderator yopdi.
+    public const FOLLOWUP_OPEN = 'open';
+    public const FOLLOWUP_DONE = 'done';
+    public const FOLLOWUP_CLOSED = 'closed';
+
+    public const FOLLOWUPS = [
+        self::FOLLOWUP_OPEN => 'Bajarilmagan',
+        self::FOLLOWUP_DONE => 'Xodim bajardi — tekshiring',
+        self::FOLLOWUP_CLOSED => 'Yopilgan',
+    ];
+
+    // Ko'chirilgan (tuzatish qoralamasiga o'tgan) faylning eski yozuvi: hash shu qo'shimcha bilan belgilanadi.
+    private const MOVED = '#r';
+
     protected $fillable = [
         'site_id', 'staff_id', 'status', 'step', 'is_demolished', 'in_progress', 'exempt_type', 'reason',
         'staff_lat', 'staff_lng', 'distance_m', 'suspicious', 'flags', 'submitted_at', 'device',
         'review_status', 'reviewed_by', 'reviewed_at', 'review_note', 'archived_at',
+        'rework_of', 'followup_of', 'edit_target', 'rework_located', 'followup', 'followup_at',
     ];
 
     protected $casts = [
         'is_demolished' => 'boolean',
         'in_progress' => 'boolean',
         'suspicious' => 'boolean',
+        'rework_located' => 'boolean',
         'flags' => 'array',
         'submitted_at' => 'datetime',
         'reviewed_at' => 'datetime',
         'archived_at' => 'datetime',
+        'followup_at' => 'datetime',
         'staff_lat' => 'float',
         'staff_lng' => 'float',
     ];
@@ -48,13 +65,87 @@ class Inspection extends Model
     protected static function booted(): void
     {
         // Yozuv o'chirilsa (bekor qilish, eski qoralama, prune) diskdagi rasm/videolar ham o'chiriladi — yetim fayl qolmaydi.
-        static::deleted(fn (Inspection $in) => Storage::disk(config('tutash.media_disk'))->deleteDirectory("inspections/{$in->id}"));
+        static::deleted(function (Inspection $in) {
+            Storage::disk(config('tutash.media_disk'))->deleteDirectory("inspections/{$in->id}");
+            // bekor qilingan tuzatish qoralamasi: rad etilgan natija fayllari yana takror tekshiruvida qatnashadi
+            $in->rework_of && self::releaseMovedMedia($in->rework_of);
+        });
     }
 
-    /** Hisobga olinadigan natijalar: yuborilgan va moderator rad etmagan (rad etilganlar arxivlanadi). */
+    /** Hisobga olinadigan natijalar: yuborilgan va moderator rad etmagan (rad etilganlar arxivlanadi), izoh bo'yicha tasdiqlar emas. */
     public function scopeCounted(Builder $query): Builder
     {
-        return $query->where('status', self::SUBMITTED)->whereNull('archived_at');
+        return $query->where('status', self::SUBMITTED)->whereNull('archived_at')->whereNull('followup_of');
+    }
+
+    /**
+     * Rad etilgan natijani tuzatish uchun qoralama: natija, izoh va fayllar nusxalanadi, xodim faqat keraklisini qayta oladi.
+     * Fayl hashi yagona (takror fayl tekshiruvi), shuning uchun eski yozuvning hashi vaqtincha belgilab qo'yiladi.
+     */
+    public static function reworkDraft(Inspection $old): self
+    {
+        $draft = self::create([
+            'site_id' => $old->site_id, 'staff_id' => $old->staff_id, 'status' => self::DRAFT, 'step' => 'edit',
+            'rework_of' => $old->id, 'is_demolished' => $old->is_demolished, 'in_progress' => $old->in_progress,
+            'exempt_type' => $old->exempt_type, 'reason' => $old->reason, 'staff_lat' => $old->staff_lat, 'staff_lng' => $old->staff_lng,
+            'distance_m' => $old->distance_m, 'suspicious' => $old->suspicious, 'flags' => $old->flags, 'device' => $old->device,
+        ]);
+
+        $disk = Storage::disk(config('tutash.media_disk'));
+        foreach ($old->media()->get() as $m) {
+            $path = "inspections/{$draft->id}/".basename($m->path);
+            if (! $m->path || ! $disk->exists($m->path) || ! $disk->copy($m->path, $path)) {
+                continue;
+            }
+            $unique = $m->isDocument() ? "doc:{$draft->id}:".substr($m->file_unique_id, strrpos($m->file_unique_id, ':') + 1) : $m->file_unique_id;
+            $m->isDocument() || $m->update(['file_unique_id' => $m->file_unique_id.self::MOVED.$old->id]);
+            $draft->media()->create([
+                'kind' => $m->kind, 'telegram_file_id' => $m->telegram_file_id, 'file_unique_id' => $unique,
+                'mime' => $m->mime, 'size' => $m->size, 'path' => $path, 'downloaded_at' => now(),
+            ]);
+        }
+
+        return $draft->load(['site.mahalla', 'media']);
+    }
+
+    /** Ko'chirilgan fayllar hashini qaytaradi (agar u boshqa yozuvda ishlatilmayotgan bo'lsa). */
+    public static function releaseMovedMedia(int $inspectionId): void
+    {
+        InspectionMedia::where('inspection_id', $inspectionId)->where('file_unique_id', 'like', '%'.self::MOVED.$inspectionId)->get()
+            ->each(function (InspectionMedia $m) use ($inspectionId) {
+                $hash = substr($m->file_unique_id, 0, -strlen(self::MOVED.$inspectionId));
+                InspectionMedia::where('file_unique_id', $hash)->exists() || $m->update(['file_unique_id' => $hash]);
+            });
+    }
+
+    public function isRework(): bool
+    {
+        return (bool) $this->rework_of;
+    }
+
+    public function isFollowup(): bool
+    {
+        return (bool) $this->followup_of;
+    }
+
+    public function reworkOf(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'rework_of');
+    }
+
+    public function followupOf(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'followup_of');
+    }
+
+    public function followups(): HasMany
+    {
+        return $this->hasMany(self::class, 'followup_of')->where('status', self::SUBMITTED);
+    }
+
+    public function reworks(): HasMany
+    {
+        return $this->hasMany(self::class, 'rework_of')->where('status', self::SUBMITTED);
     }
 
     public function site(): BelongsTo
@@ -91,6 +182,7 @@ class Inspection extends Model
     /** Moderator tasdig'ini talab qiladigan natija: obyekt holatini o'zgartiradi. */
     public function needsReview(): bool
     {
-        return $this->is_demolished === true || $this->isCourtCancelled();
+        // izoh bo'yicha tasdiq obyekt holatini o'zgartirmaydi — moderator uni «Yopish» orqali ko'rib chiqadi
+        return ! $this->isFollowup() && ($this->is_demolished === true || $this->isCourtCancelled());
     }
 }

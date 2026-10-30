@@ -31,12 +31,23 @@
         .doc img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; }
         .doc span { flex: 1; }
         .doc button { width: auto; margin: 0; padding: 6px 10px; font-size: 14px; background: transparent; color: #c0392b; }
+        .note { text-align: left; background: #f5a62322; border-left: 4px solid #f5a623; border-radius: 8px; padding: 10px 12px; font-size: 15px; margin: 6px 0 4px; }
+        .edit { display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px; margin-top: 8px; background: #8881; border-radius: 10px; font-size: 15px; }
+        .edit span { flex: 1; }
+        .edit button { width: auto; margin: 0; padding: 8px 12px; font-size: 14px; }
         #cancelLink { margin-top: 26px; font-size: 14px; background: transparent; color: #c0392b; padding: 8px; }
     </style>
 </head>
 <body>
 <h1 id="title">Tekshiruv</h1>
 <div id="addr"></div>
+<div id="noteBox" class="note hidden"></div>
+
+<div id="sEdit" class="hidden">
+    <p>Qaysi qismini <b>qayta olasiz</b>? Qolganlari avvalgidek saqlanadi.</p>
+    <div id="editList"></div>
+    <button id="goEditDone" class="ok">✅ Yuborishga o‘tish</button>
+</div>
 
 <div id="sLocation" class="hidden">
     <p>Tekshiruv faqat <b>obyekt hududida</b> (belgilangan radius ichida) o‘tkaziladi. Joylashuvingiz telefon GPS’idan avtomatik aniqlanadi.</p>
@@ -107,12 +118,14 @@ tg && (tg.ready(), tg.expand());
 const $ = id => document.getElementById(id), msg = $('msg');
 const say = (t, c) => { msg.textContent = t; msg.className = c || ''; };
 const initData = () => (tg ? tg.initData : '');
-const SECTIONS = ['sLocation', 'sPhoto', 'sVideo', 'sDemo', 'sReason', 'sIssue', 'sDocs', 'sConfirm'];
+const SECTIONS = ['sEdit', 'sLocation', 'sPhoto', 'sVideo', 'sDemo', 'sReason', 'sIssue', 'sDocs', 'sConfirm'];
 const show = id => SECTIONS.forEach(s => $(s).classList.toggle('hidden', s !== id));
 const TITLES = {
     location: '1. Joylashuv', before_photo: '2. Hozirgi holat rasmi', before_video: '3. Hudud videosi (ixtiyoriy)', demolished: '4. Natija',
-    reason: '5. Sabab', issue: '5. Muammo', documents: '6. Sud qarori nusxasi', after_photo: '5. Buzilgandan keyingi rasm', after_video: '6. Buzilgan hudud videosi (majburiy)', confirm: 'Tasdiqlash',
+    reason: '5. Sabab', issue: '5. Muammo', documents: '6. Sud qarori nusxasi', after_photo: '5. Buzilgandan keyingi rasm', after_video: '6. Buzilgan hudud videosi (majburiy)', confirm: 'Tasdiqlash', edit: '✏️ Tuzatish',
 };
+// moderator izohi bo'yicha bajarilgan ishni tasdiqlash (followup)
+const FU_TITLES = { location: '1. Joylashuv', after_photo: '2. Bajarilgan ish rasmi', after_video: '3. Bajarilgan ish videosi', reason: '4. Izoh', confirm: 'Tasdiqlash' };
 
 // Sust/uzilib qoladigan mobil internet: so'rov cheksiz osilib qolmasligi uchun vaqt chegarasi.
 async function post(path, body, ms) {
@@ -158,16 +171,21 @@ async function render(s) {
     session = null;
     TgCam.release();
     $('addr').textContent = s.address + (s.mahalla ? ' (' + s.mahalla + ')' : '');
-    $('title').textContent = TITLES[s.step] || 'Tekshiruv';
+    $('title').textContent = (s.followup ? FU_TITLES[s.step] : TITLES[s.step]) || 'Tekshiruv';
     $('cancelLink').classList.remove('hidden');
+    $('cancelLink').textContent = s.rework ? '❌ Tuzatishni bekor qilish' : '❌ Tekshiruvni bekor qilish';
+    $('noteBox').classList.toggle('hidden', !s.note);
+    $('noteBox').textContent = s.note ? '💬 Moderator izohi: ' + s.note : '';
     say('');
 
     switch (s.step) {
+        case 'edit': show('sEdit'); renderEdit(s); break;
         case 'location': show('sLocation'); $('goLoc').textContent = '📍 Joylashuvni yuborish'; $('goLoc').disabled = false; checkLocation(); break;
         case 'before_photo':
         case 'after_photo':
             show('sPhoto');
-            $('photoHint').innerHTML = s.step === 'before_photo'
+            $('photoHint').innerHTML = s.followup ? 'Izoh bo‘yicha <b>bajarilgan ish holatini</b> kameraga oling.'
+                : s.step === 'before_photo'
                 ? 'Hududning <b>hozirgi (buzishdan oldingi) holatini</b> kameraga oling.'
                 : 'Hududning <b>buzilgandan keyingi holatini</b> kameraga oling.';
             await openPhotoCam();
@@ -182,25 +200,93 @@ async function render(s) {
         case 'demolished': show('sDemo'); break;
         case 'reason':
             show('sReason');
-            $('title').textContent = s.in_progress ? '5. Buzish jarayoni' : TITLES.reason;
-            $('reasonHint').innerHTML = s.in_progress
-                ? 'Buzish jarayoni haqida <b>izoh yozing</b>: necha foizi buzilgan, kim buzmoqda, qachon tugaydi (kamida 10 ta belgi).'
+            if (s.rework || s.followup) $('reason').value = $('reason').value || (s.followup ? '' : s.reason || '');
+            $('title').textContent = s.followup ? FU_TITLES.reason : s.in_progress ? '5. Buzish jarayoni' : TITLES.reason;
+            $('reasonHint').innerHTML = s.followup
+                ? 'Izoh bo‘yicha <b>nima qilindi</b>? Qisqa yozing (kamida 10 ta belgi).'
+                : s.in_progress
+                ?'Buzish jarayoni haqida <b>izoh yozing</b>: necha foizi buzilgan, kim buzmoqda, qachon tugaydi (kamida 10 ta belgi).'
                 : 'Obyekt nima uchun buzilmagan? <b>Sababini yozing</b> (kamida 10 ta belgi).';
             $('reason').placeholder = s.in_progress ? 'Masalan: 70% buzilgan, tadbirkor o‘zi buzmoqda…' : 'Sabab…';
             break;
-        case 'issue': show('sIssue'); break;
+        case 'issue':
+            show('sIssue');
+            if (s.rework && s.exempt_type) {
+                const r = document.querySelector('input[name=issueType][value="' + s.exempt_type + '"]');
+                r && (r.checked = true, r.onchange());
+                $('issueText').value = $('issueText').value || s.reason || '';
+            }
+            break;
         case 'documents': show('sDocs'); renderDocs(s); break;
         case 'confirm': show('sConfirm'); renderSummary(s); break;
         default: say('Tekshiruv yakunlangan.', 'ok-t');
     }
 }
 
+// ---------------------------------------------------------------- tuzatish menyusi (rad etilgan natija)
+function resultLabel(s) {
+    return s.demolished ? '✅ Buzilgan' : s.exempt_type === 'court_cancelled' ? '⚖️ Sud qarori bekor'
+        : s.exempt_type === 'other' ? '📝 Boshqa muammo' : s.in_progress ? '🚧 Jarayonda' : '❌ Buzilmagan';
+}
+
+function renderEdit(s) {
+    const has = k => (s.media || []).includes(k);
+    const items = [
+        ['before_photo', '📷 Hozirgi holat rasmi', has('before_photo') ? '✅' : '—'],
+        ['before_video', '🎥 Hudud videosi (ixtiyoriy)', has('before_video') ? '✅' : '—'],
+        ['demolished', '📋 Natija: ' + resultLabel(s), ''],
+    ];
+    if (s.demolished) {
+        items.push(['after_photo', '📷 Buzilgandan keyingi rasm', has('after_photo') ? '✅' : '❗']);
+        items.push(['after_video', '🎥 Buzilgan hudud videosi', has('after_video') ? '✅' : '❗']);
+    } else if (s.exempt_type) {
+        items.push(['issue', '📝 Muammo izohi', '✅']);
+        if (s.exempt_type === 'court_cancelled') items.push(['documents', '📎 Sud qarori hujjatlari: ' + (s.documents || []).length + ' ta', (s.documents || []).length ? '✅' : '❗']);
+    } else {
+        items.push(['reason', s.in_progress ? '📝 Buzish jarayoni izohi' : '📝 Buzilmaganlik sababi', '✅']);
+    }
+    $('editList').innerHTML = '';
+    items.forEach(([item, label, mark]) => {
+        const row = document.createElement('div');
+        row.className = 'edit';
+        const name = document.createElement('span');
+        name.textContent = (mark ? mark + ' ' : '') + label;
+        const b = document.createElement('button');
+        b.className = 'secondary';
+        b.textContent = ['reason', 'issue', 'documents', 'demolished'].includes(item) ? '✏️ O‘zgartirish' : '🔄 Qayta olish';
+        b.onclick = () => edit(item);
+        row.append(name, b);
+        $('editList').appendChild(row);
+    });
+    $('goEditDone').disabled = !s.complete;
+    if (!s.located) say('Rasm, video yoki natijani qayta olishda joylashuvingiz qayta tekshiriladi (obyekt hududida bo‘ling).');
+}
+
+async function edit(item) {
+    if (busy) return;
+    busy = true;
+    try {
+        const { ok, j } = await api('edit', { item });
+        busy = false;
+        ok ? render(j) : say(j.message || 'Xatolik yuz berdi.', 'err');
+    } catch (e) { busy = false; say('Aloqa xatosi. Qayta urinib ko‘ring.', 'err'); }
+}
+
+$('goEditDone').onclick = () => edit('confirm');
+
 function renderSummary(s) {
+    if (s.followup) {
+        const lines = ['📍 ' + s.address, '💬 Moderator izohi bo‘yicha bajarilgan ish', 'Izoh: ' + (s.reason || ''), 'Rasm va video: ' + (s.media || []).length + ' ta'];
+        if (s.distance !== null && s.distance !== undefined) lines.push('Obyektgacha masofa: ' + s.distance + ' m' + (s.far ? ' ⚠️' : ''));
+        $('sum').innerHTML = '';
+        lines.forEach(l => { const d = document.createElement('div'); d.textContent = l; $('sum').appendChild(d); });
+        return;
+    }
     const result = s.demolished ? '✅ Natija: BUZILGAN'
         : s.exempt_type === 'court_cancelled' ? '⚖️ Natija: SUD QARORI BEKOR QILINGAN'
         : s.exempt_type === 'other' ? '📝 Natija: BOSHQA MUAMMO'
         : s.in_progress ? '🚧 Natija: JARAYONDA (qisman buzilgan)' : '❌ Natija: BUZILMAGAN';
-    const lines = ['📍 ' + s.address, result];
+    const lines = ['📍 ' + s.address, ...(s.rework ? ['🔁 Tuzatib qayta yuborilmoqda'] : []), result];
     if (!s.demolished && s.reason) lines.push((s.in_progress || s.exempt_type ? 'Izoh: ' : 'Sabab: ') + s.reason);
     if ((s.documents || []).length) lines.push('Ilova qilingan hujjatlar: ' + s.documents.length + ' ta');
     lines.push('Rasm va video: ' + (s.media || []).filter(k => !k.startsWith('document_')).length + ' ta');
@@ -414,7 +500,7 @@ $('goSubmit').onclick = async () => {
 
 $('cancelLink').onclick = async () => {
     const go = tg && tg.showConfirm
-        ? await new Promise(r => tg.showConfirm('Tekshiruv bekor qilinsinmi? Kiritilgan ma’lumotlar o‘chiriladi.', r))
+        ? await new Promise(r => tg.showConfirm(state && state.rework ? 'Tuzatish bekor qilinsinmi? Avvalgi (rad etilgan) natija o‘zgarmaydi.' : 'Tekshiruv bekor qilinsinmi? Kiritilgan ma’lumotlar o‘chiriladi.', r))
         : confirm('Tekshiruv bekor qilinsinmi?');
     if (!go) return;
     TgCam.release();

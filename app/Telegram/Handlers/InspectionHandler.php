@@ -67,6 +67,81 @@ class InspectionHandler
         $this->prompt($bot, $draft);
     }
 
+    /**
+     * Rad etilgan natijani tuzatish ("rw:{id}"): avvalgi natija, izoh va fayllar saqlanadi,
+     * xodim Mini App'da faqat moderator ko'rsatgan qismini (rasm, video, izoh, hujjat) qayta oladi.
+     */
+    public function rework(Nutgram $bot, string $id): void
+    {
+        if (! $staff = BrowseHandler::guardEmployee($bot)) {
+            return;
+        }
+        $old = Inspection::with('site')->where('staff_id', $staff->id)->where('status', Inspection::SUBMITTED)
+            ->where('review_status', Inspection::REVIEW_REJECTED)->find((int) $id);
+        $site = $old?->site;
+
+        $error = match (true) {
+            ! $old || ! $staff->canAccessDistrict($site->district_id) => 'Natija topilmadi.',
+            $old->followup !== Inspection::FOLLOWUP_OPEN => 'Bu natija allaqachon tuzatib yuborilgan.',
+            $site->isDemolished() || $site->isExempt() => 'Obyekt holati allaqachon tasdiqlangan.',
+            Inspection::where('site_id', $site->id)->where('status', Inspection::SUBMITTED)->where('review_status', Inspection::REVIEW_PENDING)->exists() => 'Bu obyekt bo‘yicha natija moderator tasdig‘ini kutmoqda.',
+            default => null,
+        };
+        if ($error) {
+            $bot->answerCallbackQuery(['text' => Ui::t($error), 'show_alert' => true]);
+
+            return;
+        }
+        $bot->answerCallbackQuery();
+
+        $draft = self::draft($staff);
+        if ($draft && $draft->rework_of !== $old->id) {
+            $draft->delete();
+            $draft = null;
+        }
+        try {
+            $draft ??= DB::transaction(fn () => Inspection::reworkDraft($old));
+        } catch (UniqueConstraintViolationException) {
+            return; // parallel urinish
+        }
+
+        Ui::say($bot, '<b>'.Ui::e(Ui::cut($site->address, 60)).'</b>'."\n\n💬 Moderator izohi: <i>".Ui::e((string) $old->review_note)."</i>\n\n"
+            .'Oynani oching va <b>qaysi qismini qayta olishni</b> tanlang: rasm, video, natija yoki izoh. Qolgan ma’lumotlar avvalgidek saqlanadi.', self::webAppMarkup());
+    }
+
+    /** Tasdiqlangan natija bo'yicha moderator izohi bajarilganini rasm va video bilan tasdiqlash ("fu:{id}"). */
+    public function followup(Nutgram $bot, string $id): void
+    {
+        if (! $staff = BrowseHandler::guardEmployee($bot)) {
+            return;
+        }
+        $parent = Inspection::with('site')->where('staff_id', $staff->id)->where('status', Inspection::SUBMITTED)
+            ->where('review_status', Inspection::REVIEW_APPROVED)->find((int) $id);
+        if (! $parent || $parent->followup !== Inspection::FOLLOWUP_OPEN) {
+            $bot->answerCallbackQuery(['text' => Ui::t($parent ? 'Bu izoh bo‘yicha natija allaqachon yuborilgan.' : 'Natija topilmadi.'), 'show_alert' => true]);
+
+            return;
+        }
+        $bot->answerCallbackQuery();
+
+        $draft = self::draft($staff);
+        if ($draft && $draft->followup_of !== $parent->id) {
+            $draft->delete();
+            $draft = null;
+        }
+        try {
+            $draft ??= Inspection::create([
+                'site_id' => $parent->site_id, 'staff_id' => $staff->id, 'step' => 'location', 'followup_of' => $parent->id,
+                'is_demolished' => $parent->is_demolished, 'exempt_type' => $parent->exempt_type,
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            return;
+        }
+
+        Ui::say($bot, '<b>'.Ui::e(Ui::cut($parent->site->address, 60)).'</b>'."\n\n💬 Moderator izohi: <i>".Ui::e((string) $parent->review_note)."</i>\n\n"
+            .'Obyekt yoniga borib, oynani oching: joylashuv → bajarilgan ish rasmi → video → qisqa izoh.', self::webAppMarkup());
+    }
+
     /** Mini App'ni ochuvchi tugma (qoralama bo'yicha joriy bosqichdan davom etadi). */
     public static function webAppMarkup(): InlineKeyboardMarkup
     {
@@ -130,6 +205,16 @@ class InspectionHandler
                 'status' => Inspection::SUBMITTED, 'step' => 'done', 'submitted_at' => now(),
                 'review_status' => $in->needsReview() ? Inspection::REVIEW_PENDING : null,
             ]);
+            // moderator izohi bo'yicha yuborildi — avvalgi natijada «xodim bajardi, tekshiring» holati
+            if ($parent = $in->rework_of ?? $in->followup_of) {
+                Inspection::whereKey($parent)->where('followup', Inspection::FOLLOWUP_OPEN)
+                    ->update(['followup' => Inspection::FOLLOWUP_DONE, 'followup_at' => now()]);
+                $in->rework_of && Inspection::releaseMovedMedia($in->rework_of);
+            }
+            if ($in->isFollowup()) {
+                return $in; // obyekt holati allaqachon tasdiqlangan
+            }
+
             $site = $in->site;
             $site->last_inspected_at = now();
             if (! $site->isDemolished() && ! $site->isExempt() && ! $in->needsReview()) {
@@ -143,6 +228,9 @@ class InspectionHandler
 
     public function complete(Inspection $in): bool
     {
+        if ($in->isFollowup()) {
+            return $in->mediaOf(InspectionMedia::AFTER_PHOTO) && $in->mediaOf(InspectionMedia::AFTER_VIDEO) && mb_strlen((string) $in->reason) >= 10;
+        }
         if (! $in->mediaOf(InspectionMedia::BEFORE_PHOTO)) {
             return false;
         }
