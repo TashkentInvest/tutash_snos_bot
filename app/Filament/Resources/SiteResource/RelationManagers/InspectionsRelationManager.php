@@ -21,7 +21,9 @@ class InspectionsRelationManager extends RelationManager
             ->columns([
                 Tables\Columns\TextColumn::make('submitted_at')->label('Sana')->dateTime('d.m.Y H:i'),
                 Tables\Columns\TextColumn::make('staff.full_name')->label('Xodim'),
-                Tables\Columns\IconColumn::make('is_demolished')->label('Buzilgan')->boolean(),
+                Tables\Columns\TextColumn::make('result')->label('Natija')->badge()
+                    ->state(fn (Inspection $record) => InspectionResource::result($record))
+                    ->color(fn (Inspection $record) => $record->is_demolished ? 'success' : ($record->in_progress ? 'info' : 'warning')),
                 Tables\Columns\TextColumn::make('reason')->label('Sabab')->limit(50)->placeholder('—'),
             ])
             ->actions([

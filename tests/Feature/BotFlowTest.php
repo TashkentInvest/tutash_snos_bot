@@ -330,6 +330,28 @@ class BotFlowTest extends TestCase
         $this->assertSame(Inspection::SUBMITTED, $in->refresh()->status);
     }
 
+    public function test_in_progress_result_marks_site_and_keeps_it_in_work_list(): void
+    {
+        $this->register();
+        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
+        $in = Inspection::first();
+
+        $this->app('location', ['lat' => 41.3, 'lng' => 69.2])->assertOk();
+        $this->app('photo', ['clip' => $this->webm()])->assertOk();
+        $this->app('skip')->assertOk();
+        $this->app('demolished', ['value' => '2'])->assertOk()->assertJsonPath('step', 'reason')->assertJsonPath('in_progress', true);
+        $this->app('reason', ['reason' => '70% buzilgan, tadbirkor o‘zi buzmoqda'])->assertOk()->assertJsonPath('step', 'confirm');
+        $this->app('submit')->assertOk();
+
+        $in->refresh();
+        $this->assertFalse($in->is_demolished);
+        $this->assertTrue($in->in_progress);
+        $this->assertNull($in->review_status);
+        $this->assertSame(Site::IN_PROGRESS, $this->site->refresh()->status);
+        $this->assertTrue(Site::pending()->whereKey($this->site->id)->exists());
+        $this->assertStringContainsString('Buzish jarayonida', implode("\n", \App\Telegram\Support\InspectionReport::chunks(today())));
+    }
+
     public function test_black_media_is_rejected_and_device_is_recorded(): void
     {
         $this->register();

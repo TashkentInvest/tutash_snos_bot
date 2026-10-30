@@ -82,6 +82,7 @@ class InspectionAppController extends Controller
             'address' => $in->site->address,
             'mahalla' => $in->site->mahalla?->name,
             'demolished' => $in->is_demolished,
+            'in_progress' => $in->in_progress,
             'reason' => $in->reason,
             'distance' => $in->distance_m,
             'far' => in_array('far_from_site', $in->flags ?? [], true),
@@ -326,7 +327,8 @@ class InspectionAppController extends Controller
 
     public function demolished(Request $request): JsonResponse
     {
-        $request->validate(['initData' => 'required|string|max:4096', 'value' => 'required|in:0,1']);
+        // 1 — buzilgan, 0 — buzilmagan, 2 — jarayonda (qisman buzilgan; izoh talab qilinadi)
+        $request->validate(['initData' => 'required|string|max:4096', 'value' => 'required|in:0,1,2']);
 
         [, , $in, $error] = $this->context($request);
         if ($error) {
@@ -336,8 +338,9 @@ class InspectionAppController extends Controller
             return $this->wrongStep();
         }
 
-        $yes = $request->input('value') === '1' || $request->input('value') === 1;
-        $in->update(['is_demolished' => $yes, 'step' => $yes ? 'after_photo' : 'reason']);
+        $value = (string) $request->input('value');
+        $yes = $value === '1';
+        $in->update(['is_demolished' => $yes, 'in_progress' => $value === '2', 'step' => $yes ? 'after_photo' : 'reason']);
 
         return response()->json($this->snapshot($in->refresh()));
     }
@@ -356,7 +359,7 @@ class InspectionAppController extends Controller
 
         $text = trim(preg_replace('/\s+/u', ' ', (string) $request->input('reason')));
         if (mb_strlen($text) < 10 || mb_strlen($text) > 1000) {
-            return $this->fail('Sabab 10 tadan 1000 tagacha belgidan iborat bo‘lishi kerak.');
+            return $this->fail(($in->in_progress ? 'Izoh' : 'Sabab').' 10 tadan 1000 tagacha belgidan iborat bo‘lishi kerak.');
         }
 
         $in->update(['reason' => $text, 'step' => 'confirm']);
@@ -378,7 +381,8 @@ class InspectionAppController extends Controller
 
         AuditLog::record('inspection.submitted', $user['id'], ['inspection' => $done->id, 'site' => $done->site_id, 'demolished' => $done->is_demolished, 'suspicious' => $done->suspicious]);
 
-        $bot->sendMessage(Script::apply('✅ Tekshiruv natijasi saqlandi.'."\n".($done->is_demolished ? 'Obyekt «buzilgan» deb yuborildi. Natija <b>moderator tasdig‘idan keyin</b> hisobga olinadi.' : 'Obyekt <b>buzilmagan</b> holatda qoldi.')), [
+        $bot->sendMessage(Script::apply('✅ Tekshiruv natijasi saqlandi.'."\n".($done->is_demolished ? 'Obyekt «buzilgan» deb yuborildi. Natija <b>moderator tasdig‘idan keyin</b> hisobga olinadi.'
+            : ($done->in_progress ? 'Obyekt <b>buzish jarayonida</b> deb belgilandi. To‘liq buzilgach, qayta tekshiruv yuboring.' : 'Obyekt <b>buzilmagan</b> holatda qoldi.'))), [
             'chat_id' => $user['id'], 'parse_mode' => ParseMode::HTML,
             'reply_markup' => Ui::markup([[Ui::btn('🏠 Bosh sahifa', 'home')]]),
         ]);

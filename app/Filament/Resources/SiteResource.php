@@ -26,7 +26,7 @@ class SiteResource extends Resource
 
     protected static ?int $navigationSort = 1;
 
-    private const STATUS = [Site::NOT_DEMOLISHED => 'Buzilmagan', Site::DEMOLISHED => 'Buzilgan'];
+    private const STATUS = [Site::NOT_DEMOLISHED => 'Buzilmagan', Site::IN_PROGRESS => 'Jarayonda', Site::DEMOLISHED => 'Buzilgan'];
 
     public static function form(Form $form): Form
     {
@@ -70,7 +70,7 @@ class SiteResource extends Resource
                 Infolists\Components\TextEntry::make('area_m2')->label('Maydon (m²)'),
                 Infolists\Components\TextEntry::make('status')->label('Holat')->badge()
                     ->formatStateUsing(fn ($state, Site $record) => $state !== Site::DEMOLISHED && $record->pendingReview ? 'Ko‘rib chiqilmoqda' : (self::STATUS[$state] ?? $state))
-                    ->color(fn ($state, Site $record) => $state === Site::DEMOLISHED ? 'success' : ($record->pendingReview ? 'info' : 'warning')),
+                    ->color(fn ($state, Site $record) => $state === Site::DEMOLISHED ? 'success' : ($record->pendingReview ? 'info' : ($state === Site::IN_PROGRESS ? 'primary' : 'warning'))),
                 Infolists\Components\TextEntry::make('court_number')->label('Sud qarori'),
                 Infolists\Components\TextEntry::make('court_date')->label('Sud sanasi')->date('d.m.Y'),
                 Infolists\Components\TextEntry::make('last_inspected_at')->label('Oxirgi tekshiruv')->dateTime('d.m.Y H:i'),
@@ -93,7 +93,7 @@ class SiteResource extends Resource
                 Tables\Columns\TextColumn::make('area_m2')->label('m²')->numeric(decimalPlaces: 0)->sortable(),
                 Tables\Columns\TextColumn::make('status')->label('Holat')->badge()
                     ->formatStateUsing(fn ($state, Site $record) => $state !== Site::DEMOLISHED && $record->pendingReview ? 'Ko‘rib chiqilmoqda' : (self::STATUS[$state] ?? $state))
-                    ->color(fn ($state, Site $record) => $state === Site::DEMOLISHED ? 'success' : ($record->pendingReview ? 'info' : 'warning')),
+                    ->color(fn ($state, Site $record) => $state === Site::DEMOLISHED ? 'success' : ($record->pendingReview ? 'info' : ($state === Site::IN_PROGRESS ? 'primary' : 'warning'))),
                 Tables\Columns\TextColumn::make('last_inspected_at')->label('Oxirgi tekshiruv')->dateTime('d.m.Y H:i')->sortable()->placeholder('Tekshirilmagan'),
             ])
             ->filters([

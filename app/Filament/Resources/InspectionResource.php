@@ -77,6 +77,11 @@ class InspectionResource extends Resource
         return parent::getEloquentQuery()->where('status', Inspection::SUBMITTED);
     }
 
+    public static function result(Inspection $in): string
+    {
+        return $in->is_demolished ? 'Buzilgan' : ($in->in_progress ? 'Jarayonda' : 'Buzilmagan');
+    }
+
     public static function table(Table $table): Table
     {
         return $table
@@ -86,7 +91,9 @@ class InspectionResource extends Resource
                 Tables\Columns\TextColumn::make('site.district.name')->label('Tuman'),
                 Tables\Columns\TextColumn::make('site.address')->label('Obyekt')->limit(40)->searchable(),
                 Tables\Columns\TextColumn::make('staff.full_name')->label('Xodim')->searchable(),
-                Tables\Columns\IconColumn::make('is_demolished')->label('Buzilgan')->boolean(),
+                Tables\Columns\TextColumn::make('result')->label('Natija')->badge()
+                    ->state(fn (Inspection $record) => self::result($record))
+                    ->color(fn (Inspection $record) => $record->is_demolished ? 'success' : ($record->in_progress ? 'info' : 'warning')),
                 Tables\Columns\TextColumn::make('review_status')->label('Tasdiq')->badge()
                     ->formatStateUsing(fn ($state) => self::REVIEW[$state] ?? '—')
                     ->color(fn ($state) => match ($state) {
@@ -102,8 +109,14 @@ class InspectionResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('district')->label('Tuman')
                     ->relationship('site.district', 'name'),
-                Tables\Filters\TernaryFilter::make('is_demolished')->label('Natija')
-                    ->trueLabel('Buzilgan')->falseLabel('Buzilmagan'),
+                Tables\Filters\SelectFilter::make('result')->label('Natija')
+                    ->options(['demolished' => 'Buzilgan', 'in_progress' => 'Jarayonda', 'standing' => 'Buzilmagan'])
+                    ->query(fn ($query, array $data) => match ($data['value'] ?? null) {
+                        'demolished' => $query->where('is_demolished', true),
+                        'in_progress' => $query->where('is_demolished', false)->where('in_progress', true),
+                        'standing' => $query->where('is_demolished', false)->where('in_progress', false),
+                        default => $query,
+                    }),
                 Tables\Filters\SelectFilter::make('review_status')->label('Tasdiq')->options(self::REVIEW),
                 Tables\Filters\TernaryFilter::make('suspicious')->label('Shubhali'),
                 Tables\Filters\Filter::make('date')->label('Sana')
@@ -126,7 +139,9 @@ class InspectionResource extends Resource
                 Infolists\Components\TextEntry::make('site.district.name')->label('Tuman'),
                 Infolists\Components\TextEntry::make('site.address')->label('Obyekt'),
                 Infolists\Components\TextEntry::make('staff.full_name')->label('Xodim'),
-                Infolists\Components\IconEntry::make('is_demolished')->label('Buzilgan')->boolean(),
+                Infolists\Components\TextEntry::make('result')->label('Natija')->badge()
+                    ->state(fn (Inspection $record) => self::result($record))
+                    ->color(fn (Inspection $record) => $record->is_demolished ? 'success' : ($record->in_progress ? 'info' : 'warning')),
                 Infolists\Components\TextEntry::make('review_status')->label('Tasdiq holati')->badge()
                     ->formatStateUsing(fn ($state) => self::REVIEW[$state] ?? 'Talab etilmaydi')
                     ->color(fn ($state) => $state === Inspection::REVIEW_PENDING ? 'danger' : ($state === Inspection::REVIEW_APPROVED ? 'success' : 'gray')),
@@ -134,7 +149,7 @@ class InspectionResource extends Resource
                 Infolists\Components\TextEntry::make('submitted_at')->label('Yuborilgan')->dateTime('d.m.Y H:i'),
                 Infolists\Components\TextEntry::make('distance_m')->label('Obyektdan masofa (m)')->placeholder('—'),
                 Infolists\Components\TextEntry::make('device')->label('Qurilma')->formatStateUsing(fn ($state) => \App\Support\Device::label($state))->columnSpanFull(),
-                Infolists\Components\TextEntry::make('reason')->label('Buzilmaganlik sababi')->columnSpanFull()->visible(fn (Inspection $record) => ! $record->is_demolished),
+                Infolists\Components\TextEntry::make('reason')->label(fn (Inspection $record) => $record->in_progress ? 'Buzish jarayoni haqida izoh' : 'Buzilmaganlik sababi')->columnSpanFull()->visible(fn (Inspection $record) => ! $record->is_demolished),
                 Infolists\Components\TextEntry::make('flags')->label('Ogohlantirishlar')->badge()->color('danger')
                     ->formatStateUsing(fn ($state) => \App\Support\Gps::flagLabel($state))->visible(fn (Inspection $record) => $record->suspicious),
             ]),

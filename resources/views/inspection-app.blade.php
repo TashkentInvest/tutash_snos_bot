@@ -56,11 +56,12 @@
 <div id="sDemo" class="hidden">
     <p>Ushbu hudud <b>buzib tashlandimi</b>?</p>
     <button class="ok" data-v="1">✅ Ha, buzilgan</button>
+    <button class="secondary" data-v="2">🚧 Jarayonda (qisman buzilgan)</button>
     <button class="danger" data-v="0">❌ Yo‘q, buzilmagan</button>
 </div>
 
 <div id="sReason" class="hidden">
-    <p>Obyekt nima uchun buzilmagan? <b>Sababini yozing</b> (kamida 10 ta belgi).</p>
+    <p id="reasonHint">Obyekt nima uchun buzilmagan? <b>Sababini yozing</b> (kamida 10 ta belgi).</p>
     <textarea id="reason" maxlength="1000" placeholder="Sabab…"></textarea>
     <button id="goReason">Davom etish</button>
 </div>
@@ -134,15 +135,22 @@ async function render(s) {
             await openVideoCam();
             break;
         case 'demolished': show('sDemo'); break;
-        case 'reason': show('sReason'); break;
+        case 'reason':
+            show('sReason');
+            $('title').textContent = s.in_progress ? '5. Buzish jarayoni' : TITLES.reason;
+            $('reasonHint').innerHTML = s.in_progress
+                ? 'Buzish jarayoni haqida <b>izoh yozing</b>: necha foizi buzilgan, kim buzmoqda, qachon tugaydi (kamida 10 ta belgi).'
+                : 'Obyekt nima uchun buzilmagan? <b>Sababini yozing</b> (kamida 10 ta belgi).';
+            $('reason').placeholder = s.in_progress ? 'Masalan: 70% buzilgan, tadbirkor o‘zi buzmoqda…' : 'Sabab…';
+            break;
         case 'confirm': show('sConfirm'); renderSummary(s); break;
         default: say('Tekshiruv yakunlangan.', 'ok-t');
     }
 }
 
 function renderSummary(s) {
-    const lines = ['📍 ' + s.address, s.demolished ? '✅ Natija: BUZILGAN' : '❌ Natija: BUZILMAGAN'];
-    if (!s.demolished && s.reason) lines.push('Sabab: ' + s.reason);
+    const lines = ['📍 ' + s.address, s.demolished ? '✅ Natija: BUZILGAN' : (s.in_progress ? '🚧 Natija: JARAYONDA (qisman buzilgan)' : '❌ Natija: BUZILMAGAN')];
+    if (!s.demolished && s.reason) lines.push((s.in_progress ? 'Izoh: ' : 'Sabab: ') + s.reason);
     lines.push('Rasm va video: ' + (s.media || []).length + ' ta');
     if (s.distance !== null && s.distance !== undefined) lines.push('Obyektgacha masofa: ' + s.distance + ' m' + (s.far ? ' ⚠️' : ''));
     $('sum').innerHTML = '';

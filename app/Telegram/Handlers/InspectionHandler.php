@@ -132,6 +132,9 @@ class InspectionHandler
             ]);
             $site = $in->site;
             $site->last_inspected_at = now();
+            if (! $site->isDemolished() && ! $in->is_demolished) {
+                $site->status = $in->in_progress ? Site::IN_PROGRESS : Site::NOT_DEMOLISHED;
+            }
             $site->save();
 
             return $in;

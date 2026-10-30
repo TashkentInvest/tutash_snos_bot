@@ -337,8 +337,8 @@ class RolesAttendanceTest extends TestCase
         $make($this->site, ['is_demolished' => true, 'review_status' => Inspection::REVIEW_APPROVED, 'submitted_at' => now()->subDay()]); // kecha
 
         $report = implode("\n", \App\Telegram\Support\InspectionReport::chunks(today()));
-        $this->assertStringContainsString('Tekshiruvlar: <b>2</b> · 🏚 buzilgan: <b>1</b> (✅ tasdiqlangan: 0, ⏳ tasdiq kutilmoqda: 1) · 🏠 buzilmagan: <b>1</b>', $report);
-        $this->assertStringContainsString('• Yunusobod tumani: 🏚 1 · 🏠 1', $report);
+        $this->assertStringContainsString('Tekshiruvlar: <b>2</b> · 🏚 buzilgan: <b>1</b> (✅ tasdiqlangan: 0, ⏳ tasdiq kutilmoqda: 1) · 🚧 jarayonda: <b>0</b> · 🏠 buzilmagan: <b>1</b>', $report);
+        $this->assertStringContainsString('• Yunusobod tumani: 🏚 1 · 🚧 0 · 🏠 1', $report);
         $this->assertStringContainsString('1. ⏳ Yunusobod, Test MFY, <b>Birinchi kocha 1</b> (№1) — Aliyev Ali Aliyevich', $report);
         $this->assertStringContainsString('🚩', $report);
         $this->assertStringContainsString('Egasi hujjat olib kelishini aytdi', $report);

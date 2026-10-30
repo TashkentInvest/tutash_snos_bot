@@ -19,7 +19,8 @@ class InspectionReport
         $demolished = $rows->where('is_demolished', true);
         $approved = $demolished->where('review_status', Inspection::REVIEW_APPROVED)->count();
         $pending = $demolished->where('review_status', Inspection::REVIEW_PENDING)->count();
-        $standing = $rows->where('is_demolished', false);
+        $progress = $rows->where('is_demolished', false)->where('in_progress', true);
+        $standing = $rows->where('is_demolished', false)->where('in_progress', false);
 
         $total = Site::count();
         $done = Site::where('status', Site::DEMOLISHED)->count();
@@ -27,7 +28,7 @@ class InspectionReport
         $lines = [
             '📊 <b>Kunlik hisobot (buzilish) — '.$day->format('d.m.Y').'</b>',
             "Tekshiruvlar: <b>{$rows->count()}</b> · 🏚 buzilgan: <b>{$demolished->count()}</b>"
-                ." (✅ tasdiqlangan: {$approved}, ⏳ tasdiq kutilmoqda: {$pending}) · 🏠 buzilmagan: <b>{$standing->count()}</b>",
+                ." (✅ tasdiqlangan: {$approved}, ⏳ tasdiq kutilmoqda: {$pending}) · 🚧 jarayonda: <b>{$progress->count()}</b> · 🏠 buzilmagan: <b>{$standing->count()}</b>",
             "Umumiy bajarilish: <b>{$done}</b> / {$total}".($total ? ' ('.round($done / $total * 100, 1).'%)' : ''),
         ];
 
@@ -40,7 +41,8 @@ class InspectionReport
         $lines[] = "\n<b>Tumanlar kesimida</b>";
         foreach ($rows->groupBy(fn ($i) => $i->site->district->name)->sortKeys() as $district => $items) {
             $d = $items->where('is_demolished', true)->count();
-            $lines[] = '• '.Ui::e($district).": 🏚 {$d} · 🏠 ".($items->count() - $d);
+            $p = $items->where('is_demolished', false)->where('in_progress', true)->count();
+            $lines[] = '• '.Ui::e($district).": 🏚 {$d} · 🚧 {$p} · 🏠 ".($items->count() - $d - $p);
         }
 
         if ($demolished->isNotEmpty()) {
@@ -49,6 +51,13 @@ class InspectionReport
                 $state = $in->review_status === Inspection::REVIEW_APPROVED ? '✅' : '⏳';
                 $lines[] = ($i + 1).". {$state} ".self::where($in).' — '.Ui::e($in->staff?->full_name ?? '—').', '.$in->submitted_at->format('H:i')
                     .($in->suspicious ? ' · 🚩' : '');
+            }
+        }
+
+        if ($progress->isNotEmpty()) {
+            $lines[] = "\n🚧 <b>Buzish jarayonida ({$progress->count()})</b>";
+            foreach ($progress->values() as $i => $in) {
+                $lines[] = ($i + 1).'. '.self::where($in).' — <i>'.Ui::e(Ui::cut((string) $in->reason, 120)).'</i>';
             }
         }
 

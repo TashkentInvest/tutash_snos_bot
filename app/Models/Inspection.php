@@ -19,13 +19,14 @@ class Inspection extends Model
     public const REVIEW_REJECTED = 'rejected';
 
     protected $fillable = [
-        'site_id', 'staff_id', 'status', 'step', 'is_demolished', 'reason',
+        'site_id', 'staff_id', 'status', 'step', 'is_demolished', 'in_progress', 'reason',
         'staff_lat', 'staff_lng', 'distance_m', 'suspicious', 'flags', 'submitted_at', 'device',
         'review_status', 'reviewed_by', 'reviewed_at', 'review_note', 'archived_at',
     ];
 
     protected $casts = [
         'is_demolished' => 'boolean',
+        'in_progress' => 'boolean',
         'suspicious' => 'boolean',
         'flags' => 'array',
         'submitted_at' => 'datetime',

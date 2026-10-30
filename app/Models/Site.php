@@ -13,6 +13,8 @@ class Site extends Model
     public const NOT_DEMOLISHED = 'not_demolished';
     public const DEMOLISHED = 'demolished';
 
+    public const IN_PROGRESS = 'in_progress'; // qisman buzilgan, buzish davom etmoqda
+
     protected $fillable = [
         'district_id', 'mahalla_id', 'source_no', 'address', 'lat', 'lng',
         'violator_name', 'violator_passport', 'org_inn', 'area_m2', 'is_tutash',
@@ -54,7 +56,7 @@ class Site extends Model
 
     public function scopePending(Builder $query): Builder
     {
-        return $query->where('status', self::NOT_DEMOLISHED);
+        return $query->whereIn('status', [self::NOT_DEMOLISHED, self::IN_PROGRESS]);
     }
 
     public function isDemolished(): bool
