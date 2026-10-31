@@ -350,7 +350,7 @@ class RolesAttendanceTest extends TestCase
         $make($other, ['is_demolished' => true, 'review_status' => Inspection::REVIEW_REJECTED, 'archived_at' => now()]); // rad etilgan — hisoblanmaydi
         $make($this->site, ['is_demolished' => true, 'review_status' => Inspection::REVIEW_APPROVED, 'submitted_at' => now()->subDay()]); // kecha
 
-        $report = \App\Telegram\Support\InspectionReport::caption(today());
+        $report = \App\Telegram\Support\InspectionReport::caption(\App\Support\ReportPeriod::current()->day);
         $this->assertStringContainsString('Tekshiruvlar: <b>2</b>', $report);
         $this->assertStringContainsString("Buzilgan: <b>1</b>\n", $report);
         $this->assertStringNotContainsString('Buzilmagan', $report); // qoldiq pastda ko'rsatiladi
@@ -364,7 +364,7 @@ class RolesAttendanceTest extends TestCase
         // dam olish kuni natija yo'q — yuborilmaydi; ish kunida natija bo'lmasa ham "kiritilmagan" deb yuboriladi
         $this->travelTo(now()->next(\Carbon\Carbon::SUNDAY)->setTime(18, 0));
         $this->artisan('inspections:report')->expectsOutputToContain('yuborilmadi')->assertSuccessful();
-        $this->assertStringContainsString('tekshiruv natijasi kiritilmagan', \App\Telegram\Support\InspectionReport::caption(today()));
+        $this->assertStringContainsString('tekshiruv natijasi kiritilmagan', \App\Telegram\Support\InspectionReport::caption(\App\Support\ReportPeriod::current()->day));
     }
 
     public function test_attendance_report_marks_suspicious_locations(): void

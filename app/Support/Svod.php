@@ -6,6 +6,7 @@ use App\Models\District;
 use App\Models\Inspection;
 use App\Models\Site;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 
 /**
  * Tumanlar kesimida svod jadval: qoldiq (buzilmagan obyektlar) soni va maydoni, bugun buzilganlar va jarayondagilar.
@@ -16,29 +17,47 @@ class Svod
     public const COLUMNS = ['№', 'Tuman nomi', 'Qoldiq soni', 'Qoldiq maydoni (ga)', 'Bugun buzilgan', 'Jarayonda'];
 
     /** @return array{rows: array<int, array{name: string, left: int, area: float, today: int, progress: int}>, total: array{name: string, left: int, area: float, today: int, progress: int}} */
-    public static function data(?Carbon $day = null): array
+    public static function data(?CarbonInterface $day = null): array
     {
-        $day ??= today();
+        $period = ReportPeriod::for($day ?? ReportPeriod::current()->day);
         // qoldiq: jami hisobdagi (sud qarori bekor qilinganlarsiz) hali buzilmagan obyektlar — jarayondagilar ham qoldiqda
-        $left = fn ($q) => $q->countable()->where('status', '!=', Site::DEMOLISHED);
+        $sites = Site::countable()->get(['id', 'district_id', 'status', 'area_m2', 'demolished_at']);
 
-        $districts = District::query()->orderBy('name')
-            ->withCount(['sites as left_count' => $left, 'sites as progress_count' => fn ($q) => $q->where('status', Site::IN_PROGRESS)])
-            ->withSum(['sites as left_area' => $left], 'area_m2')
-            ->get();
+        if ($period->isOpen()) {
+            // joriy davr: obyektlarning hozirgi holati
+            $demolished = fn (Site $s) => $s->status === Site::DEMOLISHED;
+            $inProgress = fn (Site $s) => $s->status === Site::IN_PROGRESS;
+        } else {
+            // o'tgan kun: davr oxiridagi (18:00) holat tiklanadi — buzilish vaqti tasdiqlangan natija yuborilgan payt
+            $approvedAt = Inspection::where('status', Inspection::SUBMITTED)->where('is_demolished', true)
+                ->where('review_status', Inspection::REVIEW_APPROVED)->whereNull('followup_of')
+                ->selectRaw('site_id, min(submitted_at) as at')->groupBy('site_id')->pluck('at', 'site_id');
+            $latest = Inspection::counted()->where('submitted_at', '<=', $period->to)->orderBy('submitted_at')
+                ->get(['site_id', 'is_demolished', 'in_progress', 'exempt_type'])->keyBy('site_id');
 
-        // bugun "buzilgan" deb yuborilgan obyektlar (tasdiqlangan va tasdiq kutayotgan; rad etilganlar hisobga olinmaydi)
-        $today = Inspection::counted()->where('is_demolished', true)->whereDate('submitted_at', $day)
-            ->with('site:id,district_id')->get(['id', 'site_id'])
-            ->unique('site_id')->countBy(fn (Inspection $in) => $in->site?->district_id);
+            $demolished = fn (Site $s) => $s->status === Site::DEMOLISHED && (isset($approvedAt[$s->id])
+                ? Carbon::parse($approvedAt[$s->id])->lessThanOrEqualTo($period->to)
+                : (! $s->demolished_at || $s->demolished_at->toDateString() <= $period->to->toDateString())); // import qilingan
+            $inProgress = fn (Site $s) => ($l = $latest[$s->id] ?? null) && ! $l->is_demolished && ! $l->exempt_type && $l->in_progress;
+        }
 
-        $rows = $districts->map(fn (District $d) => [
-            'name' => $d->name,
-            'left' => (int) $d->left_count,
-            'area' => round((float) $d->left_area / 10000, 2),
-            'today' => (int) ($today[$d->id] ?? 0),
-            'progress' => (int) $d->progress_count,
-        ])->values()->all();
+        // davrda "buzilgan" deb yuborilgan obyektlar (tasdiqlangan va tasdiq kutayotgan; rad etilganlar hisobga olinmaydi)
+        $districtOf = $sites->pluck('district_id', 'id');
+        $today = $period->inspections()->orderBy('submitted_at')->get(['site_id', 'is_demolished'])->keyBy('site_id')
+            ->where('is_demolished', true)->countBy(fn (Inspection $in) => $districtOf[$in->site_id] ?? null);
+
+        $bySite = $sites->groupBy('district_id');
+        $rows = District::query()->orderBy('name')->get(['id', 'name'])->map(function (District $d) use ($bySite, $demolished, $inProgress, $today) {
+            $left = ($bySite[$d->id] ?? collect())->reject($demolished);
+
+            return [
+                'name' => $d->name,
+                'left' => $left->count(),
+                'area' => round((float) $left->sum('area_m2') / 10000, 2),
+                'today' => (int) ($today[$d->id] ?? 0),
+                'progress' => $left->filter($inProgress)->count(),
+            ];
+        })->values()->all();
 
         $total = [
             'name' => 'Toshkent shahar jami',
@@ -57,7 +76,7 @@ class Svod
     }
 
     /** Jadval rasmi (PNG). $t — matnni bot alifbosiga o'tkazish (Script::apply). */
-    public static function png(Carbon $day, ?callable $t = null): string
+    public static function png(CarbonInterface $day, ?callable $t = null): string
     {
         $t ??= fn (string $s) => $s;
         $data = self::data($day);
@@ -162,7 +181,7 @@ class Svod
     }
 
     /** Excel (.xlsx) fayl: tashqi kutubxonasiz, minimal SpreadsheetML (ZipArchive). */
-    public static function xlsx(Carbon $day): string
+    public static function xlsx(CarbonInterface $day): string
     {
         $data = self::data($day);
         $esc = fn ($v) => htmlspecialchars((string) $v, ENT_XML1 | ENT_QUOTES, 'UTF-8');

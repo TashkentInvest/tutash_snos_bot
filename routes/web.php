@@ -12,9 +12,9 @@ Route::post('/livewire/update', \App\Http\Controllers\LivewireUpdateController::
 // Arxivlangan rasm/videolar faqat tizimga kirgan administratorlarga beriladi.
 Route::get('/admin-media/{media}', MediaController::class)->middleware(['auth'])->name('admin.media');
 // Svod jadval (Excel) — faqat adminlar
-Route::get('/admin-svod.xlsx', function () {
+Route::get('/admin-svod.xlsx', function (\Illuminate\Http\Request $request) {
     abort_unless(\App\Models\User::currentIsAdmin(), 403);
-    $day = today();
+    $day = \App\Support\ReportPeriod::fromFilter($request->query('day'))->day; // ?day=YYYY-MM-DD (bo'sh — joriy kun)
 
     return response(\App\Support\Svod::xlsx($day), 200, [
         'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -23,10 +23,10 @@ Route::get('/admin-svod.xlsx', function () {
     ]);
 })->middleware(['auth'])->name('admin.svod');
 // Svod jadval rasmi (hisobot namunasi uchun) — faqat adminlar
-Route::get('/admin-svod.png', function () {
+Route::get('/admin-svod.png', function (\Illuminate\Http\Request $request) {
     abort_unless(\App\Models\User::currentIsAdmin(), 403);
 
-    return response(\App\Support\Svod::png(today(), fn (string $s) => \App\Telegram\Support\Script::apply($s)), 200, [
+    return response(\App\Support\Svod::png(\App\Support\ReportPeriod::fromFilter($request->query('day'))->day,fn (string $s) => \App\Telegram\Support\Script::apply($s)), 200, [
         'Content-Type' => 'image/png', 'Cache-Control' => 'private, no-store',
     ]);
 })->middleware(['auth'])->name('admin.svod.png');

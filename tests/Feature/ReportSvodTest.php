@@ -24,6 +24,7 @@ class ReportSvodTest extends TestCase
     {
         parent::setUp();
         config(['nutgram.token' => '123:TEST']);
+        $this->travelTo(today()->setTime(12, 0)); // hisobot davri ichida (18:00 gacha)
         $this->bektemir = District::create(['name' => 'Bektemir tumani', 'phone' => '942778855']);
         $this->chilonzor = District::create(['name' => 'Chilonzor tumani', 'phone' => '950507174']);
     }
@@ -50,6 +51,47 @@ class ReportSvodTest extends TestCase
         }
 
         return $staff;
+    }
+
+    public function test_report_day_runs_from_18_to_18_and_past_days_keep_their_numbers(): void
+    {
+        $staff = Staff::create(['telegram_id' => 556, 'full_name' => 'X', 'phone' => '901112234', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE]);
+        $a = $this->site($this->bektemir, Site::NOT_DEMOLISHED, 1000);
+        $b = $this->site($this->bektemir, Site::NOT_DEMOLISHED, 1000);
+        $this->site($this->bektemir, Site::NOT_DEMOLISHED, 1000);
+        $submit = fn (Site $s, string $at, array $attrs) => Inspection::create($attrs + ['site_id' => $s->id, 'staff_id' => $staff->id,
+            'status' => Inspection::SUBMITTED, 'step' => 'done', 'submitted_at' => $at]);
+
+        // kecha 17:00 — kechagi davr; kecha 19:00 — bugungi davr (18:00 dan keyin yangi kun)
+        $yesterday = today()->subDay();
+        $submit($a, $yesterday->copy()->setTime(17, 0), ['is_demolished' => true, 'review_status' => Inspection::REVIEW_APPROVED]);
+        $a->update(['status' => Site::DEMOLISHED, 'demolished_at' => $yesterday]);
+        $submit($b, $yesterday->copy()->setTime(19, 0), ['is_demolished' => false, 'in_progress' => true]);
+        $b->update(['status' => Site::IN_PROGRESS]);
+
+        $y = \App\Support\ReportPeriod::for($yesterday)->summary();
+        $t = \App\Support\ReportPeriod::for(today())->summary();
+        $this->assertSame([1, 0], [$y['demolished'], $y['progress']]);
+        $this->assertSame([0, 1], [$t['demolished'], $t['progress']]);
+
+        // kechagi svod: kecha 18:00 dagi holat — A buzilgan, B hali jarayonda emas
+        $this->assertSame(['left' => 2, 'today' => 1, 'progress' => 0], array_intersect_key(Svod::data($yesterday)['total'], ['left' => 0, 'today' => 0, 'progress' => 0]));
+        $this->assertSame(['left' => 2, 'today' => 0, 'progress' => 1], array_intersect_key(Svod::data(today())['total'], ['left' => 0, 'today' => 0, 'progress' => 0]));
+
+        // 18:00 dan keyin joriy davr — ertangi kun, hisoblagichlar 0
+        $this->travelTo(today()->setTime(18, 0, 1));
+        $this->assertTrue(\App\Support\ReportPeriod::current()->day->isTomorrow());
+        $this->assertSame(0, \App\Support\ReportPeriod::current()->summary()['inspections']);
+
+        // dashboard: kun tanlanadi — vidjet o'sha kun sonlarini ko'rsatadi
+        $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin);
+        \Livewire\Livewire::test(\App\Filament\Widgets\PeriodStats::class, ['filters' => ['day' => $yesterday->toDateString()]])
+            ->assertSee('Kunlik natija — '.$yesterday->format('d.m.Y'));
+        $dash = \Livewire\Livewire::test(\App\Filament\Pages\Dashboard::class)->assertOk();
+        $this->assertTrue(\App\Support\ReportPeriod::fromFilter($dash->get('filters.day'))->day->isTomorrow()); // 18:00 dan keyin — ertangi davr
+        $this->get('/admin-svod.xlsx?day='.$yesterday->toDateString())->assertOk()->assertHeader('Content-Disposition', 'attachment; filename="svod-'.$yesterday->format('Y-m-d').'.xlsx"');
     }
 
     public function test_svod_counts_left_sites_area_today_and_in_progress_per_district(): void
@@ -86,7 +128,7 @@ class ReportSvodTest extends TestCase
         $admin = Staff::create(['telegram_id' => 777, 'full_name' => 'Admin', 'phone' => '901756545', 'status' => Staff::ACTIVE,
             'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true, 'attendance_required' => false]);
 
-        $caption = InspectionReport::caption(today());
+        $caption = InspectionReport::caption(\App\Support\ReportPeriod::current()->day);
         $this->assertStringContainsString("Buzilgan: <b>2</b>\n", $caption);
         $this->assertStringNotContainsString('tasdiq kutilmoqda', $caption);
         $this->assertStringContainsString('Qoldiq: <b>3</b> ta · 2,25 ga', $caption);

@@ -426,7 +426,7 @@ class BotFlowTest extends TestCase
         $this->assertSame(Site::EXEMPT, $this->site->refresh()->status);
         $this->assertSame($totalBefore - 1, Site::countable()->count());
         $this->assertFalse(Site::pending()->whereKey($this->site->id)->exists());
-        $this->assertStringContainsString('Sud qarori bekor: <b>1</b>', \App\Telegram\Support\InspectionReport::caption(today()));
+        $this->assertStringContainsString('Sud qarori bekor: <b>1</b>', \App\Telegram\Support\InspectionReport::caption(\App\Support\ReportPeriod::current()->day));
     }
 
     public function test_other_issue_is_text_only_and_keeps_site_in_work_list(): void
@@ -467,7 +467,7 @@ class BotFlowTest extends TestCase
         $this->assertNull($in->review_status);
         $this->assertSame(Site::IN_PROGRESS, $this->site->refresh()->status);
         $this->assertTrue(Site::pending()->whereKey($this->site->id)->exists());
-        $this->assertStringContainsString('Jarayonda: <b>1</b>', \App\Telegram\Support\InspectionReport::caption(today()));
+        $this->assertStringContainsString('Jarayonda: <b>1</b>', \App\Telegram\Support\InspectionReport::caption(\App\Support\ReportPeriod::current()->day));
     }
 
     public function test_black_media_is_rejected_and_device_is_recorded(): void

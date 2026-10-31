@@ -4,11 +4,14 @@ namespace App\Filament\Widgets;
 
 use App\Filament\Resources\AttendanceResource;
 use App\Models\Attendance;
+use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class AttendanceToday extends StatsOverviewWidget
 {
+    use InteractsWithPageFilters;
+
     public static function canView(): bool
     {
         return \App\Models\User::currentIsAdmin();
@@ -19,14 +22,23 @@ class AttendanceToday extends StatsOverviewWidget
     // standart 5 soniya o'rniga: sust aloqada sahifa og'irlashmasin
     protected static ?string $pollingInterval = '60s';
 
-    protected ?string $heading = 'Bugungi davomat';
+    private function day(): \Carbon\CarbonImmutable
+    {
+        return \App\Filament\Pages\Dashboard::attendanceDay(\App\Support\ReportPeriod::fromFilter($this->filters['day'] ?? null));
+    }
+
+    protected function getHeading(): ?string
+    {
+        return $this->day()->isToday() ? 'Bugungi davomat' : 'Davomat — '.$this->day()->format('d.m.Y');
+    }
 
     protected function getStats(): array
     {
-        $count = fn (array $statuses) => Attendance::whereDate('date', today())->whereIn('status', $statuses)->count();
-        $total = Attendance::whereDate('date', today())->count();
+        $day = $this->day()->toDateString();
+        $count = fn (array $statuses) => Attendance::whereDate('date', $day)->whereIn('status', $statuses)->count();
+        $total = Attendance::whereDate('date', $day)->count();
 
-        $today = ['from' => today()->toDateString(), 'to' => today()->toDateString()];
+        $today = ['from' => $day, 'to' => $day];
         $url = fn (?string $status = null) => AttendanceResource::getUrl('index', ['tableFilters' => ['date' => $today] + ($status ? ['status' => ['value' => $status]] : [])]);
 
         return [

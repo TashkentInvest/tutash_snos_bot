@@ -6,11 +6,14 @@ use App\Filament\Resources\AttendanceResource;
 use App\Models\Attendance;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use Filament\Widgets\TableWidget as BaseWidget;
 
 /** Dashboard: bugungi davomat ro'yxati (vaqt, joylashuv xaritasi, video, sabab). */
 class AttendanceList extends BaseWidget
 {
+    use InteractsWithPageFilters;
+
     public static function canView(): bool
     {
         return \App\Models\User::currentIsAdmin();
@@ -18,14 +21,19 @@ class AttendanceList extends BaseWidget
 
     protected static ?int $sort = 2;
 
-    protected static ?string $heading = 'Bugungi davomat ro‘yxati';
 
     protected int|string|array $columnSpan = 'full';
+
+    private function day(): \Carbon\CarbonImmutable
+    {
+        return \App\Filament\Pages\Dashboard::attendanceDay(\App\Support\ReportPeriod::fromFilter($this->filters['day'] ?? null));
+    }
 
     public function table(Table $table): Table
     {
         return $table
-            ->query(Attendance::query()->with('staff.districts')->whereDate('date', today()))
+            ->heading(fn () => $this->day()->isToday() ? 'Bugungi davomat ro‘yxati' : 'Davomat ro‘yxati — '.$this->day()->format('d.m.Y'))
+            ->query(fn () => Attendance::query()->with('staff.districts')->whereDate('date', $this->day()->toDateString()))
             ->columns([
                 Tables\Columns\TextColumn::make('staff.full_name')->label('Xodim')->searchable(),
                 Tables\Columns\TextColumn::make('staff.districts.name')->label('Tuman')->badge(),
@@ -47,7 +55,7 @@ class AttendanceList extends BaseWidget
                 Tables\Columns\TextColumn::make('reason')->label('Sabab')->limit(50)->tooltip(fn (Attendance $record) => $record->reason)->placeholder('—'),
             ])
             ->paginated([10, 25, 50])
-            ->emptyStateHeading('Bugun davomat so‘rovi yuborilmagan')
+            ->emptyStateHeading('Bu kun davomat so‘rovi yuborilmagan')
             ->defaultSort('responded_at', 'desc');
     }
 }

@@ -16,7 +16,8 @@ class StatsOverview extends StatsOverviewWidget
     // standart 5 soniya o'rniga: sust aloqada sahifa og'irlashmasin
     protected static ?string $pollingInterval = '60s';
 
-    protected ?string $heading = 'Umumiy holat';
+    // jami (boshidan beri) holat — kunlik sonlar PeriodStats'da
+    protected ?string $heading = 'Umumiy holat (jami)';
 
     protected function getStats(): array
     {
@@ -24,7 +25,6 @@ class StatsOverview extends StatsOverviewWidget
         $exempt = Site::where('status', Site::EXEMPT)->count();
         $demolished = Site::where('status', Site::DEMOLISHED)->count();
         $inProgress = Site::where('status', Site::IN_PROGRESS)->count();
-        $today = Inspection::counted()->whereDate('submitted_at', today())->count();
         $suspicious = Inspection::counted()->where('suspicious', true)->count();
         $followDone = Inspection::where('followup', Inspection::FOLLOWUP_DONE)->count();
         $followOpen = Inspection::where('followup', Inspection::FOLLOWUP_OPEN)->count();
@@ -50,8 +50,6 @@ class StatsOverview extends StatsOverviewWidget
             Stat::make('Moderator izohlari', $followDone)->color($followDone ? 'danger' : 'gray')
                 ->description("Xodim bajardi, tekshirish kerak · bajarilmagan: {$followOpen}")
                 ->url($inspections(['followup' => ['value' => $followDone || ! $followOpen ? Inspection::FOLLOWUP_DONE : Inspection::FOLLOWUP_OPEN]])),
-            Stat::make('Bugungi tekshiruvlar', $today)
-                ->url($inspections(['date' => ['from' => today()->toDateString(), 'to' => today()->toDateString()]])),
             Stat::make('Shubhali tekshiruvlar', $suspicious)->color($suspicious ? 'danger' : 'gray')
                 ->description('Obyektdan uzoqda yoki takroriy fayl')
                 ->url($inspections(['suspicious' => ['value' => 1]])),

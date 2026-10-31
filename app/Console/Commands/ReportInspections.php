@@ -21,7 +21,7 @@ class ReportInspections extends Command
 
         // dam olish kunida natija bo'lmasa — bo'sh hisobot yuborilmaydi
         $workday = in_array($day->dayOfWeekIso, config('tutash.attendance.days'), true);
-        if (! $workday && ! Inspection::counted()->whereDate('submitted_at', $day)->exists()) {
+        if (! $workday && ! \App\Support\ReportPeriod::for($day)->inspections()->exists()) {
             $this->info('Dam olish kuni, natija yo‘q — yuborilmadi.');
 
             return self::SUCCESS;
