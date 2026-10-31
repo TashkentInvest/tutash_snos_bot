@@ -31,7 +31,7 @@ class DashboardHttpTest extends TestCase
         $admin->save();
         $this->actingAs($admin);
 
-        \App\Models\Staff::create(['telegram_id' => 801, 'status' => \App\Models\Staff::ACTIVE, 'role' => \App\Models\Staff::ROLE_EMPLOYEE, 'is_global' => true, 'full_name' => 'Global Admin', 'phone' => '900000101']);
+        \App\Models\Staff::create(['telegram_id' => 801, 'status' => \App\Models\Staff::ACTIVE, 'role' => \App\Models\Staff::ROLE_EMPLOYEE, 'is_global' => true, 'receives_reports' => true, 'full_name' => 'Global Admin', 'phone' => '900000101']);
         $this->get('/admin-svod.png')->assertOk()->assertHeader('Content-Type', 'image/png');
 
         $html = $this->get('/admin')->assertOk()->getContent();

@@ -55,10 +55,9 @@ class StaffResource extends Resource
             Forms\Components\Select::make('role')->label('Rol')->options(self::ROLES),
             Forms\Components\TextInput::make('failed_attempts')->label('Noto‘g‘ri urinishlar (0 — qayta ochish)')->numeric()->minValue(0),
             Forms\Components\Toggle::make('attendance_required')->label('Kunlik davomat yuritiladi'),
-            Forms\Components\Toggle::make('is_global')->label('Barcha tumanlarni ko‘radi (admin)')
-                ->helperText('Admin kunlik hisobotlarni avtomatik oladi.'),
+            Forms\Components\Toggle::make('is_global')->label('Barcha tumanlarni ko‘radi (admin)'),
             Forms\Components\Toggle::make('receives_reports')->label('Hisobot oladi')
-                ->helperText('Kunlik buzilish (svod) va davomat hisobotlari botda yuboriladi.'),
+                ->helperText('Kunlik buzilish (svod) va davomat hisobotlari botda yuboriladi. Faqat shu belgi qo‘yilganlarga boradi (admin bo‘lsa ham).'),
             Forms\Components\Select::make('districts')->label('Biriktirilgan tumanlar')
                 ->relationship('districts', 'name')->multiple()->preload(),
         ]);
@@ -79,10 +78,9 @@ class StaffResource extends Resource
                         Staff::BLOCKED, Staff::REJECTED => 'danger',
                         default => 'warning',
                     }),
-                Tables\Columns\IconColumn::make('reports')->label('Hisobot')->boolean()
-                    ->state(fn (Staff $record) => $record->is_global || $record->receives_reports)
-                    ->tooltip(fn (Staff $record) => $record->is_global ? 'Admin — hisobotni avtomatik oladi' : null)
-                    ->action(fn (Staff $record) => $record->is_global || $record->update(['receives_reports' => ! $record->receives_reports])),
+                Tables\Columns\IconColumn::make('receives_reports')->label('Hisobot')->boolean()
+                    ->tooltip('Bosing: hisobot yuborishni yoqish / o‘chirish')
+                    ->action(fn (Staff $record) => $record->update(['receives_reports' => ! $record->receives_reports])),
                 Tables\Columns\TextColumn::make('inspections_count')->label('Tekshiruvlar')->counts('inspections'),
                 Tables\Columns\TextColumn::make('last_seen_at')->label('Oxirgi faollik')->since()->sortable(),
             ])
@@ -90,7 +88,7 @@ class StaffResource extends Resource
                 Tables\Filters\SelectFilter::make('status')->label('Holat')->options(self::STATUSES),
                 Tables\Filters\SelectFilter::make('role')->label('Rol')->options(self::ROLES),
                 Tables\Filters\Filter::make('reports')->label('Hisobot oladi')
-                    ->query(fn ($query) => $query->where(fn ($q) => $q->where('is_global', true)->orWhere('receives_reports', true))),
+                    ->query(fn ($query) => $query->where('receives_reports', true)),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

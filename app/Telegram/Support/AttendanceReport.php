@@ -111,11 +111,9 @@ class AttendanceReport
         return $sent;
     }
 
-    /** Hisobot oluvchilar: barcha tumanlarni ko'radigan adminlar + admin panelda «Hisobot oladi» belgilangan faol foydalanuvchilar. */
+    /** Hisobot oluvchilar: admin panelda «Hisobot oladi» belgilangan faol foydalanuvchilar (admin bo'lishi shart ham emas, yetarli ham emas). */
     public static function recipients(): \Illuminate\Support\Collection
     {
-        return Staff::where('status', Staff::ACTIVE)->whereNotNull('telegram_id')
-            ->where(fn ($q) => $q->where('is_global', true)->orWhere('receives_reports', true))
-            ->get();
+        return Staff::where('status', Staff::ACTIVE)->whereNotNull('telegram_id')->where('receives_reports', true)->get();
     }
 }

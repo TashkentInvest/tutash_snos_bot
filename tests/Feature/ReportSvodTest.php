@@ -126,7 +126,7 @@ class ReportSvodTest extends TestCase
     {
         $this->seedSites();
         $admin = Staff::create(['telegram_id' => 777, 'full_name' => 'Admin', 'phone' => '901756545', 'status' => Staff::ACTIVE,
-            'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true, 'attendance_required' => false]);
+            'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true, 'receives_reports' => true, 'attendance_required' => false]);
 
         $caption = InspectionReport::caption(\App\Support\ReportPeriod::current()->day);
         $this->assertStringContainsString("Buzilgan: <b>2</b>\n", $caption);
