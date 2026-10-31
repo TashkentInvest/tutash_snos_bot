@@ -99,6 +99,14 @@ class InspectionResource extends Resource
     public static function followupActions(): array
     {
         return [
+            Tables\Actions\Action::make('remindFollowup')->label('Eslatish')->icon('heroicon-o-bell-alert')->color('warning')
+                ->requiresConfirmation()->modalHeading('Xodimga eslatma yuborilsinmi?')
+                ->modalDescription(fn (Inspection $record) => 'Xodimga botda izoh va «Bajardingizmi?» savoli tugmalar bilan boradi: '.$record->staff?->full_name)
+                ->visible(fn (Inspection $record) => $record->followup === Inspection::FOLLOWUP_OPEN && User::currentIsAdmin())
+                ->action(function (Inspection $record) {
+                    $ok = \App\Support\FollowupReminder::send($record, auth()->id());
+                    Notification::make()->title($ok ? 'Eslatma yuborildi' : 'Yuborilmadi (xodim botni bloklagan bo‘lishi mumkin)')->{$ok ? 'success' : 'warning'}()->send();
+                }),
             Tables\Actions\Action::make('closeFollowup')->label('Izohni yopish')->icon('heroicon-o-check-badge')->color('success')
                 ->requiresConfirmation()->modalHeading('Izoh bajarildi deb yopilsinmi?')
                 ->modalDescription('Xodim yuborgan rasm va videolarni tekshirib chiqing.')
@@ -174,8 +182,10 @@ class InspectionResource extends Resource
                     })
                     ->description(fn (Inspection $record) => $record->rework_of ? 'Tuzatib qayta yuborilgan' : null),
                 Tables\Columns\TextColumn::make('followup')->label('Izoh holati')->badge()
-                    ->formatStateUsing(fn ($state) => Inspection::FOLLOWUPS[$state] ?? '—')
-                    ->color(fn ($state) => self::followupColor($state))
+                    ->formatStateUsing(fn ($state, Inspection $record) => \App\Support\FollowupReminder::label($record) ?? '—')
+                    ->color(fn ($state, Inspection $record) => $state === Inspection::FOLLOWUP_OPEN && $record->followup_ack_at ? 'info' : self::followupColor($state))
+                    ->description(fn (Inspection $record) => $record->followup === Inspection::FOLLOWUP_OPEN && $record->followup_reminders
+                        ? "Eslatma: {$record->followup_reminders} marta, oxirgisi ".$record->followup_reminded_at?->format('d.m H:i') : null)
                     ->tooltip(fn (Inspection $record) => $record->review_note),
                 Tables\Columns\TextColumn::make('distance_m')->label('Masofa (m)')->placeholder('—'),
                 Tables\Columns\IconColumn::make('suspicious')->label('Shubhali')->boolean()
@@ -226,8 +236,12 @@ class InspectionResource extends Resource
                 Infolists\Components\TextEntry::make('review_note')->label(fn (Inspection $record) => $record->review_status === Inspection::REVIEW_REJECTED ? 'Rad etish sababi' : 'Moderator izohi')
                     ->visible(fn (Inspection $record) => (bool) $record->review_note),
                 Infolists\Components\TextEntry::make('followup')->label('Izoh holati')->badge()
-                    ->formatStateUsing(fn ($state) => Inspection::FOLLOWUPS[$state] ?? '—')
-                    ->color(fn ($state) => self::followupColor($state))
+                    ->formatStateUsing(fn ($state, Inspection $record) => \App\Support\FollowupReminder::label($record) ?? '—')
+                    ->color(fn ($state, Inspection $record) => $state === Inspection::FOLLOWUP_OPEN && $record->followup_ack_at ? 'info' : self::followupColor($state))
+                    ->helperText(fn (Inspection $record) => collect([
+                        $record->followup_ack_at ? 'Tanishdi: '.$record->followup_ack_at->format('d.m.Y H:i') : null,
+                        $record->followup_reminders ? "Eslatma: {$record->followup_reminders} marta, oxirgisi ".$record->followup_reminded_at?->format('d.m.Y H:i') : null,
+                    ])->filter()->join(' · ') ?: null)
                     ->visible(fn (Inspection $record) => (bool) $record->followup),
                 Infolists\Components\TextEntry::make('rework_of')->label('Tuzatilgan natija')
                     ->formatStateUsing(fn ($state) => "Avval rad etilgan natija #{$state}")

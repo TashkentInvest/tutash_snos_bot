@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Support\FollowupReminder;
 use App\Support\ReportPeriod;
 use App\Telegram\Support\AttendanceReport;
 use App\Telegram\Support\InspectionReport;
@@ -81,7 +82,26 @@ class Dashboard extends BaseDashboard
                 ->modalSubmitAction(fn ($action) => $action->disabled(AttendanceReport::chunks(self::attendanceDay($this->period())->toMutable()) === []))
                 ->visible(fn () => User::currentIsAdmin())
                 ->action(fn () => $this->report('attendance', fn (Nutgram $bot) => AttendanceReport::sendToAdmins($bot, self::attendanceDay($this->period())->toMutable()))),
+            self::remindAllAction(),
         ];
+    }
+
+    /** Barcha ochiq (bajarilmagan) moderator izohlari bo'yicha xodimlarga eslatma — bosh sahifa va tekshiruvlar ro'yxatida. */
+    public static function remindAllAction(): Action
+    {
+        return Action::make('remindFollowups')->label(fn () => 'Izohlarga eslatish ('.FollowupReminder::open()->count().')')
+            ->icon('heroicon-o-bell-alert')->color('warning')
+            ->requiresConfirmation()->modalHeading('Bajarilmagan izohlar bo‘yicha eslatma yuborilsinmi?')
+            ->modalDescription(fn () => FollowupReminder::open()->get()
+                ->map(fn ($in) => ($in->staff?->full_name ?? '—').': «'.\Illuminate\Support\Str::limit((string) $in->review_note, 50).'»')
+                ->join("\n") ?: 'Ochiq izoh yo‘q.')
+            ->modalSubmitActionLabel('Yuborish')
+            ->visible(fn () => User::currentIsAdmin())
+            ->disabled(fn () => FollowupReminder::open()->doesntExist())
+            ->action(function () {
+                $sent = FollowupReminder::sendAll(auth()->id());
+                Notification::make()->title($sent ? "Eslatma yuborildi: {$sent} ta" : 'Yuborilmadi')->{$sent ? 'success' : 'warning'}()->send();
+            });
     }
 
     private function report(string $type, callable $send): void

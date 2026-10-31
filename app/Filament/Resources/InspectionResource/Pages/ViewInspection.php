@@ -40,6 +40,15 @@ class ViewInspection extends ViewRecord
                     Notification::make()->title($ok ? 'Natija rad etildi, obyekt holati o‘zgarmadi' : 'Bu natija allaqachon ko‘rib chiqilgan')->{$ok ? 'success' : 'warning'}()->send();
                     $this->record->refresh();
                 }),
+            Action::make('remindFollowup')->label('Eslatish')->icon('heroicon-o-bell-alert')->color('warning')
+                ->requiresConfirmation()->modalHeading('Xodimga eslatma yuborilsinmi?')
+                ->modalDescription(fn () => 'Xodimga botda izoh va «Bajardingizmi?» savoli tugmalar bilan boradi: '.$this->record->staff?->full_name)
+                ->visible(fn () => $this->record->followup === Inspection::FOLLOWUP_OPEN && \App\Models\User::currentIsAdmin())
+                ->action(function () {
+                    $ok = \App\Support\FollowupReminder::send($this->record, auth()->id());
+                    Notification::make()->title($ok ? 'Eslatma yuborildi' : 'Yuborilmadi (xodim botni bloklagan bo‘lishi mumkin)')->{$ok ? 'success' : 'warning'}()->send();
+                    $this->record->refresh();
+                }),
             Action::make('closeFollowup')->label('Izohni yopish')->icon('heroicon-o-check-badge')->color('success')
                 ->requiresConfirmation()->modalHeading('Izoh bajarildi deb yopilsinmi?')
                 ->modalDescription('Xodim yuborgan rasm va videolarni tekshirib chiqing.')

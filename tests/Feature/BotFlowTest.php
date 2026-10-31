@@ -627,6 +627,62 @@ class BotFlowTest extends TestCase
         $this->assertSame(0, Inspection::where('status', Inspection::DRAFT)->count());
     }
 
+    public function test_moderator_notes_are_acknowledged_and_reminded_until_done(): void
+    {
+        $this->register();
+        $sentText = fn ($bot) => collect($bot->getRequestHistory())->map(fn ($r) => urldecode((string) $r['request']->getBody()))->implode("\n");
+
+        // tasdiqlash izoh bilan — xodimga «Tushundim» va «Bajarildi» tugmalari
+        $in = $this->submitDemolished();
+        $bot = $this->bot();
+        $this->assertTrue(\App\Support\InspectionReview::approve($in, null, 'Tegini tozalatib qo‘ying'));
+        $text = $sentText($bot);
+        $this->assertStringContainsString("fa:{$in->id}", $text);
+        $this->assertStringContainsString("fu:{$in->id}", $text);
+
+        // «Tushundim» — tanishgani qayd etiladi, izoh ochiq qoladi
+        $this->bot()->hearCallbackQueryData("fa:{$in->id}")->reply();
+        $in->refresh();
+        $this->assertNotNull($in->followup_ack_at);
+        $this->assertSame(Inspection::FOLLOWUP_OPEN, $in->followup);
+        $this->assertSame('Tanishdi, bajarilmagan', \App\Support\FollowupReminder::label($in));
+
+        // rad etilgan natija ham eslatiladi (tuzatish tugmasi bilan)
+        $this->site->update(['status' => Site::NOT_DEMOLISHED]);
+        $other = Inspection::create(['site_id' => $this->foreignSite->id, 'staff_id' => $in->staff_id, 'status' => Inspection::SUBMITTED, 'step' => 'done',
+            'kind' => Inspection::KIND_FOUND, 'is_demolished' => true, 'submitted_at' => now(), 'review_status' => Inspection::REVIEW_PENDING]);
+        \App\Support\InspectionReview::reject($other, null, 'Devorini oldirish kerak');
+
+        // har kungi eslatma: ikkala ochiq izohga, bugun ikkinchi marta — yo'q
+        $bot = $this->bot();
+        $this->artisan('followups:remind')->expectsOutputToContain('Eslatmalar yuborildi: 2')->assertSuccessful();
+        $text = $sentText($bot);
+        $this->assertStringContainsString('Bajardingizmi', $text);
+        $this->assertStringContainsString("fn:{$in->id}", $text);
+        $this->assertStringContainsString("rw:{$other->id}", $text);
+        $this->artisan('followups:remind')->expectsOutputToContain('Eslatmalar yuborildi: 0')->assertSuccessful();
+        $this->assertSame(1, $in->refresh()->followup_reminders);
+
+        // «Hali yo'q» — ochiq qoladi; «Bajarildi» — rasm/video bilan isbot, so'ng moderator tekshiradi
+        $this->bot()->hearCallbackQueryData("fn:{$in->id}")->reply();
+        $this->assertSame(Inspection::FOLLOWUP_OPEN, $in->refresh()->followup);
+        $this->bot()->hearCallbackQueryData("fu:{$in->id}")->reply();
+        $this->capture(submit: false);
+        $this->app('reason', ['reason' => 'Tegi tozalandi, chiqindi olib ketildi'])->assertOk();
+        $this->app('submit')->assertOk();
+        $this->assertSame(Inspection::FOLLOWUP_DONE, $in->refresh()->followup);
+        $this->bot()->hearCallbackQueryData("fa:{$in->id}")->reply(); // endi javob berilgan
+        $this->assertSame(Inspection::FOLLOWUP_DONE, $in->refresh()->followup);
+
+        // admin panel: holat va qo'lda eslatish (faqat ochiq izohlar)
+        $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin)->get('/admin/inspections')->assertOk()->assertSee('Xodim bajardi')->assertSee('Javob kutilmoqda');
+        \Livewire\Livewire::test(\App\Filament\Resources\InspectionResource\Pages\ListInspections::class)
+            ->callAction('remindFollowups')->assertNotified('Eslatma yuborildi: 1 ta');
+        $this->assertSame(2, $other->refresh()->followup_reminders);
+    }
+
     public function test_inspection_can_be_cancelled_from_app(): void
     {
         $this->register();

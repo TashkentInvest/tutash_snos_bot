@@ -4,7 +4,6 @@ namespace App\Telegram\Handlers;
 
 use App\Models\AuditLog;
 use App\Models\Inspection;
-use App\Models\InspectionMedia;
 use App\Models\Site;
 use App\Models\Staff;
 use App\Telegram\Support\Ui;
@@ -156,6 +155,49 @@ class InspectionHandler
 
         Ui::say($bot, '<b>'.Ui::e(Ui::cut($site->address, 60)).'</b>'."\n\n💬 Moderator izohi: <i>".Ui::e((string) $old->review_note)."</i>\n\n"
             .'Oynani oching va <b>qaysi qismini qayta olishni</b> tanlang: rasm, video yoki hujjat. Qolgan ma’lumotlar avvalgidek saqlanadi.', self::webAppMarkup());
+    }
+
+    /** Xodimning ochiq (bajarilmagan) moderator izohi. */
+    private function openFollowup(Nutgram $bot, string $id): ?Inspection
+    {
+        if (! $staff = BrowseHandler::guardEmployee($bot)) {
+            return null;
+        }
+        $in = Inspection::with('site')->where('staff_id', $staff->id)->where('status', Inspection::SUBMITTED)->find((int) $id);
+        if (! $in || $in->followup !== Inspection::FOLLOWUP_OPEN) {
+            $bot->answerCallbackQuery(['text' => Ui::t($in ? 'Bu izoh bo‘yicha javob allaqachon berilgan.' : 'Natija topilmadi.'), 'show_alert' => true]);
+
+            return null;
+        }
+
+        return $in;
+    }
+
+    /** "👌 Tushundim" ("fa:{id}"): xodim izoh bilan tanishgani qayd etiladi; bajarilmaguncha eslatma davom etadi. */
+    public function acknowledge(Nutgram $bot, string $id): void
+    {
+        if (! $in = $this->openFollowup($bot, $id)) {
+            return;
+        }
+        $in->followup_ack_at ?? $in->forceFill(['followup_ack_at' => now()])->save();
+        AuditLog::record('inspection.followup_ack', $bot->userId(), ['inspection' => $in->id]);
+        $bot->answerCallbackQuery(['text' => Ui::t('Qayd etildi')]);
+        Ui::say($bot, '👌 Izoh bilan tanishganingiz qayd etildi.'."\n📍 ".Ui::e($in->site->address)
+            ."\n\nBajargach «✅ Bajarildi» tugmasini bosib, rasm va video yuboring. Bajarilmaguncha har kuni eslatma keladi.",
+            Ui::markup([[Ui::btn('✅ Bajarildi — rasm va video yuborish', "fu:{$in->id}")]]));
+    }
+
+    /** Eslatmaga "⏳ Hali yo'q" ("fn:{id}"): tanishgan deb belgilanadi, ertaga yana so'raladi. */
+    public function notYet(Nutgram $bot, string $id): void
+    {
+        if (! $in = $this->openFollowup($bot, $id)) {
+            return;
+        }
+        $in->followup_ack_at ?? $in->forceFill(['followup_ack_at' => now()])->save();
+        AuditLog::record('inspection.followup_not_yet', $bot->userId(), ['inspection' => $in->id]);
+        $bot->answerCallbackQuery(['text' => Ui::t('Ertaga yana eslatamiz')]);
+        Ui::say($bot, '⏳ Qayd etildi: izoh hali bajarilmagan.'."\n📍 ".Ui::e($in->site->address)."\n\nBajarib bo‘lgach «✅ Bajarildi» tugmasini bosing. Ertaga yana eslatamiz.",
+            Ui::markup([[Ui::btn('✅ Bajarildi — rasm va video yuborish', "fu:{$in->id}")]]));
     }
 
     /** Tasdiqlangan natija bo'yicha moderator izohi bajarilganini rasm va video bilan tasdiqlash ("fu:{id}"). */

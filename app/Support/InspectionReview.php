@@ -28,7 +28,8 @@ class InspectionReview
             }
 
             $in->update(['review_status' => Inspection::REVIEW_APPROVED, 'reviewed_by' => $userId, 'reviewed_at' => now(),
-                'review_note' => $note, 'followup' => $note ? Inspection::FOLLOWUP_OPEN : null, 'followup_at' => null]);
+                'review_note' => $note, 'followup' => $note ? Inspection::FOLLOWUP_OPEN : null, 'followup_at' => null,
+                'followup_ack_at' => null, 'followup_reminded_at' => null, 'followup_reminders' => 0]);
             self::closeParent($in);
             // sud qarori bekor qilingan obyekt buzilmaydi va jami sondan chiqariladi
             $in->site->update($in->isCourtCancelled()
@@ -44,7 +45,7 @@ class InspectionReview
 
         AuditLog::record('inspection.approved', null, ['inspection' => $done->id, 'site' => $done->site_id, 'by' => $userId]);
         self::notify($done, ($done->isCourtCancelled() ? '✅ <b>Sud qarori bekor qilingani tasdiqlandi</b> — obyekt hisobdan chiqarildi.' : '✅ <b>Obyekt buzilgani tasdiqlandi.</b>')."\n".'📍 '.Ui::e($done->site->address)
-            .($note ? "\n\n💬 Moderator izohi: <i>".Ui::e($note)."</i>\n\nIzohni bajargach, pastdagi tugmani bosib <b>rasm va video</b> yuboring." : ''),
+            .($note ? "\n\n💬 Moderator izohi: <i>".Ui::e($note)."</i>\n\nIzoh bilan tanishgach «👌 Tushundim» ni, bajargach «✅ Bajarildi» ni bosib <b>rasm va video</b> yuboring. Bajarilmaguncha har kuni eslatma keladi." : ''),
             $note ? self::followupMarkup($done) : null);
 
         return true;
@@ -60,7 +61,7 @@ class InspectionReview
 
             // Rad etilgan natija arxivlanadi (fayllar saqlanadi): obyekt sahifasi bo'shaydi va xodim qayta yubora oladi.
             $in->update(['review_status' => Inspection::REVIEW_REJECTED, 'reviewed_by' => $userId, 'reviewed_at' => now(), 'review_note' => $note, 'archived_at' => now(),
-                'followup' => Inspection::FOLLOWUP_OPEN, 'followup_at' => null]);
+                'followup' => Inspection::FOLLOWUP_OPEN, 'followup_at' => null, 'followup_ack_at' => null, 'followup_reminded_at' => null, 'followup_reminders' => 0]);
             self::closeParent($in);
             $in->site->update(['last_inspected_at' => Inspection::where('site_id', $in->site_id)->where('status', Inspection::SUBMITTED)->whereNull('archived_at')->max('submitted_at')]);
 
@@ -96,16 +97,17 @@ class InspectionReview
         if ($in->review_status !== Inspection::REVIEW_APPROVED || $in->followup !== Inspection::FOLLOWUP_DONE) {
             return false;
         }
-        $in->update(['followup' => Inspection::FOLLOWUP_OPEN, 'followup_at' => null, 'review_note' => $note]);
+        $in->update(['followup' => Inspection::FOLLOWUP_OPEN, 'followup_at' => null, 'review_note' => $note, 'followup_ack_at' => null]);
         AuditLog::record('inspection.followup_reopened', null, ['inspection' => $in->id, 'by' => $userId]);
         self::notify($in, "🔁 <b>Izoh hali to‘liq bajarilmagan.</b>\n📍 ".Ui::e($in->site->address)."\n\n💬 Moderator izohi: <i>".Ui::e($note)."</i>\n\nBajargach, pastdagi tugma orqali rasm va video yuboring.", self::followupMarkup($in));
 
         return true;
     }
 
+    /** Izoh bilan tanishdi / bajarildi tugmalari (FollowupReminder). */
     public static function followupMarkup(Inspection $in): InlineKeyboardMarkup
     {
-        return InlineKeyboardMarkup::make()->addRow(InlineKeyboardButton::make(Ui::t('✅ Bajarildi — rasm va video yuborish'), callback_data: "fu:{$in->id}"));
+        return \App\Support\FollowupReminder::noteMarkup($in);
     }
 
     /** Tuzatib yuborilgan natija ko'rib chiqildi — avvalgi (rad etilgan) natija izohi yopiladi. */

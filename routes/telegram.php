@@ -39,6 +39,8 @@ $bot->onCallbackQueryData('go:{id}', [InspectionHandler::class, 'begin']);
 $bot->onCallbackQueryData('gk:{id}:{kind}', [InspectionHandler::class, 'chooseKind']);
 $bot->onCallbackQueryData('rw:{id}', [InspectionHandler::class, 'rework']);
 $bot->onCallbackQueryData('fu:{id}', [InspectionHandler::class, 'followup']);
+$bot->onCallbackQueryData('fa:{id}', [InspectionHandler::class, 'acknowledge']);
+$bot->onCallbackQueryData('fn:{id}', [InspectionHandler::class, 'notYet']);
 $bot->onCallbackQueryData('dm:{value}', [InspectionHandler::class, 'legacy']);
 $bot->onCallbackQueryData('skip', [InspectionHandler::class, 'legacy']);
 $bot->onCallbackQueryData('ok', [InspectionHandler::class, 'legacy']);

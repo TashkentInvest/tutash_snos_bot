@@ -28,6 +28,7 @@ class StatsOverview extends StatsOverviewWidget
         $suspicious = Inspection::counted()->where('suspicious', true)->count();
         $followDone = Inspection::where('followup', Inspection::FOLLOWUP_DONE)->count();
         $followOpen = Inspection::where('followup', Inspection::FOLLOWUP_OPEN)->count();
+        $followAck = Inspection::where('followup', Inspection::FOLLOWUP_OPEN)->whereNotNull('followup_ack_at')->count();
         $awaiting =Inspection::where('status', Inspection::SUBMITTED)->where('review_status', Inspection::REVIEW_PENDING)->count();
 
         $sites = fn (array $filters = []) => SiteResource::getUrl('index', $filters ? ['tableFilters' => $filters] : []);
@@ -48,7 +49,7 @@ class StatsOverview extends StatsOverviewWidget
                 ->description('Moderator tasdig‘ini kutayotgan natijalar (buzilgan / sud qarori bekor)')
                 ->url($inspections(['review_status' => ['value' => Inspection::REVIEW_PENDING]])),
             Stat::make('Moderator izohlari', $followDone)->icon('fas-comment-dots')->color($followDone ? 'danger' : 'gray')
-                ->description("Xodim bajardi, tekshirish kerak · bajarilmagan: {$followOpen}")
+                ->description('Tekshirish kerak · bajarilmagan: '.$followOpen.($followOpen ? " (tanishgan: {$followAck}, javobsiz: ".($followOpen - $followAck).')' : ''))
                 ->url($inspections(['followup' => ['value' => $followDone || ! $followOpen ? Inspection::FOLLOWUP_DONE : Inspection::FOLLOWUP_OPEN]])),
             Stat::make('Shubhali tekshiruvlar', $suspicious)->icon('fas-triangle-exclamation')->color($suspicious ? 'danger' : 'gray')
                 ->description('Obyektdan uzoqda yoki takroriy fayl')

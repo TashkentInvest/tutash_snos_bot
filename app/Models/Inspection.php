@@ -94,6 +94,7 @@ class Inspection extends Model
         'staff_lat', 'staff_lng', 'distance_m', 'suspicious', 'flags', 'submitted_at', 'device',
         'review_status', 'reviewed_by', 'reviewed_at', 'review_note', 'archived_at',
         'rework_of', 'followup_of', 'edit_target', 'rework_located', 'followup', 'followup_at',
+        'followup_ack_at', 'followup_reminded_at', 'followup_reminders',
     ];
 
     protected $casts = [
@@ -106,6 +107,8 @@ class Inspection extends Model
         'reviewed_at' => 'datetime',
         'archived_at' => 'datetime',
         'followup_at' => 'datetime',
+        'followup_ack_at' => 'datetime',
+        'followup_reminded_at' => 'datetime',
         'staff_lat' => 'float',
         'staff_lng' => 'float',
     ];

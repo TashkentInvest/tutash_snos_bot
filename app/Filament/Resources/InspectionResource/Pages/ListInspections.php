@@ -12,6 +12,11 @@ class ListInspections extends ListRecords
 {
     protected static string $resource = InspectionResource::class;
 
+    protected function getHeaderActions(): array
+    {
+        return [\App\Filament\Pages\Dashboard::remindAllAction()];
+    }
+
     public function getTabs(): array
     {
         $pending = fn () => Inspection::where('status', Inspection::SUBMITTED)->where('review_status', Inspection::REVIEW_PENDING)->count();

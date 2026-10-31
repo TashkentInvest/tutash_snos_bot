@@ -41,6 +41,9 @@ return [
     // Kunlik buzilish (tekshiruvlar) hisoboti yuboriladigan vaqt.
     'daily_report_at' => env('DAILY_REPORT_AT', '18:00'),
 
+    // Bajarilmagan moderator izohlari bo'yicha xodimlarga eslatma vaqti (ish kunlari).
+    'followup_remind_at' => env('FOLLOWUP_REMIND_AT', '10:00'),
+
     // Bot matnlari alifbosi: classic (o‘, g‘, sh, ch) yoki new (ö, ğ, ş, ç).
     'alphabet' => env('BOT_ALPHABET', 'classic'),
 ];
