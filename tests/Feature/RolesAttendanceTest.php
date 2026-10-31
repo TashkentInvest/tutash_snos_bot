@@ -352,8 +352,8 @@ class RolesAttendanceTest extends TestCase
 
         $report = \App\Telegram\Support\InspectionReport::caption(today());
         $this->assertStringContainsString('Tekshiruvlar: <b>2</b>', $report);
-        $this->assertStringContainsString('Buzilgan: <b>1</b> (✅ 0 · ⏳ 1 tasdiq kutilmoqda)', $report);
-        $this->assertStringContainsString('Buzilmagan: <b>1</b>', $report);
+        $this->assertStringContainsString("Buzilgan: <b>1</b>\n", $report);
+        $this->assertStringNotContainsString('Buzilmagan', $report); // qoldiq pastda ko'rsatiladi
         // qisqa: xodim ismlari va manzillarsiz
         $this->assertStringNotContainsString('Aliyev', $report);
         $this->assertStringNotContainsString('Birinchi kocha', $report);

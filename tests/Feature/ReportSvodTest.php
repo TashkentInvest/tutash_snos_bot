@@ -87,7 +87,8 @@ class ReportSvodTest extends TestCase
             'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true, 'attendance_required' => false]);
 
         $caption = InspectionReport::caption(today());
-        $this->assertStringContainsString('Buzilgan: <b>2</b> (✅ 1 · ⏳ 1 tasdiq kutilmoqda)', $caption);
+        $this->assertStringContainsString("Buzilgan: <b>2</b>\n", $caption);
+        $this->assertStringNotContainsString('tasdiq kutilmoqda', $caption);
         $this->assertStringContainsString('Qoldiq: <b>3</b> ta · 2,25 ga', $caption);
         $this->assertStringNotContainsString('Aliyev', $caption);
         $this->assertStringNotContainsString('Manzil', $caption);

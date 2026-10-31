@@ -22,11 +22,8 @@ class InspectionReport
         $rows = Inspection::counted()->whereDate('submitted_at', $day)->get();
 
         $demolished = $rows->where('is_demolished', true);
-        $approved = $demolished->where('review_status', Inspection::REVIEW_APPROVED)->count();
-        $pending = $demolished->where('review_status', Inspection::REVIEW_PENDING)->count();
         $court = $rows->where('is_demolished', false)->where('exempt_type', Inspection::EXEMPT_COURT)->count();
         $progress = $rows->where('is_demolished', false)->whereNull('exempt_type')->where('in_progress', true)->count();
-        $standing = $rows->count() - $demolished->count() - $court - $progress;
 
         $total = Site::countable()->count();
         $done = Site::where('status', Site::DEMOLISHED)->count();
@@ -35,9 +32,8 @@ class InspectionReport
         $lines = [
             '📊 <b>Kunlik hisobot — '.$day->format('d.m.Y').'</b>',
             "Tekshiruvlar: <b>{$rows->count()}</b>",
-            "🏚 Buzilgan: <b>{$demolished->count()}</b>".($demolished->isNotEmpty() ? " (✅ {$approved} · ⏳ {$pending} tasdiq kutilmoqda)" : ''),
+            "🏚 Buzilgan: <b>{$demolished->count()}</b>",
             "🚧 Jarayonda: <b>{$progress}</b>",
-            "🏠 Buzilmagan: <b>{$standing}</b>",
         ];
         $court && $lines[] = "⚖️ Sud qarori bekor: <b>{$court}</b>";
         $lines[] = '';
