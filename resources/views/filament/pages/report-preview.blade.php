@@ -16,10 +16,12 @@
             @if ($image)
                 <img src="{{ $image }}" alt="Svod jadval" loading="lazy" style="width:100%;border-radius:.5rem;margin-bottom:.75rem;background:#fff;">
             @endif
-            @foreach ($texts as $text)
+            @forelse ($texts as $text)
                 {{-- bot xabari (Telegram HTML: matnlar Ui::e bilan ekranlangan) --}}
                 <div style="line-height:1.5;{{ $loop->first ? '' : 'margin-top:.75rem;padding-top:.75rem;border-top:1px dashed rgba(128,128,128,.3);' }}">{!! nl2br($text) !!}</div>
-            @endforeach
+            @empty
+                <div style="color:#d97706;">{{ $empty ?? 'Bugun uchun ma’lumot yo‘q — hech narsa yuborilmaydi.' }}</div>
+            @endforelse
         </div>
     </div>
 </div>

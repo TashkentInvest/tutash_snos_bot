@@ -33,7 +33,10 @@ class Dashboard extends BaseDashboard
                     'recipients' => AttendanceReport::recipients(),
                     'texts' => array_map([Script::class, 'apply'], AttendanceReport::chunks(today())),
                     'image' => null,
+                    'empty' => 'Bugun davomat so‘rovi yuborilmagan (dam olish kuni yoki so‘rov vaqti hali kelmagan) — hisobot bo‘sh, yuboriladigan narsa yo‘q.',
                 ]))
+                // ma'lumot bo'lmasa — yuborish tugmasi o'chiq
+                ->modalSubmitAction(fn ($action) => $action->disabled(AttendanceReport::chunks(today()) === []))
                 ->visible(fn () => User::currentIsAdmin())
                 ->action(fn () => $this->report('attendance', fn (Nutgram $bot) => AttendanceReport::sendToAdmins($bot, today()))),
         ];
@@ -43,7 +46,7 @@ class Dashboard extends BaseDashboard
     {
         $sent = $send(app(Nutgram::class));
         AuditLog::record("report.manual.{$type}", null, ['by' => auth()->id(), 'sent' => $sent]);
-        Notification::make()->title($sent ? "Yuborildi: {$sent} ta xabar" : 'Yuborilmadi: hisobot oluvchilar yo‘q yoki botni bloklagan')
+        Notification::make()->title($sent ? "Yuborildi: {$sent} ta xabar" : 'Yuborilmadi: hisobot bo‘sh yoki oluvchilar botni bloklagan')
             ->{$sent ? 'success' : 'warning'}()->send();
     }
 }

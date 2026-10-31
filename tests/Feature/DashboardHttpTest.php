@@ -48,6 +48,8 @@ class DashboardHttpTest extends TestCase
             $this->assertStringContainsString('Kimlarga boradi', $html);
             $this->assertStringContainsString('Global Admin', $html);
             $action === 'sendInspectionReport' && $this->assertStringContainsString('admin-svod.png', $html);
+            // bugun davomat bo'lmasa — bo'sh namuna o'rniga tushuntirish
+            $action === 'sendAttendanceReport' && $this->assertStringContainsString('davomat so‘rovi yuborilmagan', $html);
             $snap = $r->json('components.0.snapshot');
             $r = $this->update($snap, [['path' => '', 'method' => 'callMountedAction', 'params' => []]]);
             $this->assertSame(200, $r->status(), $action.' call: '.$r->json('message').' @ '.$r->json('file').':'.$r->json('line'));
