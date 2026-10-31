@@ -91,11 +91,11 @@ class Dashboard extends BaseDashboard
     {
         return Action::make('remindFollowups')->label(fn () => 'Izohlarga eslatish ('.FollowupReminder::open()->count().')')
             ->icon('heroicon-o-bell-alert')->color('warning')
-            ->requiresConfirmation()->modalHeading('Bajarilmagan izohlar bo‘yicha eslatma yuborilsinmi?')
-            ->modalDescription(fn () => FollowupReminder::open()->get()
-                ->map(fn ($in) => ($in->staff?->full_name ?? '—').': «'.\Illuminate\Support\Str::limit((string) $in->review_note, 50).'»')
-                ->join("\n") ?: 'Ochiq izoh yo‘q.')
-            ->modalSubmitActionLabel('Yuborish')
+            ->modalHeading('Bajarilmagan izohlar bo‘yicha eslatma')->modalWidth('4xl')
+            ->modalContent(fn () => view('filament.pages.followup-reminders', [
+                'items' => FollowupReminder::open()->orderBy('staff_id')->orderBy('reviewed_at')->get()->values(),
+            ]))
+            ->modalSubmitActionLabel('Eslatma yuborish')
             ->visible(fn () => User::currentIsAdmin())
             ->disabled(fn () => FollowupReminder::open()->doesntExist())
             ->action(function () {

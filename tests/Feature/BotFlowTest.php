@@ -679,7 +679,8 @@ class BotFlowTest extends TestCase
         $admin->save();
         $this->actingAs($admin)->get('/admin/inspections')->assertOk()->assertSee('Xodim bajardi')->assertSee('Javob kutilmoqda');
         \Livewire\Livewire::test(\App\Filament\Resources\InspectionResource\Pages\ListInspections::class)
-            ->callAction('remindFollowups')->assertNotified('Eslatma yuborildi: 1 ta');
+            ->mountAction('remindFollowups')->assertSee('Moderator izohi')->assertSee('Devorini oldirish kerak')->assertSee('Rad etilgan — tuzatilmagan')
+            ->callMountedAction()->assertNotified('Eslatma yuborildi: 1 ta');
         $this->assertSame(2, $other->refresh()->followup_reminders);
     }
 
