@@ -309,19 +309,33 @@ class RolesAttendanceTest extends TestCase
         $this->assertSame([], Storage::disk('local')->allFiles('attendance'));
     }
 
-    public function test_attendance_report_also_goes_to_configured_phones(): void
+    public function test_reports_go_to_admins_and_staff_marked_in_panel(): void
     {
         $staff = $this->registerEmployee();
         Attendance::create(['staff_id' => $staff->id, 'date' => today(), 'status' => Attendance::PRESENT, 'responded_at' => now()]);
         Staff::create(['telegram_id' => 801, 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true, 'full_name' => 'Global Admin', 'phone' => '900000101']);
-        Staff::create(['telegram_id' => 802, 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'full_name' => 'Nazoratchi Bir', 'phone' => '900000102', 'attendance_required' => true]);
-        Staff::create(['telegram_id' => 803, 'status' => Staff::BLOCKED, 'role' => Staff::ROLE_EMPLOYEE, 'full_name' => 'Bloklangan', 'phone' => '900000103']);
+        $marked = Staff::create(['telegram_id' => 802, 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'full_name' => 'Nazoratchi Bir', 'phone' => '900000102', 'attendance_required' => true]);
+        Staff::create(['telegram_id' => 803, 'status' => Staff::BLOCKED, 'role' => Staff::ROLE_EMPLOYEE, 'full_name' => 'Bloklangan', 'phone' => '900000103', 'receives_reports' => true]);
 
         $this->assertSame([801], \App\Telegram\Support\AttendanceReport::recipients()->pluck('telegram_id')->all());
 
-        config(['tutash.attendance.report_phones' => '+998 90 000 01 02, +998900000103']);
+        $marked->update(['receives_reports' => true]); // admin panel: «Hisobot oladi»
         $this->assertEqualsCanonicalizing([801, 802], \App\Telegram\Support\AttendanceReport::recipients()->pluck('telegram_id')->all());
         $this->artisan('attendance:report')->expectsOutputToContain('Yuborilgan xabarlar: 2')->assertSuccessful();
+
+        // bosh sahifadagi tugmalar: istalgan payt qo'lda yuborish
+        $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin);
+        \Livewire\Livewire::test(\App\Filament\Pages\Dashboard::class)
+            ->assertActionVisible('sendInspectionReport')
+            ->callAction('sendAttendanceReport')->assertNotified('Yuborildi: 2 ta xabar')
+            ->callAction('sendInspectionReport')->assertNotified('Yuborildi: 2 ta xabar');
+
+        $viewer = (new \App\Models\User)->forceFill(['name' => 'V', 'email' => 'v@t.test', 'password' => 'secret-pass-2', 'is_viewer' => true]);
+        $viewer->save();
+        $this->actingAs($viewer);
+        \Livewire\Livewire::test(\App\Filament\Pages\Dashboard::class)->assertActionHidden('sendInspectionReport');
     }
 
     public function test_daily_demolition_report(): void

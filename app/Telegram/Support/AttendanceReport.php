@@ -111,13 +111,11 @@ class AttendanceReport
         return $sent;
     }
 
-    /** Hisobot oluvchilar: global adminlar + ATTENDANCE_REPORT_PHONES dagi faol foydalanuvchilar (rolidan qat'i nazar). */
+    /** Hisobot oluvchilar: barcha tumanlarni ko'radigan adminlar + admin panelda «Hisobot oladi» belgilangan faol foydalanuvchilar. */
     public static function recipients(): \Illuminate\Support\Collection
     {
-        $phones = array_values(array_filter(array_map([Staff::class, 'normalizePhone'], explode(',', (string) config('tutash.attendance.report_phones')))));
-
-        return Staff::where('status', Staff::ACTIVE)
-            ->where(fn ($q) => $q->where('is_global', true)->when($phones, fn ($q) => $q->orWhereIn('phone', $phones)))
+        return Staff::where('status', Staff::ACTIVE)->whereNotNull('telegram_id')
+            ->where(fn ($q) => $q->where('is_global', true)->orWhere('receives_reports', true))
             ->get();
     }
 }

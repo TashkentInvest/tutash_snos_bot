@@ -20,9 +20,9 @@ class Staff extends Model
 
     protected $table = 'staff';
 
-    protected $fillable = ['telegram_id', 'username', 'full_name', 'phone', 'status', 'role', 'is_global', 'attendance_required', 'failed_attempts', 'registered_at', 'last_seen_at'];
+    protected $fillable = ['telegram_id', 'username', 'full_name', 'phone', 'status', 'role', 'is_global', 'attendance_required', 'receives_reports', 'failed_attempts', 'registered_at', 'last_seen_at'];
 
-    protected $casts = ['is_global' => 'boolean', 'attendance_required' => 'boolean', 'registered_at' => 'datetime', 'last_seen_at' => 'datetime'];
+    protected $casts = ['is_global' => 'boolean', 'attendance_required' => 'boolean', 'receives_reports' => 'boolean', 'registered_at' => 'datetime', 'last_seen_at' => 'datetime'];
 
     public function districts(): BelongsToMany
     {

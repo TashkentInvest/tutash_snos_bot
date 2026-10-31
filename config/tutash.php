@@ -30,11 +30,11 @@ return [
     'attendance' => [
         'send_at' => env('ATTENDANCE_SEND_AT', '08:00'),
         'deadline' => env('ATTENDANCE_DEADLINE', '09:00'),
-        'days' => [1, 2, 3, 4, 5],
+        'days' => [1, 2, 3, 4, 5, 6], // dushanba–shanba
         'min_video_seconds' => 3,
         // Xodim biriktirilgan tumanlardagi eng yaqin obyektdan shu masofadan (metr) uzoqda bo'lsa davomat "shubhali" deb belgilanadi.
         'max_distance_m' => (int) env('ATTENDANCE_MAX_DISTANCE_M', 5000),
-        // Kunlik davomat hisobotini global adminlardan tashqari oladigan telefonlar (vergul bilan).
+        // Eski sozlama: hisobot oluvchilar endi admin panelda («Hisobot oladi»); faqat birinchi migratsiyada o'qiladi.
         'report_phones' => env('ATTENDANCE_REPORT_PHONES', ''),
     ],
 
