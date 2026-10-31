@@ -8,7 +8,18 @@ Route::redirect('/', '/admin');
 
 // Arxivlangan rasm/videolar faqat tizimga kirgan administratorlarga beriladi.
 Route::get('/admin-media/{media}', MediaController::class)->middleware(['auth'])->name('admin.media');
-Route::get('/admin-attendance/{attendance}', [MediaController::class, 'attendanceVideo'])->middleware(['auth'])->name('admin.attendance-video');
+// Svod jadval (Excel) — faqat adminlar
+Route::get('/admin-svod.xlsx', function () {
+    abort_unless(\App\Models\User::currentIsAdmin(), 403);
+    $day = today();
+
+    return response(\App\Support\Svod::xlsx($day), 200, [
+        'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition' => 'attachment; filename="svod-'.$day->format('Y-m-d').'.xlsx"',
+        'Cache-Control' => 'no-store',
+    ]);
+})->middleware(['auth'])->name('admin.svod');
+Route::get('/admin-attendance/{attendance}',[MediaController::class, 'attendanceVideo'])->middleware(['auth'])->name('admin.attendance-video');
 
 // Davomat joylashuvi (Telegram Mini App). Imzo (initData) controllerda tekshiriladi.
 Route::get('/tg/attendance-location', [\App\Http\Controllers\AttendanceLocationController::class, 'page']);

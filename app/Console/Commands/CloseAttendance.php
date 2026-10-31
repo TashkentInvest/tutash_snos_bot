@@ -12,7 +12,7 @@ class CloseAttendance extends Command
 {
     protected $signature = 'attendance:close';
 
-    protected $description = 'Muddat (09:30) tugagach, javob bermagan yoki tugatmagan xodimlarni "javob bermadi" deb belgilaydi.';
+    protected $description = 'Muddat (09:00) tugagach, javob bermagan yoki tugatmagan xodimlarni "javob bermadi" deb belgilaydi.';
 
     public function handle(Nutgram $bot): int
     {

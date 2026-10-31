@@ -21,7 +21,8 @@ use SergiX44\Nutgram\Telegram\Types\WebApp\WebAppInfo;
  * Telegram Mini App ichida (InspectionAppController) olinadi — chatga yuborilgan media qabul qilinmaydi.
  *
  * location -> before_photo -> before_video(ixtiyoriy) -> demolished?
- *   yo'q: reason -> confirm
+ *   yo'q: issue (sud qarori bekor -> documents | boshqa muammo) -> confirm
+ *   jarayonda: reason -> confirm
  *   ha:   after_photo -> after_video(majburiy, dumaloq) -> confirm
  */
 class InspectionHandler

@@ -28,8 +28,8 @@ return [
 
     // Kunlik davomat: xabar yuboriladigan vaqt, javob qabul qilishning oxirgi vaqti va ish kunlari (1=dushanba ... 7=yakshanba).
     'attendance' => [
-        'send_at' => env('ATTENDANCE_SEND_AT', '08:45'),
-        'deadline' => env('ATTENDANCE_DEADLINE', '09:30'),
+        'send_at' => env('ATTENDANCE_SEND_AT', '08:00'),
+        'deadline' => env('ATTENDANCE_DEADLINE', '09:00'),
         'days' => [1, 2, 3, 4, 5],
         'min_video_seconds' => 3,
         // Xodim biriktirilgan tumanlardagi eng yaqin obyektdan shu masofadan (metr) uzoqda bo'lsa davomat "shubhali" deb belgilanadi.

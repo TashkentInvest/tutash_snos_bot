@@ -27,7 +27,7 @@ class ReportInspections extends Command
             return self::SUCCESS;
         }
 
-        $sent = AttendanceReport::send($bot, InspectionReport::chunks($day));
+        $sent = InspectionReport::send($bot, $day);
         $this->info("Yuborilgan xabarlar: {$sent}");
 
         return self::SUCCESS;

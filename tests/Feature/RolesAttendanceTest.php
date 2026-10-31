@@ -336,12 +336,13 @@ class RolesAttendanceTest extends TestCase
         $make($other, ['is_demolished' => true, 'review_status' => Inspection::REVIEW_REJECTED, 'archived_at' => now()]); // rad etilgan — hisoblanmaydi
         $make($this->site, ['is_demolished' => true, 'review_status' => Inspection::REVIEW_APPROVED, 'submitted_at' => now()->subDay()]); // kecha
 
-        $report = implode("\n", \App\Telegram\Support\InspectionReport::chunks(today()));
-        $this->assertStringContainsString('Tekshiruvlar: <b>2</b> · 🏚 buzilgan: <b>1</b> (✅ tasdiqlangan: 0, ⏳ tasdiq kutilmoqda: 1) · 🚧 jarayonda: <b>0</b> · 🏠 buzilmagan: <b>1</b>', $report);
-        $this->assertStringContainsString('• Yunusobod tumani: 🏚 1 · 🚧 0 · 🏠 1', $report);
-        $this->assertStringContainsString('1. ⏳ Yunusobod, Test MFY, <b>Birinchi kocha 1</b> (№1) — Aliyev Ali Aliyevich', $report);
-        $this->assertStringContainsString('🚩', $report);
-        $this->assertStringContainsString('Egasi hujjat olib kelishini aytdi', $report);
+        $report = \App\Telegram\Support\InspectionReport::caption(today());
+        $this->assertStringContainsString('Tekshiruvlar: <b>2</b>', $report);
+        $this->assertStringContainsString('Buzilgan: <b>1</b> (✅ 0 · ⏳ 1 tasdiq kutilmoqda)', $report);
+        $this->assertStringContainsString('Buzilmagan: <b>1</b>', $report);
+        // qisqa: xodim ismlari va manzillarsiz
+        $this->assertStringNotContainsString('Aliyev', $report);
+        $this->assertStringNotContainsString('Birinchi kocha', $report);
         $this->assertStringContainsString('Umumiy bajarilish: <b>1</b> / 3', $report); // $this->demolished
 
         $this->artisan('inspections:report')->expectsOutputToContain('Yuborilgan xabarlar: 1')->assertSuccessful();
@@ -349,7 +350,7 @@ class RolesAttendanceTest extends TestCase
         // dam olish kuni natija yo'q — yuborilmaydi; ish kunida natija bo'lmasa ham "kiritilmagan" deb yuboriladi
         $this->travelTo(now()->next(\Carbon\Carbon::SUNDAY)->setTime(18, 0));
         $this->artisan('inspections:report')->expectsOutputToContain('yuborilmadi')->assertSuccessful();
-        $this->assertStringContainsString('tekshiruv natijasi kiritilmagan', implode("\n", \App\Telegram\Support\InspectionReport::chunks(today())));
+        $this->assertStringContainsString('tekshiruv natijasi kiritilmagan', \App\Telegram\Support\InspectionReport::caption(today()));
     }
 
     public function test_attendance_report_marks_suspicious_locations(): void

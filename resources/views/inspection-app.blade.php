@@ -75,15 +75,14 @@
     <button class="ok" data-v="1">✅ Ha, buzilgan</button>
     <button class="secondary" data-v="2">🚧 Jarayonda (qisman buzilgan)</button>
     <button class="danger" data-v="0">❌ Yo‘q, buzilmagan</button>
-    <button class="secondary" data-v="3">⚖️ Muammo bor (sud qarori bekor / boshqa)</button>
 </div>
 
 <div id="sIssue" class="hidden">
-    <p>Qanday muammo?</p>
-    <label class="opt"><input type="radio" name="issueType" value="court_cancelled" checked> ⚖️ Sud qarori bekor qilingan (hujjat ilova qilinadi)</label>
-    <label class="opt"><input type="radio" name="issueType" value="other"> 📝 Boshqa muammo</label>
-    <p id="issueHint">Izoh yozing: qaysi sud, qaror raqami va sanasi (kamida 10 ta belgi).</p>
-    <textarea id="issueText" maxlength="1000" placeholder="Masalan: Mirzo Ulug‘bek tumanlararo sudi, 08.01.2025, №2-1001-2412/47918"></textarea>
+    <p>Obyekt nima uchun buzilmagan? <b>Turini tanlang:</b></p>
+    <label class="opt"><input type="radio" name="issueType" value="court_cancelled"> ⚖️ Sud qarori bekor qilingan (hujjat yuklanadi)</label>
+    <label class="opt"><input type="radio" name="issueType" value="other"> 📝 Boshqa muammo (sababini yozing)</label>
+    <p id="issueHint">Sababini batafsil yozing (kamida 10 ta belgi).</p>
+    <textarea id="issueText" maxlength="1000" placeholder="Sabab…"></textarea>
     <button id="goIssue">Davom etish</button>
 </div>
 
@@ -122,7 +121,7 @@ const SECTIONS = ['sEdit', 'sLocation', 'sPhoto', 'sVideo', 'sDemo', 'sReason', 
 const show = id => SECTIONS.forEach(s => $(s).classList.toggle('hidden', s !== id));
 const TITLES = {
     location: '1. Joylashuv', before_photo: '2. Hozirgi holat rasmi', before_video: '3. Hudud videosi (ixtiyoriy)', demolished: '4. Natija',
-    reason: '5. Sabab', issue: '5. Muammo', documents: '6. Sud qarori nusxasi', after_photo: '5. Buzilgandan keyingi rasm', after_video: '6. Buzilgan hudud videosi (majburiy)', confirm: 'Tasdiqlash', edit: '✏️ Tuzatish',
+    reason: '5. Sabab', issue: '5. Buzilmaganlik sababi', documents: '6. Sud qarori nusxasi', after_photo: '5. Buzilgandan keyingi rasm', after_video: '6. Buzilgan hudud videosi (majburiy)', confirm: 'Tasdiqlash', edit: '✏️ Tuzatish',
 };
 // moderator izohi bo'yicha bajarilgan ishni tasdiqlash (followup)
 const FU_TITLES = { location: '1. Joylashuv', after_photo: '2. Bajarilgan ish rasmi', after_video: '3. Bajarilgan ish videosi', reason: '4. Izoh', confirm: 'Tasdiqlash' };
@@ -415,12 +414,14 @@ document.querySelectorAll('input[name=issueType]').forEach(r => r.onchange = () 
     const court = r.value === 'court_cancelled' && r.checked;
     $('issueHint').textContent = court
         ? 'Izoh yozing: qaysi sud, qaror raqami va sanasi (kamida 10 ta belgi).'
-        : 'Muammoni batafsil yozing (kamida 10 ta belgi).';
-    $('issueText').placeholder = court ? 'Masalan: Mirzo Ulug‘bek tumanlararo sudi, 08.01.2025, №2-1001-2412/47918' : 'Muammo…';
+        : 'Sababini batafsil yozing (kamida 10 ta belgi).';
+    $('issueText').placeholder = court ? 'Masalan: Mirzo Ulug‘bek tumanlararo sudi, 08.01.2025, №2-1001-2412/47918' : 'Sabab…';
 });
 
 $('goIssue').onclick = async () => {
-    const type = document.querySelector('input[name=issueType]:checked').value;
+    const checked = document.querySelector('input[name=issueType]:checked');
+    if (!checked) return say('Turini tanlang: sud qarori bekor qilingan yoki boshqa muammo.', 'err');
+    const type = checked.value;
     const { ok, j } = await api('issue', { type, reason: $('issueText').value });
     ok ? render(j) : say(j.message || 'Xatolik yuz berdi.', 'err');
 };

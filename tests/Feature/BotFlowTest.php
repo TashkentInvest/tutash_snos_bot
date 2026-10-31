@@ -329,14 +329,16 @@ class BotFlowTest extends TestCase
 
         $this->app('photo', ['clip' => $this->webm()])->assertOk();
         $this->app('skip')->assertOk();
-        $this->app('demolished', ['value' => '0'])->assertOk()->assertJsonPath('step', 'reason');
+        // "Buzilmagan" — sababi turi tanlanadi: sud qarori bekor (hujjat) yoki boshqa muammo (izoh)
+        $this->app('demolished', ['value' => '0'])->assertOk()->assertJsonPath('step', 'issue');
 
-        $this->app('reason', ['reason' => 'qisqa'])->assertStatus(422);
-        $this->assertSame('reason', $in->refresh()->step);
+        $this->app('issue', ['type' => 'other', 'reason' => 'qisqa'])->assertStatus(422);
+        $this->assertSame('issue', $in->refresh()->step);
 
-        $this->app('reason', ['reason' => 'Obyekt hali buzilmagan, qurilish davom etmoqda'])->assertOk()->assertJsonPath('step', 'confirm');
+        $this->app('issue', ['type' => 'other', 'reason' => 'Obyekt hali buzilmagan, qurilish davom etmoqda'])->assertOk()->assertJsonPath('step', 'confirm');
         $this->app('submit')->assertOk();
 
+        $this->assertSame(Inspection::EXEMPT_OTHER, $in->refresh()->exempt_type);
         $this->assertSame(Site::NOT_DEMOLISHED, $this->site->refresh()->status);
         $this->assertNotNull($this->site->last_inspected_at);
         $this->assertSame(Inspection::SUBMITTED, $in->refresh()->status);
@@ -381,7 +383,7 @@ class BotFlowTest extends TestCase
         $this->assertSame(Site::EXEMPT, $this->site->refresh()->status);
         $this->assertSame($totalBefore - 1, Site::countable()->count());
         $this->assertFalse(Site::pending()->whereKey($this->site->id)->exists());
-        $this->assertStringContainsString('sud qarori bekor', implode("\n", \App\Telegram\Support\InspectionReport::chunks(today())));
+        $this->assertStringContainsString('Sud qarori bekor: <b>1</b>', \App\Telegram\Support\InspectionReport::caption(today()));
     }
 
     public function test_other_issue_is_text_only_and_keeps_site_in_work_list(): void
@@ -422,7 +424,7 @@ class BotFlowTest extends TestCase
         $this->assertNull($in->review_status);
         $this->assertSame(Site::IN_PROGRESS, $this->site->refresh()->status);
         $this->assertTrue(Site::pending()->whereKey($this->site->id)->exists());
-        $this->assertStringContainsString('Buzish jarayonida', implode("\n", \App\Telegram\Support\InspectionReport::chunks(today())));
+        $this->assertStringContainsString('Jarayonda: <b>1</b>', \App\Telegram\Support\InspectionReport::caption(today()));
     }
 
     public function test_black_media_is_rejected_and_device_is_recorded(): void

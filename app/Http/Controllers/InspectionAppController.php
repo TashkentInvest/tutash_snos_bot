@@ -27,7 +27,8 @@ use SergiX44\Nutgram\Telegram\Attributes\ParseMode;
  * Holat (step) bazada saqlanadi; barcha so'rovlar Telegram imzosi (initData) bilan tasdiqlanadi.
  *
  * location -> before_photo -> before_video(ixtiyoriy) -> demolished
- *   yo'q: reason -> confirm
+ *   yo'q: issue (sud qarori bekor -> documents | boshqa muammo) -> confirm
+ *   jarayonda: reason -> confirm
  *   ha:   after_photo -> after_video(majburiy) -> confirm
  */
 class InspectionAppController extends Controller
@@ -410,8 +411,9 @@ class InspectionAppController extends Controller
 
     public function demolished(Request $request): JsonResponse
     {
-        // 1 — buzilgan, 0 — buzilmagan, 2 — jarayonda (qisman buzilgan; izoh talab qilinadi),
-        // 3 — muammo bor (sud qarori bekor qilingan — hujjat bilan, yoki boshqa muammo — izoh bilan)
+        // 1 — buzilgan, 2 — jarayonda (qisman buzilgan; izoh talab qilinadi),
+        // 0 — buzilmagan: sababi tanlanadi — sud qarori bekor qilingan (hujjat bilan) yoki boshqa muammo (izoh bilan);
+        // 3 — avvalgi "Muammo bor" tugmasi (eski oynalar uchun), 0 bilan bir xil
         $request->validate(['initData' => 'required|string|max:4096', 'value' => 'required|in:0,1,2,3']);
 
         [, , $in, $error] = $this->context($request);
@@ -426,7 +428,7 @@ class InspectionAppController extends Controller
         $yes = $value === '1';
         $in->update([
             'is_demolished' => $yes, 'in_progress' => $value === '2', 'exempt_type' => null,
-            ...$this->next($in, 'demolished', $yes ? 'after_photo' : ($value === '3' ? 'issue' : 'reason')),
+            ...$this->next($in, 'demolished', $yes ? 'after_photo' : ($value === '2' ? 'reason' : 'issue')),
         ]);
 
         return response()->json($this->snapshot($in->refresh()));

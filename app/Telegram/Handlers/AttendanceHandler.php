@@ -12,7 +12,7 @@ use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
 use SergiX44\Nutgram\Telegram\Types\WebApp\WebAppInfo;
 
 /**
- * Kunlik davomat: 08:45 da xodimga so'rov yuboriladi, javob 09:30 gacha qabul qilinadi.
+ * Kunlik davomat: 08:00 da xodimga so'rov yuboriladi, javob 09:00 gacha qabul qilinadi.
  *
  * Ha  -> joylashuv (faqat tugma orqali) -> dumaloq video (majburiy) -> "present"
  * Yo'q -> sabab (matn) -> "absent"

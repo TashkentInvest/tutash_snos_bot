@@ -15,7 +15,7 @@ class SendAttendance extends Command
 {
     protected $signature = 'attendance:send';
 
-    protected $description = 'Faol xodimlarga kunlik davomat so‘rovini yuboradi (jadval bo‘yicha 08:45 da). Qayta ishga tushirilsa, takror yubormaydi.';
+    protected $description = 'Faol xodimlarga kunlik davomat so‘rovini yuboradi (jadval bo‘yicha 08:00 da). Qayta ishga tushirilsa, takror yubormaydi.';
 
     public function handle(Nutgram $bot): int
     {
