@@ -66,7 +66,10 @@ class Dashboard extends BaseDashboard
                 ->modalContent(fn () => view('filament.pages.report-preview', [
                     'recipients' => AttendanceReport::recipients(),
                     'texts' => [Script::apply(InspectionReport::caption($this->period()->day))],
-                    'image' => route('admin.svod.png', ['day' => $this->period()->day->toDateString(), 't' => now()->timestamp]),
+                    'images' => [
+                        route('admin.svod.png', ['day' => $this->period()->day->toDateString(), 't' => now()->timestamp]),
+                        route('admin.svod.png', ['day' => $this->period()->day->toDateString(), 'type' => 'progress', 't' => now()->timestamp]),
+                    ],
                 ]))
                 ->visible(fn () => User::currentIsAdmin())
                 ->action(fn () => $this->report('inspection', fn (Nutgram $bot) => InspectionReport::send($bot, $this->period()->day))),
@@ -75,7 +78,7 @@ class Dashboard extends BaseDashboard
                 ->modalContent(fn () => view('filament.pages.report-preview', [
                     'recipients' => AttendanceReport::recipients(),
                     'texts' => array_map([Script::class, 'apply'], AttendanceReport::chunks(self::attendanceDay($this->period())->toMutable())),
-                    'image' => null,
+                    'images' => [],
                     'empty' => 'Bu kun davomat so‘rovi yuborilmagan (dam olish kuni yoki so‘rov vaqti hali kelmagan) — hisobot bo‘sh, yuboriladigan narsa yo‘q.',
                 ]))
                 // ma'lumot bo'lmasa — yuborish tugmasi o'chiq

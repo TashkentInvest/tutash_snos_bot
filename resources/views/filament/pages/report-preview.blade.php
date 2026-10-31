@@ -13,9 +13,9 @@
     <div>
         <div style="font-weight:600;margin-bottom:.25rem;">Botda shunday ko‘rinadi:</div>
         <div style="border:1px solid rgba(128,128,128,.3);border-radius:.75rem;padding:.75rem;background:rgba(128,128,128,.06);">
-            @if ($image)
-                <img src="{{ $image }}" alt="Svod jadval" loading="lazy" style="width:100%;border-radius:.5rem;margin-bottom:.75rem;background:#fff;">
-            @endif
+            @foreach ($images as $src)
+                <img src="{{ $src }}" alt="Hisobot jadvali" loading="lazy" style="width:100%;border-radius:.5rem;margin-bottom:.75rem;background:#fff;">
+            @endforeach
             @forelse ($texts as $text)
                 {{-- bot xabari (Telegram HTML: matnlar Ui::e bilan ekranlangan) --}}
                 <div style="line-height:1.5;{{ $loop->first ? '' : 'margin-top:.75rem;padding-top:.75rem;border-top:1px dashed rgba(128,128,128,.3);' }}">{!! nl2br($text) !!}</div>

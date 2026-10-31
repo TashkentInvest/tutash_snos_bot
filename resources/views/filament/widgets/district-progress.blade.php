@@ -1,11 +1,14 @@
 <x-filament-widgets::widget>
-    <x-filament::section heading="Tumanlar kesimida">
-        @php($cell = 'border-bottom:1px solid rgba(128,128,128,.2);padding:.55rem .5rem;')
-        <div style="overflow-x:auto;">
-            <table style="width:100%;border-collapse:collapse;font-size:.875rem;">
+    <x-filament::section>
+        <x-slot name="heading">Tumanlar kesimida bajarilish — {{ $day->format('d.m.Y') }}</x-slot>
+        @php($cell = 'border-bottom:1px solid rgba(128,128,128,.2);padding:.55rem .45rem;')
+        @php($pct = fn ($r) => $r['all'] ? round(($r['all'] - $r['left']) / $r['all'] * 100, 1).'%' : '—')
+        {{-- telefonda nomlar kesilmasligi uchun: chapdan joy, ustunlar ixcham, kerak bo'lsa gorizontal aylantirish --}}
+        <div style="overflow-x:auto;margin:0 -.25rem;padding:0 .25rem;">
+            <table style="width:100%;min-width:20rem;border-collapse:collapse;font-size:.875rem;">
                 <thead>
-                    <tr style="text-align:left;">
-                        <th style="{{ $cell }}font-weight:600;">Tuman</th>
+                    <tr>
+                        <th style="{{ $cell }}font-weight:600;text-align:left;padding-left:.5rem;">Tuman</th>
                         <th style="{{ $cell }}font-weight:600;text-align:right;">Jami</th>
                         <th style="{{ $cell }}font-weight:600;text-align:right;">Buzilgan</th>
                         <th style="{{ $cell }}font-weight:600;text-align:right;">Qolgan</th>
@@ -13,13 +16,20 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach ($districts as $d)
+                    <tr style="background:rgba(91,155,213,.12);font-weight:700;">
+                        <td style="{{ $cell }}padding-left:.5rem;">{{ $total['name'] }}</td>
+                        <td style="{{ $cell }}text-align:right;">{{ $total['all'] }}</td>
+                        <td style="{{ $cell }}text-align:right;color:rgb(22,163,74);">{{ $total['all'] - $total['left'] }}</td>
+                        <td style="{{ $cell }}text-align:right;color:rgb(217,119,6);">{{ $total['left'] }}</td>
+                        <td style="{{ $cell }}text-align:right;">{{ $pct($total) }}</td>
+                    </tr>
+                    @foreach ($rows as $r)
                         <tr>
-                            <td style="{{ $cell }}"><a href="{{ \App\Filament\Widgets\DistrictProgress::sitesUrl($d) }}" style="color:inherit;">{{ $d->name }}</a></td>
-                            <td style="{{ $cell }}text-align:right;">{{ $d->sites_count }}</td>
-                            <td style="{{ $cell }}text-align:right;"><a href="{{ \App\Filament\Widgets\DistrictProgress::sitesUrl($d, \App\Models\Site::DEMOLISHED) }}" style="color:rgb(22,163,74);">{{ $d->demolished_count }}</a></td>
-                            <td style="{{ $cell }}text-align:right;"><a href="{{ \App\Filament\Widgets\DistrictProgress::sitesUrl($d, \App\Models\Site::NOT_DEMOLISHED) }}" style="color:rgb(217,119,6);">{{ $d->sites_count - $d->demolished_count }}</a></td>
-                            <td style="{{ $cell }}text-align:right;">{{ $d->sites_count ? round($d->demolished_count / $d->sites_count * 100, 1).'%' : '—' }}</td>
+                            <td style="{{ $cell }}padding-left:.5rem;"><a href="{{ \App\Filament\Widgets\DistrictProgress::sitesUrl($r['id']) }}" style="color:inherit;">{{ preg_replace('/\s+tumani$/u', '', $r['name']) }}</a></td>
+                            <td style="{{ $cell }}text-align:right;">{{ $r['all'] }}</td>
+                            <td style="{{ $cell }}text-align:right;"><a href="{{ \App\Filament\Widgets\DistrictProgress::sitesUrl($r['id'], $demolished) }}" style="color:rgb(22,163,74);">{{ $r['all'] - $r['left'] }}</a></td>
+                            <td style="{{ $cell }}text-align:right;"><a href="{{ \App\Filament\Widgets\DistrictProgress::sitesUrl($r['id'], $notDemolished) }}" style="color:rgb(217,119,6);">{{ $r['left'] }}</a></td>
+                            <td style="{{ $cell }}text-align:right;">{{ $pct($r) }}</td>
                         </tr>
                     @endforeach
                 </tbody>

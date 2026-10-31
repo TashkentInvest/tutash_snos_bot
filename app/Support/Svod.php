@@ -16,7 +16,7 @@ class Svod
 {
     public const COLUMNS = ['№', 'Tuman nomi', 'Qoldiq soni', 'Qoldiq maydoni (ga)', 'Bugun buzilgan', 'Jarayonda', 'Sud qarori bekor'];
 
-    /** @return array{rows: array<int, array{name: string, left: int, area: float, today: int, progress: int, court: int}>, total: array{name: string, left: int, area: float, today: int, progress: int, court: int}} */
+    /** @return array{rows: array<int, array{name: string, all: int, left: int, area: float, today: int, progress: int, court: int}>, total: array{name: string, all: int, left: int, area: float, today: int, progress: int, court: int}} */
     public static function data(?CarbonInterface $day = null): array
     {
         $period = ReportPeriod::for($day ?? ReportPeriod::current()->day);
@@ -60,6 +60,7 @@ class Svod
 
             return [
                 'name' => $d->name,
+                'all' => ($bySite[$d->id] ?? collect())->count(), // jami (sud qarori bekor qilinganlarsiz)
                 'left' => $left->count(),
                 'area' => round((float) $left->sum('area_m2') / 10000, 2),
                 'today' => (int) ($today[$d->id] ?? 0),
@@ -70,6 +71,7 @@ class Svod
 
         $total = [
             'name' => 'Toshkent shahar jami',
+            'all' => array_sum(array_column($rows, 'all')),
             'left' => array_sum(array_column($rows, 'left')),
             'area' => round(array_sum(array_column($rows, 'area')), 2),
             'today' => array_sum(array_column($rows, 'today')),
@@ -85,22 +87,64 @@ class Svod
         return number_format($ha, 2, ',', ' ');
     }
 
-    /** Jadval rasmi (PNG). $t — matnni bot alifbosiga o'tkazish (Script::apply). */
+    /** Svod jadval rasmi (PNG). $t — matnni bot alifbosiga o'tkazish (Script::apply). */
     public static function png(CarbonInterface $day, ?callable $t = null): string
     {
-        $t ??= fn (string $s) => $s;
         $data = self::data($day);
+        $rows = [];
+        foreach ([$data['total'], ...$data['rows']] as $n => $r) { // 0 — jami qatori
+            $rows[] = [
+                'cells' => [$n ? (string) $n : '', $r['name'], (string) $r['left'], self::area($r['area']), (string) $r['today'], (string) $r['progress'], (string) $r['court']],
+                'sum' => $n === 0,
+                'colors' => $r['today'] > 0 ? [4 => 'red'] : [],
+            ];
+        }
+
+        return self::table(
+            'Tumanlar kesimida svod — '.$day->format('d.m.Y'),
+            ['№', 'Tuman nomi', "Qoldiq\nsoni", "Qoldiq\nmaydoni (ga)", "Bugun\nbuzilgan", 'Jarayonda', "Sud qarori\nbekor"],
+            [44, 250, 96, 124, 104, 104, 104], $rows, $t);
+    }
+
+    /** Tumanlar kesimida bajarilish rasmi (PNG): jami, buzilgan, qolgan, bajarilish foizi. */
+    public static function progressPng(CarbonInterface $day, ?callable $t = null): string
+    {
+        $data = self::data($day);
+        $pct = fn (array $r) => $r['all'] ? round(($r['all'] - $r['left']) / $r['all'] * 100, 1) : 0;
+        $rows = [];
+        foreach ([$data['total'], ...$data['rows']] as $n => $r) { // 0 — jami qatori
+            $rows[] = [
+                'cells' => [$n ? (string) $n : '', $r['name'], (string) $r['all'], (string) ($r['all'] - $r['left']), (string) $r['left'],
+                    str_replace('.', ',', (string) $pct($r)).'%'],
+                'sum' => $n === 0,
+                'colors' => [3 => 'green', 4 => 'orange'],
+            ];
+        }
+
+        return self::table(
+            'Tumanlar kesimida bajarilish — '.$day->format('d.m.Y'),
+            ['№', 'Tuman nomi', 'Jami', 'Buzilgan', 'Qolgan', 'Bajarilish'],
+            [44, 250, 104, 104, 104, 112], $rows, $t);
+    }
+
+    /**
+     * Jadval chizuvchi (rasmiy uslub: yashil sarlavha, ko'k jami qatori, kulrang to'r).
+     *
+     * @param  array<int, array{cells: string[], sum: bool, colors: array<int, string>}>  $rows
+     */
+    private static function table(string $title, array $heads, array $widths, array $rows, ?callable $t): string
+    {
+        $t ??= fn (string $s) => $s;
         $font = self::font(false);
         $bold = self::font(true);
 
         $k = 2; // aniq ko'rinishi uchun ikki baravar o'lchamda chiziladi
-        $widths = array_map(fn ($w) => $w * $k, [44, 250, 96, 124, 104, 104, 104]);
+        $widths = array_map(fn ($w) => $w * $k, $widths);
         $width = array_sum($widths) + 2 * $k;
         $titleH = 46 * $k;
         $headH = 54 * $k;
         $rowH = 34 * $k;
-        $rows = count($data['rows']) + 1;
-        $height = $titleH + $headH + $rows * $rowH + 2 * $k;
+        $height = $titleH + $headH + count($rows) * $rowH + 2 * $k;
 
         $img = imagecreatetruecolor($width, $height);
         $c = fn (string $hex) => imagecolorallocate($img, hexdec(substr($hex, 1, 2)), hexdec(substr($hex, 3, 2)), hexdec(substr($hex, 5, 2)));
@@ -109,7 +153,7 @@ class Svod
         $text = $c('#111111');
         $head = $c('#e2efda');
         $sum = $c('#ddebf7');
-        $red = $c('#c0392b');
+        $palette = ['red' => $c('#c0392b'), 'green' => $c('#1e8449'), 'orange' => $c('#b9770e')];
         imagefilledrectangle($img, 0, 0, $width, $height, $white);
 
         $center = function (string $s, int $x, int $y, int $w, int $h, float $size, string $f, int $color) use ($img, $k) {
@@ -128,12 +172,11 @@ class Svod
         };
 
         // sarlavha
-        $center($t('Tumanlar kesimida svod — '.$day->format('d.m.Y')), 0, 0, $width, $titleH, 15, $bold, $text);
+        $center($t($title), 0, 0, $width, $titleH, 15, $bold, $text);
 
         // ustun nomlari
         $y = $titleH;
         imagefilledrectangle($img, $k, $y, $width - $k, $y + $headH, $head);
-        $heads = ['№', 'Tuman nomi', "Qoldiq\nsoni", "Qoldiq\nmaydoni (ga)", "Bugun\nbuzilgan", 'Jarayonda', "Sud qarori\nbekor"];
         $x = $k;
         foreach ($widths as $i => $w) {
             $center($t($heads[$i]), $x, $y, $w, $headH, 11, $bold, $text);
@@ -141,23 +184,18 @@ class Svod
         }
 
         // jami qatori (namunadagidek yuqorida), keyin tumanlar
-        $all = [['n' => '', ...$data['total'], 'sum' => true]];
-        foreach ($data['rows'] as $i => $r) {
-            $all[] = ['n' => (string) ($i + 1), ...$r, 'sum' => false];
-        }
         $y += $headH;
-        foreach ($all as $r) {
+        foreach ($rows as $r) {
             if ($r['sum']) {
                 imagefilledrectangle($img, $k, $y, $width - $k, $y + $rowH, $sum);
             }
-            $f = $r['sum'] ? $bold : $font;
-            $cells = [$r['n'], $r['name'], (string) $r['left'], self::area($r['area']), (string) $r['today'], (string) $r['progress'], (string) $r['court']];
             $x = $k;
             foreach ($widths as $i => $w) {
-                $color = $i === 4 && $r['today'] > 0 ? $red : $text;
+                $color = isset($r['colors'][$i]) ? $palette[$r['colors'][$i]] : $text;
+                $f = $r['sum'] || ($r['colors'][$i] ?? null) === 'red' ? $bold : $font;
                 $i === 1 && ! $r['sum']
-                    ? $left($t($cells[$i]), $x, $y, $rowH, 11, $f, $text)
-                    : $center($t($cells[$i]), $x, $y, $w, $rowH, 11, $r['sum'] || $i === 4 && $r['today'] > 0 ? $bold : $f, $color);
+                    ? $left($t($r['cells'][$i]), $x, $y, $rowH, 11, $f, $text)
+                    : $center($t($r['cells'][$i]), $x, $y, $w, $rowH, 11, $f, $color);
                 $x += $w;
             }
             $y += $rowH;
@@ -165,7 +203,7 @@ class Svod
 
         // to'r chiziqlari
         imagesetthickness($img, $k);
-        $bottom = $titleH + $headH + $rows * $rowH;
+        $bottom = $titleH + $headH + count($rows) * $rowH;
         foreach ([$titleH, ...range($titleH + $headH, $bottom, $rowH)] as $yy) {
             imageline($img, $k, $yy, $width - $k, $yy, $line);
         }

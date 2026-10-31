@@ -100,8 +100,8 @@ class ReportSvodTest extends TestCase
         $data = Svod::data(today());
 
         $this->assertSame(['Bektemir tumani', 'Chilonzor tumani'], array_column($data['rows'], 'name'));
-        $this->assertSame(['name' => 'Bektemir tumani', 'left' => 2, 'area' => 0.67, 'today' => 1, 'progress' => 1, 'court' => 1], $data['rows'][0]);
-        $this->assertSame(['name' => 'Chilonzor tumani', 'left' => 1, 'area' => 1.58, 'today' => 1, 'progress' => 0, 'court' => 0], $data['rows'][1]);
+        $this->assertSame(['name' => 'Bektemir tumani', 'all' => 3, 'left' => 2, 'area' => 0.67, 'today' => 1, 'progress' => 1, 'court' => 1], $data['rows'][0]);
+        $this->assertSame(['name' => 'Chilonzor tumani', 'all' => 1, 'left' => 1, 'area' => 1.58, 'today' => 1, 'progress' => 0, 'court' => 0], $data['rows'][1]);
         $this->assertSame(3, $data['total']['left']);
         $this->assertSame(2.25, $data['total']['area']);
         $this->assertSame('2,25', Svod::area($data['total']['area']));
@@ -110,6 +110,11 @@ class ReportSvodTest extends TestCase
         $this->assertStringStartsWith("\x89PNG", $png);
         $getenv = getenv('SVOD_PNG_OUT');
         $getenv && file_put_contents($getenv, $png);
+        // ikkinchi rasm: tumanlar kesimida bajarilish (jami 4 = 3 + 1, buzilgan 1, qolgan 3)
+        $progress = Svod::progressPng(today());
+        $this->assertStringStartsWith("\x89PNG", $progress);
+        $getenv && file_put_contents(str_replace('.png', '-progress.png', $getenv), $progress);
+        $this->assertSame(4, $data['total']['all']);
 
         $xlsx = Svod::xlsx(today());
         $this->assertStringStartsWith('PK', $xlsx);
@@ -138,11 +143,14 @@ class ReportSvodTest extends TestCase
         $bot = Nutgram::fake();
         $this->app->instance(Nutgram::class, $bot);
         $this->assertSame(1, InspectionReport::send($bot, today()));
+        // bitta albom: ikki rasm (svod + bajarilish), izoh birinchisida
         $req = collect($bot->getRequestHistory())->first()['request'];
-        $this->assertStringContainsString('sendPhoto', (string) $req->getUri());
+        $this->assertStringContainsString('sendMediaGroup', (string) $req->getUri());
         $body = (string) $req->getBody();
         $this->assertStringContainsString((string) $admin->telegram_id, $body);
-        $this->assertStringContainsString('image/png', $body);
+        $this->assertSame(2, substr_count($body, 'attach:')); // JSON ichida 'attach://…'
+        $this->assertSame(2, substr_count($body, "\x89PNG"));
+        $this->assertStringContainsString('Kunlik hisobot', $body); // izoh albomning birinchi rasmida
     }
 
     private function user(bool $admin): \App\Models\User

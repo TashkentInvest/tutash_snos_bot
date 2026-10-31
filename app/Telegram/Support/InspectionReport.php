@@ -8,7 +8,6 @@ use App\Support\Svod;
 use Carbon\CarbonInterface;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Attributes\ParseMode;
-use SergiX44\Nutgram\Telegram\Types\Internal\InputFile;
 
 /**
  * Kunlik tekshiruvlar (buzilish) hisoboti: tumanlar kesimidagi svod jadval rasmi va qisqa izoh (xodim ismlari va manzillarsiz).
@@ -43,31 +42,45 @@ class InspectionReport
         return implode("\n", $lines);
     }
 
-    /** Svod jadval rasmi + izohni barcha oluvchilarga yuboradi; yuborilgan xabarlar soni qaytadi. */
+    /**
+     * Hisobotni barcha oluvchilarga yuboradi: bitta albomda ikki rasm — svod jadval (izoh bilan) va tumanlar kesimida bajarilish.
+     * Yuborilgan hisobotlar soni qaytadi.
+     */
     public static function send(Nutgram $bot, CarbonInterface $day): int
     {
         $caption = Script::apply(self::caption($day));
-        $file = tempnam(sys_get_temp_dir(), 'svod').'.png';
-        file_put_contents($file, Svod::png($day, fn (string $s) => Script::apply($s)));
+        $t = fn (string $s) => Script::apply($s);
+        $files = [];
+        foreach (['svod' => Svod::png($day, $t), 'bajarilish' => Svod::progressPng($day, $t)] as $name => $png) {
+            file_put_contents($files[$name] = tempnam(sys_get_temp_dir(), $name).'.png', $png);
+        }
 
         $sent = 0;
-        $photo = null; // birinchi yuborishdan keyin Telegram file_id qayta ishlatiladi
+        $ids = null; // birinchi yuborishdan keyin Telegram file_id'lari qayta ishlatiladi
         try {
             foreach (AttendanceReport::recipients() as $admin) {
                 try {
-                    $message = $bot->sendPhoto($photo ?? InputFile::make(fopen($file, 'r'), 'svod.png'), [
-                        'chat_id' => $admin->telegram_id, 'caption' => $caption, 'parse_mode' => ParseMode::HTML,
-                    ]);
-                    $photo ??= collect($message?->photo ?? [])->last()?->file_id;
+                    $media = array_map(fn ($src) => ['type' => 'photo', 'media' => $src], $ids ?? array_map(fn ($f) => fopen($f, 'r'), array_values($files)));
+                    $media[0] += ['caption' => $caption, 'parse_mode' => ParseMode::HTML];
+                    $messages = $bot->sendMediaGroup($media, ['chat_id' => $admin->telegram_id]);
+                    $ids ??= self::fileIds($messages);
                     $sent++;
                 } catch (\Throwable $e) {
                     report($e); // admin botni bloklagan bo'lishi mumkin
                 }
             }
         } finally {
-            @unlink($file);
+            array_map(fn ($f) => @unlink($f), $files);
         }
 
         return $sent;
+    }
+
+    /** Albomdagi rasmlarning file_id'lari (ikkalasi ham bo'lsa). */
+    private static function fileIds(?array $messages): ?array
+    {
+        $ids = collect($messages ?? [])->map(fn ($m) => collect($m?->photo ?? [])->last()?->file_id)->filter()->values()->all();
+
+        return count($ids) === 2 ? $ids : null;
     }
 }

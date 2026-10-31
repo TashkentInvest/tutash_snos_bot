@@ -37,7 +37,12 @@ Route::get('/admin-svod.xlsx', function (\Illuminate\Http\Request $request) {
 Route::get('/admin-svod.png', function (\Illuminate\Http\Request $request) {
     abort_unless(\App\Models\User::currentIsAdmin(), 403);
 
-    return response(\App\Support\Svod::png(\App\Support\ReportPeriod::fromFilter($request->query('day'))->day,fn (string $s) => \App\Telegram\Support\Script::apply($s)), 200, [
+    // ?type=progress — tumanlar kesimida bajarilish jadvali (hisobotdagi ikkinchi rasm)
+    $day = \App\Support\ReportPeriod::fromFilter($request->query('day'))->day;
+    $t = fn (string $s) => \App\Telegram\Support\Script::apply($s);
+    $png = $request->query('type') === 'progress' ? \App\Support\Svod::progressPng($day, $t) : \App\Support\Svod::png($day, $t);
+
+    return response($png, 200, [
         'Content-Type' => 'image/png', 'Cache-Control' => 'private, no-store',
     ]);
 })->middleware(['auth'])->name('admin.svod.png');
