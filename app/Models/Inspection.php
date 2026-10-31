@@ -27,6 +27,54 @@ class Inspection extends Model
 
     public const MAX_DOCUMENTS = 10;
 
+    // Tekshiruv turi ("Tekshiruvni boshlash" dan keyin tanlanadi). "Tekshirish" bosqichlari turli kunlarda:
+    // before (oldingi holat) -> process (buzish jarayoni, obyekt "Jarayonda") -> after (buzilgandan keyin, moderator tasdig'i).
+    public const KIND_BEFORE = 'before';
+    public const KIND_PROCESS = 'process';
+    public const KIND_AFTER = 'after';
+    public const KIND_COURT = 'court';   // sud qarori bekor: rasm, video va hujjatlar — moderator tasdig'i
+    public const KIND_FOUND = 'found';   // kelganda allaqachon buzilgan — moderator tasdig'i
+
+    public const KINDS = [
+        self::KIND_BEFORE => 'Oldingi holat',
+        self::KIND_PROCESS => 'Buzish jarayoni',
+        self::KIND_AFTER => 'Buzilgandan keyingi holat',
+        self::KIND_COURT => 'Sud qarori bekor',
+        self::KIND_FOUND => 'Kelganda buzilgan',
+    ];
+
+    /** Natija maydonlari (hisobotlar va obyekt holati shular bo'yicha ishlaydi). */
+    public static function kindAttributes(string $kind): array
+    {
+        return [
+            'kind' => $kind,
+            'is_demolished' => in_array($kind, [self::KIND_AFTER, self::KIND_FOUND], true),
+            'in_progress' => $kind === self::KIND_PROCESS,
+            'exempt_type' => $kind === self::KIND_COURT ? self::EXEMPT_COURT : null,
+        ];
+    }
+
+    /** Turi (eski natijalarda — natija maydonlaridan aniqlanadi). */
+    public function kindValue(): string
+    {
+        return $this->kind ?? match (true) {
+            (bool) $this->is_demolished => self::KIND_AFTER,
+            $this->exempt_type === self::EXEMPT_COURT => self::KIND_COURT,
+            (bool) $this->in_progress => self::KIND_PROCESS,
+            default => self::KIND_BEFORE,
+        };
+    }
+
+    /** Shu tekshiruvda olinadigan rasm va video turlari. */
+    public function mediaKinds(): array
+    {
+        return match ($this->isFollowup() ? self::KIND_AFTER : $this->kindValue()) {
+            self::KIND_PROCESS => [InspectionMedia::PROCESS_PHOTO, InspectionMedia::PROCESS_VIDEO],
+            self::KIND_AFTER, self::KIND_FOUND => [InspectionMedia::AFTER_PHOTO, InspectionMedia::AFTER_VIDEO],
+            default => [InspectionMedia::BEFORE_PHOTO, InspectionMedia::BEFORE_VIDEO],
+        };
+    }
+
     // Moderator izohi holati: open — bajarilmagan, done — xodim bajardi (tekshirish kerak), closed — moderator yopdi.
     public const FOLLOWUP_OPEN = 'open';
     public const FOLLOWUP_DONE = 'done';
@@ -42,7 +90,7 @@ class Inspection extends Model
     private const MOVED = '#r';
 
     protected $fillable = [
-        'site_id', 'staff_id', 'status', 'step', 'is_demolished', 'in_progress', 'exempt_type', 'reason',
+        'site_id', 'staff_id', 'status', 'kind', 'step', 'is_demolished', 'in_progress', 'exempt_type', 'reason',
         'staff_lat', 'staff_lng', 'distance_m', 'suspicious', 'flags', 'submitted_at', 'device',
         'review_status', 'reviewed_by', 'reviewed_at', 'review_note', 'archived_at',
         'rework_of', 'followup_of', 'edit_target', 'rework_located', 'followup', 'followup_at',
@@ -86,7 +134,7 @@ class Inspection extends Model
     {
         $draft = self::create([
             'site_id' => $old->site_id, 'staff_id' => $old->staff_id, 'status' => self::DRAFT, 'step' => 'edit',
-            'rework_of' => $old->id, 'is_demolished' => $old->is_demolished, 'in_progress' => $old->in_progress,
+            'rework_of' => $old->id, 'kind' => $old->kindValue(), 'is_demolished' => $old->is_demolished, 'in_progress' => $old->in_progress,
             'exempt_type' => $old->exempt_type, 'reason' => $old->reason, 'staff_lat' => $old->staff_lat, 'staff_lng' => $old->staff_lng,
             'distance_m' => $old->distance_m, 'suspicious' => $old->suspicious, 'flags' => $old->flags, 'device' => $old->device,
         ]);

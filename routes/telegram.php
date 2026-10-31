@@ -36,6 +36,7 @@ $bot->onCallbackQueryData('noop', fn (Nutgram $bot) => $bot->answerCallbackQuery
 
 // Tekshiruv
 $bot->onCallbackQueryData('go:{id}', [InspectionHandler::class, 'begin']);
+$bot->onCallbackQueryData('gk:{id}:{kind}', [InspectionHandler::class, 'chooseKind']);
 $bot->onCallbackQueryData('rw:{id}', [InspectionHandler::class, 'rework']);
 $bot->onCallbackQueryData('fu:{id}', [InspectionHandler::class, 'followup']);
 $bot->onCallbackQueryData('dm:{value}', [InspectionHandler::class, 'legacy']);

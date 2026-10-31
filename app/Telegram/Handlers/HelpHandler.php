@@ -29,7 +29,11 @@ class HelpHandler
         if ($staff->isActive()) {
             $text = "<b>Xodim uchun qo‘llanma</b>\n\n"
                 ."1. /menu orqali tumaningiz, MFY va obyektni tanlang (🔍 qidirish yoki 📍 yaqin obyektlar ham mavjud).\n"
-                ."2. «Tekshiruvni boshlash» ni bosing: joylashuv → rasm → «buzildimi?» → (buzilgan bo‘lsa) rasm va dumaloq video.\n"
+                ."2. «Tekshiruvni boshlash» ni bosing va turini tanlang:\n"
+                ."   • <b>Tekshirish</b> — oldingi holat, buzish boshlanganda jarayon, tugaganda keyingi holat (har biri alohida kuni);\n"
+                ."   • <b>Sud qarori bekor qilingan</b> — rasm, video va sud qarori hujjatlari;\n"
+                ."   • <b>Kelganda buzilgan</b> — rasm va video.\n"
+                ."   Har safar: joylashuv → rasm → video (ikkalasi majburiy).\n"
                 ."3. Har ish kuni soat ".config('tutash.attendance.send_at')." da kelgan davomat so‘roviga ".config('tutash.attendance.deadline')." gacha javob bering.\n\n"
                 ."/davomat — bugungi davomat holati (so‘rov yo‘qolgan bo‘lsa, qayta chiqaradi)\n{$common}";
         } elseif ($staff->isCitizen()) {

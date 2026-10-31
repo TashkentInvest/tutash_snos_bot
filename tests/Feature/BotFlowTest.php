@@ -199,11 +199,11 @@ class BotFlowTest extends TestCase
         $this->assertStringNotContainsString("d:{$third->id}", $sent);
 
         // ikkala tumandagi obyekt bo'yicha tekshiruv boshlanadi, begona tumanda — yo'q
-        $this->bot()->hearCallbackQueryData("go:{$this->foreignSite->id}")->reply(); // Olmazor
+        $this->start($this->foreignSite); // Olmazor
         $this->assertSame($this->foreignSite->id, Inspection::where('status', Inspection::DRAFT)->value('site_id'));
-        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply(); // Yunusobod (eski qoralama almashadi)
+        $this->start(); // Yunusobod (eski qoralama almashadi)
         $this->assertSame($this->site->id, Inspection::where('status', Inspection::DRAFT)->value('site_id'));
-        $this->bot()->hearCallbackQueryData("go:{$thirdSite->id}")->reply(); // Chilonzor — ruxsat yo'q
+        $this->start($thirdSite); // Chilonzor — ruxsat yo'q
         $this->assertSame($this->site->id, Inspection::where('status', Inspection::DRAFT)->value('site_id'));
 
         // davomatdagi "hududdan uzoq" tekshiruvi ikkala tuman obyektlarini hisobga oladi
@@ -283,123 +283,145 @@ class BotFlowTest extends TestCase
         return UploadedFile::fake()->createWithContent('v.webm', "\x1A\x45\xDF\xA3".random_bytes($size));
     }
 
-    public function test_full_demolition_flow_and_idempotent_submit(): void
+    /** "Tekshiruvni boshlash" -> tur tanlash ("check" — tekshirish, navbatdagi bosqich). */
+    private function start(?Site $site = null, string $kind = 'check'): ?Inspection
+    {
+        $site ??= $this->site;
+        $this->bot()->hearCallbackQueryData("go:{$site->id}")->reply();
+        $this->bot()->hearCallbackQueryData("gk:{$site->id}:{$kind}")->reply();
+
+        return Inspection::where('status', Inspection::DRAFT)->first();
+    }
+
+    /** Joylashuv -> rasm -> video (ixtiyoriy: sud qarori hujjati) -> yuborish. */
+    private function capture(bool $submit = true): void
+    {
+        $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501, 'accuracy' => 6])->assertOk()->assertJsonPath('step', 'photo');
+        $this->app('photo', ['clip' => $this->webm()])->assertOk()->assertJsonPath('step', 'video');
+        $this->app('video', ['video' => $this->webm(), 'duration' => 8])->assertOk();
+        $submit && $this->app('submit')->assertOk();
+    }
+
+    public function test_start_offers_three_ways_and_creates_nothing_until_chosen(): void
     {
         $this->register();
-        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
-        $in = Inspection::first();
-        $this->assertSame('location', $in->step);
+        $bot = $this->bot();
+        $bot->hearCallbackQueryData("go:{$this->site->id}")->reply();
+        $this->assertSame(0, Inspection::count());
+        $sent = collect($bot->getRequestHistory())->map(fn ($r) => urldecode((string) $r['request']->getBody()))->implode("\n");
+        foreach (["gk:{$this->site->id}:check", "gk:{$this->site->id}:court", "gk:{$this->site->id}:found"] as $data) {
+            $this->assertStringContainsString($data, $sent);
+        }
 
-        // chatga yuborilgan joylashuv, rasm va video qabul qilinmaydi
+        // oldingi holat qayd etilmagan obyektda jarayon / keyingi holatni boshlab bo'lmaydi
+        $this->bot()->hearCallbackQueryData("gk:{$this->site->id}:after")->reply();
+        $this->bot()->hearCallbackQueryData("gk:{$this->site->id}:process")->reply();
+        $this->assertSame(0, Inspection::count());
+    }
+
+    public function test_staged_check_before_process_after_and_approval(): void
+    {
+        $this->register();
+
+        // 1-kun: oldingi holat (tekshirish birinchi marta — avtomatik "oldingi holat")
+        $before = $this->start();
+        $this->assertSame(Inspection::KIND_BEFORE, $before->kind);
+        $this->assertSame('location', $before->step);
+
+        // chatga yuborilgan joylashuv, rasm va video qabul qilinmaydi; imzosiz so'rov rad etiladi
         $this->bot()->hearMessage(['location' => ['latitude' => 41.3001, 'longitude' => 69.2501, 'horizontal_accuracy' => 5]])->reply();
         $this->hear(['photo' => [['file_id' => 'f1', 'file_unique_id' => 'u1', 'width' => 90, 'height' => 90]]]);
-        $this->hear(['video_note' => ['file_id' => 'v1', 'file_unique_id' => 'uv1', 'length' => 240, 'duration' => 8]]);
-        $this->assertSame('location', $in->refresh()->step);
-        $this->assertSame(0, $in->media()->count());
-
-        // imzosiz so'rov rad etiladi
+        $this->assertSame(0, $before->media()->count());
         $this->postJson('/tg/inspection/state', ['initData' => 'user=%7B%22id%22%3A1%7D&auth_date='.time().'&hash=bad'])->assertStatus(403);
-
-        $this->app('state')->assertOk()->assertJsonPath('step', 'location');
+        $this->app('state')->assertOk()->assertJsonPath('step', 'location')->assertJsonPath('kind', 'before');
         $this->app('photo', ['clip' => $this->webm()])->assertStatus(409); // bosqich emas
 
-        $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501, 'accuracy' => 6])->assertOk()->assertJsonPath('step', 'before_photo');
-        $this->assertFalse($in->refresh()->suspicious);
-
-        $this->app('photo', ['clip' => $this->webm()])->assertOk()->assertJsonPath('step', 'before_video');
-        $this->app('skip')->assertOk()->assertJsonPath('step', 'demolished');
-        $this->app('demolished', ['value' => '1'])->assertOk()->assertJsonPath('step', 'after_photo');
-
-        // avvalgi rasmning o'zi qayta yuborilsa — rad (bir xil fayl)
-        $first = $in->mediaOf(\App\Models\InspectionMedia::BEFORE_PHOTO) ?? $in->refresh()->load('media')->mediaOf(\App\Models\InspectionMedia::BEFORE_PHOTO);
-        $class = get_class(app(MediaTool::class));
-        $class::$fixed = file_get_contents(Storage::disk('local')->path($first->path));
-        $this->app('photo', ['clip' => $this->webm()])->assertStatus(422);
-        $this->assertSame('after_photo', $in->refresh()->step);
-        $this->assertTrue($in->suspicious);
-        $class::$fixed = null;
-
-        $this->app('photo', ['clip' => $this->webm()])->assertOk()->assertJsonPath('step', 'after_video');
-
-        // qisqa video va noto'g'ri format rad etiladi
-        $this->app('video', ['video' => $this->webm(), 'duration' => 1.2])->assertStatus(422);
-        $this->app('video', ['video' => UploadedFile::fake()->createWithContent('v.webm', 'not a video'), 'duration' => 8])->assertStatus(422);
-        $this->assertSame('after_video', $in->refresh()->step);
-
-        $this->app('video', ['video' => $this->webm(), 'face' => $this->webm(8000), 'duration' => 8])->assertOk()->assertJsonPath('step', 'confirm');
-
+        $this->capture(submit: false);
+        // video majburiy: qisqa yoki noto'g'ri format rad etiladi (yuqorida to'g'risi yuborilgan — endi tasdiqlash)
+        $this->app('state')->assertJsonPath('step', 'confirm');
         $this->app('submit')->assertOk();
         $this->app('submit')->assertStatus(409); // qo'sh bosish
 
-        $this->assertSame(Inspection::SUBMITTED, $in->refresh()->status);
-        $this->assertSame(Inspection::REVIEW_PENDING, $in->review_status);
-        $this->assertSame(Site::NOT_DEMOLISHED, $this->site->refresh()->status); // moderator tasdiqlamaguncha hisoblanmaydi
+        $before->refresh();
+        $this->assertNull($before->review_status);
+        $this->assertSame([InspectionMedia::BEFORE_PHOTO, InspectionMedia::BEFORE_VIDEO], $before->media()->orderBy('id')->pluck('kind')->all());
+        $this->assertSame(Site::NOT_DEMOLISHED, $this->site->refresh()->status);
+
+        // 2-kun: tekshirish — endi bosqich tanlanadi (jarayon yoki keyingi holat)
+        $bot = $this->bot();
+        $bot->hearCallbackQueryData("go:{$this->site->id}")->reply();
+        $bot->hearCallbackQueryData("gk:{$this->site->id}:check")->reply();
+        $this->assertSame(0, Inspection::where('status', Inspection::DRAFT)->count());
+        $sent = collect($bot->getRequestHistory())->map(fn ($r) => urldecode((string) $r['request']->getBody()))->implode("\n");
+        $this->assertStringContainsString("gk:{$this->site->id}:process", $sent);
+
+        $process = $this->start(kind: 'process');
+        $this->capture();
+        $this->assertSame(Inspection::KIND_PROCESS, $process->refresh()->kind);
+        $this->assertTrue($process->in_progress);
+        $this->assertNull($process->review_status);
+        $this->assertNotNull($process->mediaOf(InspectionMedia::PROCESS_VIDEO));
+        $this->assertSame(Site::IN_PROGRESS, $this->site->refresh()->status);
+
+        // 3-kun: buzib bo'lindi — keyingi holat
+        $after = $this->start(kind: 'after');
+        $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501])->assertOk();
+
+        // avvalgi rasmning o'zi qayta yuborilsa — rad (bir xil fayl)
+        $first = $before->mediaOf(InspectionMedia::BEFORE_PHOTO);
+        $class = get_class(app(MediaTool::class));
+        $class::$fixed = file_get_contents(Storage::disk('local')->path($first->path));
+        $this->app('photo', ['clip' => $this->webm()])->assertStatus(422);
+        $this->assertTrue($after->refresh()->suspicious);
+        $class::$fixed = null;
+
+        $this->app('photo', ['clip' => $this->webm()])->assertOk()->assertJsonPath('step', 'video');
+        $this->app('video', ['video' => $this->webm(), 'duration' => 1.2])->assertStatus(422); // juda qisqa
+        $this->app('video', ['video' => UploadedFile::fake()->createWithContent('v.webm', 'not a video'), 'duration' => 8])->assertStatus(422);
+        $this->app('video', ['video' => $this->webm(), 'face' => $this->webm(8000), 'duration' => 8])->assertOk()->assertJsonPath('step', 'confirm');
+        $this->app('submit')->assertOk();
+
+        $after->refresh();
+        $this->assertTrue($after->is_demolished);
+        $this->assertSame(Inspection::REVIEW_PENDING, $after->review_status);
+        $this->assertSame(Site::IN_PROGRESS, $this->site->refresh()->status); // moderator tasdiqlamaguncha
         $card = \App\Telegram\Support\Ui::siteCard(Site::with(['mahalla', 'pendingReview'])->find($this->site->id));
         $this->assertStringContainsString('Ko‘rib chiqilmoqda', $card);
-        $this->assertStringNotContainsString('Buzilmagan', $card);
-        $this->assertSame(3, $in->media()->count());
 
         // tasdiq kutilayotgan obyekt bo'yicha yangi tekshiruv boshlab bo'lmaydi
-        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
+        $this->start(kind: 'process');
         $this->assertSame(0, Inspection::where('status', Inspection::DRAFT)->count());
 
-        // moderator tasdiqlaydi -> obyekt buzilgan, qayta tasdiqlab bo'lmaydi
-        $this->assertTrue(\App\Support\InspectionReview::approve($in, null));
-        $this->assertFalse(\App\Support\InspectionReview::approve($in, null));
+        $this->assertTrue(\App\Support\InspectionReview::approve($after, null));
+        $this->assertFalse(\App\Support\InspectionReview::approve($after, null));
         $this->assertSame(Site::DEMOLISHED, $this->site->refresh()->status);
         $this->assertNotNull($this->site->demolished_at);
-        $this->assertSame(Inspection::REVIEW_APPROVED, $in->refresh()->review_status);
-        $in->media->each(fn ($m) => Storage::disk('local')->assertExists($m->path));
     }
 
-    public function test_not_demolished_requires_reason(): void
+    public function test_far_location_is_rejected_in_strict_mode_and_flagged_otherwise(): void
     {
         $this->register();
-        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
-        $in = Inspection::first();
+        $in = $this->start();
 
-        // obyekt hududidan uzoqda — rad etiladi (radius ichida bo'lish shart)
         config(['tutash.strict_distance' => true]);
         $this->app('location', ['lat' => 41.5, 'lng' => 69.9])->assertStatus(422)
             ->assertJsonPath('radius', 300)->assertJson(fn ($j) => $j->has('distance')->where('ok', false)->etc());
         $this->assertSame('location', $in->refresh()->step);
         $this->assertNull($in->staff_lat);
 
-        // qat'iy rejim o'chirilsa — ruxsat, lekin tekshiruv "shubhali" deb belgilanadi
         config(['tutash.strict_distance' => false]);
         $this->app('location', ['lat' => 41.5, 'lng' => 69.9])->assertOk();
         $this->assertTrue($in->refresh()->suspicious);
-
-        $this->app('photo', ['clip' => $this->webm()])->assertOk();
-        $this->app('skip')->assertOk();
-        // "Buzilmagan" — sababi turi tanlanadi: sud qarori bekor (hujjat) yoki boshqa muammo (izoh)
-        $this->app('demolished', ['value' => '0'])->assertOk()->assertJsonPath('step', 'issue');
-
-        $this->app('issue', ['type' => 'other', 'reason' => 'qisqa'])->assertStatus(422);
-        $this->assertSame('issue', $in->refresh()->step);
-
-        $this->app('issue', ['type' => 'other', 'reason' => 'Obyekt hali buzilmagan, qurilish davom etmoqda'])->assertOk()->assertJsonPath('step', 'confirm');
-        $this->app('submit')->assertOk();
-
-        $this->assertSame(Inspection::EXEMPT_OTHER, $in->refresh()->exempt_type);
-        $this->assertSame(Site::NOT_DEMOLISHED, $this->site->refresh()->status);
-        $this->assertNotNull($this->site->last_inspected_at);
-        $this->assertSame(Inspection::SUBMITTED, $in->refresh()->status);
     }
 
     public function test_court_cancelled_needs_documents_and_approval_removes_site_from_total(): void
     {
         $this->register();
-        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
-        $in = Inspection::first();
+        $in = $this->start(kind: 'court');
         $totalBefore = Site::countable()->count();
 
-        $this->app('location', ['lat' => 41.3, 'lng' => 69.25])->assertOk();
-        $this->app('photo', ['clip' => $this->webm()])->assertOk();
-        $this->app('skip')->assertOk();
-        $this->app('demolished', ['value' => '3'])->assertOk()->assertJsonPath('step', 'issue');
-        $this->app('issue', ['type' => 'court_cancelled', 'reason' => 'Mirzo Ulug‘bek tumanlararo sudi, 08.01.2025'])
-            ->assertOk()->assertJsonPath('step', 'documents');
+        $this->capture(submit: false);
+        $this->app('state')->assertJsonPath('step', 'documents');
 
         // hujjatsiz davom etib bo'lmaydi; faqat rasm/PDF qabul qilinadi
         $this->app('documents/done')->assertStatus(422);
@@ -409,11 +431,12 @@ class BotFlowTest extends TestCase
         $jpg = UploadedFile::fake()->image('p.jpg', 800, 1100);
         $this->app('document', ['file' => $jpg])->assertOk()->assertJsonCount(2, 'documents');
         $this->app('document/remove', ['kind' => 'document_2'])->assertOk()->assertJsonCount(1, 'documents');
-        $this->app('documents/done')->assertOk()->assertJsonPath('step', 'confirm');
+        $this->app('documents/done', ['reason' => 'Mirzo Ulug‘bek tumanlararo sudi, 08.01.2025'])->assertOk()->assertJsonPath('step', 'confirm');
         $this->app('submit')->assertOk();
 
         $in->refresh();
         $this->assertSame(Inspection::REVIEW_PENDING, $in->review_status);
+        $this->assertSame('Mirzo Ulug‘bek tumanlararo sudi, 08.01.2025', $in->reason);
         $this->assertSame(Site::NOT_DEMOLISHED, $this->site->refresh()->status); // tasdiqqacha o'zgarmaydi
         $doc = $in->documents()->first();
         Storage::disk(config('tutash.media_disk'))->assertExists($doc->path);
@@ -429,52 +452,26 @@ class BotFlowTest extends TestCase
         $this->assertStringContainsString('Sud qarori bekor: <b>1</b>', \App\Telegram\Support\InspectionReport::caption(\App\Support\ReportPeriod::current()->day));
     }
 
-    public function test_other_issue_is_text_only_and_keeps_site_in_work_list(): void
+    public function test_found_demolished_needs_photo_and_video_and_goes_to_review(): void
     {
         $this->register();
-        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
-        $in = Inspection::first();
-
-        $this->app('location', ['lat' => 41.3, 'lng' => 69.25])->assertOk();
-        $this->app('photo', ['clip' => $this->webm()])->assertOk();
-        $this->app('skip')->assertOk();
-        $this->app('demolished', ['value' => '3'])->assertOk();
-        $this->app('issue', ['type' => 'other', 'reason' => 'Obyekt egasi chet elda, eshik yopiq'])->assertOk()->assertJsonPath('step', 'confirm');
-        $this->app('submit')->assertOk();
+        $in = $this->start(kind: 'found'); // oldingi holatsiz ham mumkin
+        $this->assertSame(Inspection::KIND_FOUND, $in->kind);
+        $this->capture();
 
         $in->refresh();
-        $this->assertNull($in->review_status);
-        $this->assertSame(Inspection::EXEMPT_OTHER, $in->exempt_type);
-        $this->assertTrue(Site::pending()->whereKey($this->site->id)->exists());
-    }
-
-    public function test_in_progress_result_marks_site_and_keeps_it_in_work_list(): void
-    {
-        $this->register();
-        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
-        $in = Inspection::first();
-
-        $this->app('location', ['lat' => 41.3, 'lng' => 69.2])->assertOk();
-        $this->app('photo', ['clip' => $this->webm()])->assertOk();
-        $this->app('skip')->assertOk();
-        $this->app('demolished', ['value' => '2'])->assertOk()->assertJsonPath('step', 'reason')->assertJsonPath('in_progress', true);
-        $this->app('reason', ['reason' => '70% buzilgan, tadbirkor o‘zi buzmoqda'])->assertOk()->assertJsonPath('step', 'confirm');
-        $this->app('submit')->assertOk();
-
-        $in->refresh();
-        $this->assertFalse($in->is_demolished);
-        $this->assertTrue($in->in_progress);
-        $this->assertNull($in->review_status);
-        $this->assertSame(Site::IN_PROGRESS, $this->site->refresh()->status);
-        $this->assertTrue(Site::pending()->whereKey($this->site->id)->exists());
-        $this->assertStringContainsString('Jarayonda: <b>1</b>', \App\Telegram\Support\InspectionReport::caption(\App\Support\ReportPeriod::current()->day));
+        $this->assertTrue($in->is_demolished);
+        $this->assertSame(Inspection::REVIEW_PENDING, $in->review_status);
+        $this->assertNotNull($in->mediaOf(InspectionMedia::AFTER_PHOTO));
+        $this->assertNotNull($in->mediaOf(InspectionMedia::AFTER_VIDEO));
+        $this->assertSame('Buzilgan (kelganda)', \App\Filament\Resources\InspectionResource::result($in));
+        $this->assertStringContainsString('Buzilgan: <b>1</b>', \App\Telegram\Support\InspectionReport::caption(\App\Support\ReportPeriod::current()->day));
     }
 
     public function test_black_media_is_rejected_and_device_is_recorded(): void
     {
         $this->register();
-        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
-        $in = Inspection::first();
+        $in = $this->start();
         $device = json_encode(['ua' => 'Mozilla/5.0 (Linux; Android 14; SM-S918B Build/UP1A) AppleWebKit', 'tg' => ['p' => 'android', 'v' => '11.4'], 'cam' => ['w' => 480, 'h' => 480, 'f' => 'user']]);
 
         $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501, 'device' => $device])->assertOk();
@@ -483,7 +480,7 @@ class BotFlowTest extends TestCase
         $class = get_class(app(MediaTool::class));
         $class::$black = true;
         $this->app('photo', ['clip' => $this->webm(), 'device' => $device])->assertStatus(422);
-        $this->assertSame('before_photo', $in->refresh()->step);
+        $this->assertSame('photo', $in->refresh()->step);
         $this->assertSame(0, $in->media()->count());
         $this->assertSame('Android · SM-S918B · Telegram android 11.4 · kamera 480x480 (user)', \App\Support\Device::label($in->device));
 
@@ -492,19 +489,20 @@ class BotFlowTest extends TestCase
         $this->assertSame(1, $in->media()->count());
     }
 
+    /** "Kelganda buzilgan" natijasini yuboradi (moderator tasdig'ini kutadi). */
+    private function submitDemolished(): Inspection
+    {
+        $this->start(kind: 'found');
+        $this->capture();
+
+        return Inspection::where('status', Inspection::SUBMITTED)->latest('id')->first();
+    }
+
     public function test_rejected_demolition_keeps_site_and_allows_retry(): void
     {
         $this->register();
-        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
-        $in = Inspection::first();
-        $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501])->assertOk();
-        $this->app('photo', ['clip' => $this->webm()])->assertOk();
-        $this->app('skip')->assertOk();
-        $this->app('demolished', ['value' => '1'])->assertOk();
-        $this->app('photo', ['clip' => $this->webm()])->assertOk();
-        $this->app('video', ['video' => $this->webm(), 'duration' => 8])->assertOk();
-        $this->app('submit')->assertOk();
-        $this->assertSame(Inspection::REVIEW_PENDING, $in->refresh()->review_status);
+        $in = $this->submitDemolished();
+        $this->assertSame(Inspection::REVIEW_PENDING, $in->review_status);
 
         $this->assertTrue(\App\Support\InspectionReview::reject($in, null, 'Rasmda obyekt aniq ko‘rinmayapti'));
         $this->assertSame(Inspection::REVIEW_REJECTED, $in->refresh()->review_status);
@@ -512,54 +510,40 @@ class BotFlowTest extends TestCase
         $this->assertNotNull($in->refresh()->archived_at); // arxivlandi
         $this->assertNull($this->site->last_inspected_at); // obyekt sahifasi bo'shadi
 
-        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
+        $this->start(kind: 'found');
         $this->assertSame(1, Inspection::where('status', Inspection::DRAFT)->count());
-    }
-
-    /** "Buzilgan" natijasini yuboradi (moderator tasdig'ini kutadi). */
-    private function submitDemolished(): Inspection
-    {
-        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
-        $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501])->assertOk();
-        $this->app('photo', ['clip' => $this->webm()])->assertOk();
-        $this->app('skip')->assertOk();
-        $this->app('demolished', ['value' => '1'])->assertOk();
-        $this->app('photo', ['clip' => $this->webm()])->assertOk();
-        $this->app('video', ['video' => $this->webm(), 'duration' => 8])->assertOk();
-        $this->app('submit')->assertOk();
-
-        return Inspection::where('status', Inspection::SUBMITTED)->latest('id')->first();
     }
 
     public function test_rejected_result_is_reworked_by_retaking_only_chosen_media(): void
     {
         $this->register();
         $old = $this->submitDemolished();
-        $this->assertTrue(\App\Support\InspectionReview::reject($old, null, 'Keyingi rasm xira, qayta oling'));
+        $this->assertTrue(\App\Support\InspectionReview::reject($old, null, 'Rasm xira, qayta oling'));
         $this->assertSame(Inspection::FOLLOWUP_OPEN, $old->refresh()->followup);
-        $oldAfter = $old->mediaOf(InspectionMedia::AFTER_PHOTO);
-        $oldBefore = $old->mediaOf(InspectionMedia::BEFORE_PHOTO);
+        $oldPhoto = $old->mediaOf(InspectionMedia::AFTER_PHOTO);
+        $oldVideo = $old->mediaOf(InspectionMedia::AFTER_VIDEO);
 
         $this->bot()->hearCallbackQueryData("rw:{$old->id}")->reply();
         $draft = Inspection::where('status', Inspection::DRAFT)->first();
         $this->assertSame($old->id, $draft->rework_of);
-        $this->assertSame(3, $draft->media()->count()); // fayllar ko'chirildi
+        $this->assertSame(Inspection::KIND_FOUND, $draft->kind);
+        $this->assertSame(2, $draft->media()->count()); // fayllar ko'chirildi
         $draft->media->each(fn ($m) => Storage::disk('local')->assertExists($m->path));
-        $this->assertSame($oldBefore->file_unique_id, $draft->mediaOf(InspectionMedia::BEFORE_PHOTO)->file_unique_id);
+        $this->assertSame($oldVideo->file_unique_id, $draft->mediaOf(InspectionMedia::AFTER_VIDEO)->file_unique_id);
 
         $this->app('state')->assertOk()->assertJsonPath('step', 'edit')->assertJsonPath('rework', true)
-            ->assertJsonPath('note', 'Keyingi rasm xira, qayta oling')->assertJsonPath('complete', true);
+            ->assertJsonPath('note', 'Rasm xira, qayta oling')->assertJsonPath('complete', true);
 
-        // faqat keyingi rasm qayta olinadi: avval joylashuv, keyin rasm, so'ng menyuga qaytadi
-        $this->app('edit', ['item' => 'reason'])->assertStatus(409); // buzilgan natijada sabab yo'q
-        $this->app('edit', ['item' => 'after_photo'])->assertOk()->assertJsonPath('step', 'location');
-        $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501])->assertOk()->assertJsonPath('step', 'after_photo');
+        // faqat rasm qayta olinadi: avval joylashuv, keyin rasm, so'ng menyuga qaytadi
+        $this->app('edit', ['item' => 'documents'])->assertStatus(409); // sud qarori emas
+        $this->app('edit', ['item' => 'photo'])->assertOk()->assertJsonPath('step', 'location');
+        $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501])->assertOk()->assertJsonPath('step', 'photo');
         $this->app('photo', ['clip' => $this->webm()])->assertOk()->assertJsonPath('step', 'edit')->assertJsonPath('located', true);
-        $this->assertNotSame($oldAfter->file_unique_id, $draft->refresh()->mediaOf(InspectionMedia::AFTER_PHOTO)->file_unique_id);
+        $this->assertNotSame($oldPhoto->file_unique_id, $draft->refresh()->mediaOf(InspectionMedia::AFTER_PHOTO)->file_unique_id);
 
         // ikkinchi marta joylashuv so'ralmaydi
-        $this->app('edit', ['item' => 'before_photo'])->assertOk()->assertJsonPath('step', 'before_photo');
-        $this->app('photo', ['clip' => $this->webm()])->assertOk()->assertJsonPath('step', 'edit');
+        $this->app('edit', ['item' => 'video'])->assertOk()->assertJsonPath('step', 'video');
+        $this->app('video', ['video' => $this->webm(), 'duration' => 8])->assertOk()->assertJsonPath('step', 'edit');
 
         $this->app('edit', ['item' => 'confirm'])->assertOk()->assertJsonPath('step', 'confirm');
         $this->app('submit')->assertOk();
@@ -567,9 +551,9 @@ class BotFlowTest extends TestCase
         $draft->refresh();
         $this->assertSame(Inspection::REVIEW_PENDING, $draft->review_status);
         $this->assertSame(Inspection::FOLLOWUP_DONE, $old->refresh()->followup);
-        $this->assertSame(3, $draft->media()->count());
+        $this->assertSame(2, $draft->media()->count());
         // almashtirilgan eski fayllar hashi qaytarildi — boshqa obyektda qayta ishlatilsa aniqlanadi
-        $this->assertSame($oldAfter->file_unique_id, $oldAfter->refresh()->file_unique_id);
+        $this->assertSame($oldPhoto->file_unique_id, $oldPhoto->refresh()->file_unique_id);
 
         $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
         $admin->save();
@@ -616,8 +600,8 @@ class BotFlowTest extends TestCase
         $this->assertSame($in->id, $fu->followup_of);
 
         $this->app('state')->assertOk()->assertJsonPath('followup', true)->assertJsonPath('note', 'Qolgan devorni ham buzib, oxiriga yetkazing');
-        $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501])->assertOk()->assertJsonPath('step', 'after_photo');
-        $this->app('photo', ['clip' => $this->webm()])->assertOk()->assertJsonPath('step', 'after_video');
+        $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501])->assertOk()->assertJsonPath('step', 'photo');
+        $this->app('photo', ['clip' => $this->webm()])->assertOk()->assertJsonPath('step', 'video');
         $this->app('video', ['video' => $this->webm(), 'duration' => 8])->assertOk()->assertJsonPath('step', 'reason');
         $this->app('reason', ['reason' => 'Qolgan devor ham buzildi, chiqindi olib ketildi'])->assertOk()->assertJsonPath('step', 'confirm');
         $this->app('submit')->assertOk();
@@ -646,7 +630,7 @@ class BotFlowTest extends TestCase
     public function test_inspection_can_be_cancelled_from_app(): void
     {
         $this->register();
-        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
+        $this->start();
         $this->app('cancel')->assertOk();
         $this->assertSame(0, Inspection::count());
         $this->app('state')->assertStatus(409);
@@ -655,8 +639,7 @@ class BotFlowTest extends TestCase
     public function test_low_gps_accuracy_is_rejected_and_mock_gps_is_flagged(): void
     {
         $this->register();
-        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
-        $in = Inspection::first();
+        $in = $this->start();
 
         // aniqlik chegaradan yomon — rad, bosqich o'zgarmaydi
         $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501, 'accuracy' => 900])->assertStatus(422)->assertJsonPath('ok', false);
@@ -664,7 +647,7 @@ class BotFlowTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['event' => 'inspection.low_gps_accuracy']);
 
         // aynan 0 m — soxta GPS gumoni: qabul qilinadi, lekin shubhali deb belgilanadi
-        $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501, 'accuracy' => 0])->assertOk()->assertJsonPath('step', 'before_photo');
+        $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501, 'accuracy' => 0])->assertOk()->assertJsonPath('step', 'photo');
         $this->assertTrue($in->refresh()->suspicious);
         $this->assertSame(['gps_mock_suspected'], $in->flags);
     }
@@ -672,35 +655,36 @@ class BotFlowTest extends TestCase
     public function test_reused_file_is_rejected_without_leaving_files_on_disk(): void
     {
         $this->register();
-        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
-        $in = Inspection::first();
+        $in = $this->start();
         $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501, 'accuracy' => 6])->assertOk();
         $this->app('photo', ['clip' => $this->webm()])->assertOk();
-        $this->app('skip')->assertOk();
-        $this->app('demolished', ['value' => '1'])->assertOk();
-
+        $this->app('video', ['video' => $this->webm(), 'duration' => 8])->assertOk();
+        $this->app('submit')->assertOk();
         $first = $in->refresh()->load('media')->mediaOf(\App\Models\InspectionMedia::BEFORE_PHOTO);
+
+        // keyingi bosqichda avvalgi rasmning o'zi yuborilsa — rad, diskda yangi fayl qolmaydi
+        $in = $this->start(kind: 'process');
+        $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501, 'accuracy' => 6])->assertOk();
         $class = get_class(app(MediaTool::class));
         $class::$fixed = Storage::disk('local')->get($first->path);
         $this->app('photo', ['clip' => $this->webm()])->assertStatus(422);
         $class::$fixed = null;
 
-        // diskda faqat bazadagi yozuvga mos fayl qoladi
-        $this->assertSame([$first->path], Storage::disk('local')->files("inspections/{$in->id}"));
-        $this->assertSame(1, $in->media()->count());
+        // diskda faqat bazadagi yozuvlarga mos fayllar qoladi
+        $this->assertSame([], Storage::disk('local')->files("inspections/{$in->id}"));
+        $this->assertSame(0, $in->media()->count());
     }
 
     public function test_inspection_video_is_merged_in_queue_and_reuse_is_detected_on_raw_clip(): void
     {
         $this->register();
-        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
-        $in = Inspection::first();
+        $in = $this->start();
         $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501, 'accuracy' => 6])->assertOk();
         $this->app('photo', ['clip' => $this->webm()])->assertOk();
 
         $raw = "\x1A\x45\xDF\xA3".random_bytes(30000);
         $clip = fn () => UploadedFile::fake()->createWithContent('v.webm', $raw);
-        $this->app('video', ['video' => $clip(), 'face' => $this->webm(8000), 'duration' => 8])->assertOk()->assertJsonPath('step', 'demolished');
+        $this->app('video', ['video' => $clip(), 'face' => $this->webm(8000), 'duration' => 8])->assertOk()->assertJsonPath('step', 'confirm');
 
         // birlashtirish so'rov ichida emas, navbatda
         $media = $in->refresh()->load('media')->mediaOf(\App\Models\InspectionMedia::BEFORE_VIDEO);
@@ -713,11 +697,13 @@ class BotFlowTest extends TestCase
         });
         Storage::disk('local')->assertExists($facePath);
 
-        // xuddi shu xom lavha "keyingi holat" videosi sifatida yuborilsa — rad (hash qayta kodlanmagan fayldan)
-        $this->app('demolished', ['value' => '1'])->assertOk();
+        // xuddi shu xom lavha keyingi bosqich videosi sifatida yuborilsa — rad (hash qayta kodlanmagan fayldan)
+        $this->app('submit')->assertOk();
+        $next = $this->start(kind: 'process');
+        $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501, 'accuracy' => 6])->assertOk();
         $this->app('photo', ['clip' => $this->webm()])->assertOk();
         $this->app('video', ['video' => $clip(), 'duration' => 8])->assertStatus(422);
-        $this->assertSame('after_video', $in->refresh()->step);
+        $this->assertSame('video', $next->refresh()->step);
 
         // job: birlashtirilgan fayl asosiy lavha va yuz lavhasi o'rnini egallaydi
         $original = $media->path;
@@ -739,8 +725,7 @@ class BotFlowTest extends TestCase
     public function test_deleted_drafts_remove_their_files_and_prune_cleans_orphans(): void
     {
         $this->register();
-        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
-        $in = Inspection::first();
+        $in = $this->start();
         $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501, 'accuracy' => 6])->assertOk();
         $this->app('photo', ['clip' => $this->webm()])->assertOk();
         $this->assertNotEmpty(Storage::disk('local')->files("inspections/{$in->id}"));
@@ -751,8 +736,7 @@ class BotFlowTest extends TestCase
         $this->assertFalse(Storage::disk('local')->directoryExists("inspections/{$in->id}"));
 
         // eskirgan qoralama + avvaldan qolgan yetim papka
-        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
-        $old = Inspection::first();
+        $old = $this->start();
         $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501, 'accuracy' => 6])->assertOk();
         $this->app('photo', ['clip' => $this->webm()])->assertOk();
         Inspection::whereKey($old->id)->update(['updated_at' => now()->subDays(2)]);

@@ -34,6 +34,7 @@ class InspectionReport
             "🚧 Jarayonda: <b>{$s['progress']}</b>",
         ];
         $s['court'] && $lines[] = "⚖️ Sud qarori bekor: <b>{$s['court']}</b>";
+        $s['before'] && $lines[] = "📷 Oldingi holat qayd etildi: <b>{$s['before']}</b>";
         $lines[] = '';
         $lines[] = "Qoldiq: <b>{$svod['left']}</b> ta · ".Svod::area($svod['area']).' ga';
         $lines[] = "Umumiy bajarilish: <b>{$done}</b> / {$total}".($total ? ' ('.round($done / $total * 100, 1).'%)' : '');

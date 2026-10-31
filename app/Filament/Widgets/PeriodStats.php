@@ -50,7 +50,7 @@ class PeriodStats extends StatsOverviewWidget
                 ->descriptionIcon($s['pending'] ? 'fas-clock' : ($s['demolished'] ? 'fas-circle-check' : null)),
             Stat::make('Jarayonda', $s['progress'])->icon('fas-person-digging')->color('info'),
             Stat::make('Sud qarori bekor', $s['court'])->icon('fas-scale-balanced')->color('gray'),
-            Stat::make('Buzilmagan (sabab bilan)', $s['other'])->icon('fas-house')->color('warning'),
+            Stat::make('Oldingi holat qayd etildi', $s['before'])->icon('fas-camera')->color('gray'),
         ];
     }
 }

@@ -2,6 +2,8 @@
     $labels = [
         'before_photo' => 'Avvalgi holat (rasm)',
         'before_video' => 'Avvalgi holat (dumaloq video)',
+        'process_photo' => 'Buzish jarayoni (rasm)',
+        'process_video' => 'Buzish jarayoni (dumaloq video)',
         'after_photo' => 'Keyingi holat (rasm)',
         'after_video' => 'Keyingi holat (dumaloq video)',
     ];

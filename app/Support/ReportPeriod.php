@@ -62,7 +62,7 @@ class ReportPeriod
      * Davr natijalari: tekshiruvlar soni, buzilgan (tasdiqlangan / kutilmoqda), jarayonda, sud qarori bekor, boshqa.
      * Bir obyekt bo'yicha bir nechta natija bo'lsa — oxirgisi olinadi.
      *
-     * @return array{inspections: int, demolished: int, approved: int, pending: int, progress: int, court: int, other: int}
+     * @return array{inspections: int, demolished: int, approved: int, pending: int, progress: int, court: int, before: int}
      */
     public function summary(): array
     {
@@ -78,7 +78,8 @@ class ReportPeriod
             'pending' => $demolished->where('review_status', Inspection::REVIEW_PENDING)->count(),
             'progress' => $last->where('is_demolished', false)->whereNull('exempt_type')->where('in_progress', true)->count(),
             'court' => $last->where('is_demolished', false)->where('exempt_type', Inspection::EXEMPT_COURT)->count(),
-            'other' => $last->where('is_demolished', false)->filter(fn ($i) => $i->exempt_type === Inspection::EXEMPT_OTHER || (! $i->exempt_type && ! $i->in_progress))->count(),
+            // oldingi holat qayd etilgan (eski natijalarda — buzilmagan / boshqa muammo)
+            'before' => $last->where('is_demolished', false)->filter(fn ($i) => $i->exempt_type !== Inspection::EXEMPT_COURT && ! $i->in_progress)->count(),
         ];
     }
 }

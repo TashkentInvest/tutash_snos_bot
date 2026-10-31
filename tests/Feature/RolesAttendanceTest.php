@@ -460,6 +460,7 @@ class RolesAttendanceTest extends TestCase
 
         // /bekor tugallanmagan tekshiruvni o'chiradi
         $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
+        $this->bot()->hearCallbackQueryData("gk:{$this->site->id}:check")->reply();
         $this->assertSame(1, Inspection::count());
         $this->bot()->hearText('/bekor')->reply();
         $this->assertSame(0, Inspection::count());

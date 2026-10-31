@@ -67,23 +67,6 @@
     <div id="timer">0.0 s</div>
     <button id="goRec">🎥 Yozishni boshlash</button>
     <button id="stopRec" class="hidden">Yozishni tugatish va yuborish</button>
-    <button id="skipVideo" class="secondary hidden">⏭ O‘tkazib yuborish</button>
-</div>
-
-<div id="sDemo" class="hidden">
-    <p>Ushbu hudud <b>buzib tashlandimi</b>?</p>
-    <button class="ok" data-v="1">✅ Ha, buzilgan</button>
-    <button class="secondary" data-v="2">🚧 Jarayonda (qisman buzilgan)</button>
-    <button class="danger" data-v="0">❌ Yo‘q, buzilmagan</button>
-</div>
-
-<div id="sIssue" class="hidden">
-    <p>Obyekt nima uchun buzilmagan? <b>Turini tanlang:</b></p>
-    <label class="opt"><input type="radio" name="issueType" value="court_cancelled"> ⚖️ Sud qarori bekor qilingan (hujjat yuklanadi)</label>
-    <label class="opt"><input type="radio" name="issueType" value="other"> 📝 Boshqa muammo (sababini yozing)</label>
-    <p id="issueHint">Sababini batafsil yozing (kamida 10 ta belgi).</p>
-    <textarea id="issueText" maxlength="1000" placeholder="Sabab…"></textarea>
-    <button id="goIssue">Davom etish</button>
 </div>
 
 <div id="sDocs" class="hidden">
@@ -91,12 +74,14 @@
     <div id="docList"></div>
     <input type="file" id="docFile" accept="image/*,application/pdf" multiple class="hidden">
     <button id="goDocAdd" class="secondary">📎 Fayl qo‘shish (rasm yoki PDF)</button>
+    <p>Izoh (ixtiyoriy): qaysi sud, qaror raqami va sanasi.</p>
+    <textarea id="docNote" maxlength="1000" placeholder="Masalan: Mirzo Ulug‘bek tumanlararo sudi, 08.01.2025, №2-1001-2412/47918"></textarea>
     <button id="goDocsDone" class="ok">Davom etish</button>
 </div>
 
 <div id="sReason" class="hidden">
-    <p id="reasonHint">Obyekt nima uchun buzilmagan? <b>Sababini yozing</b> (kamida 10 ta belgi).</p>
-    <textarea id="reason" maxlength="1000" placeholder="Sabab…"></textarea>
+    <p id="reasonHint">Izoh bo‘yicha <b>nima qilindi</b>? Qisqa yozing (kamida 10 ta belgi).</p>
+    <textarea id="reason" maxlength="1000" placeholder="Izoh…"></textarea>
     <button id="goReason">Davom etish</button>
 </div>
 
@@ -117,14 +102,18 @@ tg && (tg.ready(), tg.expand());
 const $ = id => document.getElementById(id), msg = $('msg');
 const say = (t, c) => { msg.textContent = t; msg.className = c || ''; };
 const initData = () => (tg ? tg.initData : '');
-const SECTIONS = ['sEdit', 'sLocation', 'sPhoto', 'sVideo', 'sDemo', 'sReason', 'sIssue', 'sDocs', 'sConfirm'];
+const SECTIONS = ['sEdit', 'sLocation', 'sPhoto', 'sVideo', 'sReason', 'sDocs', 'sConfirm'];
 const show = id => SECTIONS.forEach(s => $(s).classList.toggle('hidden', s !== id));
-const TITLES = {
-    location: '1. Joylashuv', before_photo: '2. Hozirgi holat rasmi', before_video: '3. Hudud videosi (ixtiyoriy)', demolished: '4. Natija',
-    reason: '5. Sabab', issue: '5. Buzilmaganlik sababi', documents: '6. Sud qarori nusxasi', after_photo: '5. Buzilgandan keyingi rasm', after_video: '6. Buzilgan hudud videosi (majburiy)', confirm: 'Tasdiqlash', edit: '✏️ Tuzatish',
+const STEPS = { location: '1. Joylashuv', photo: '2. Rasm', video: '3. Video', documents: '4. Sud qarori hujjatlari', reason: '4. Izoh', confirm: 'Tasdiqlash', edit: 'Tuzatish' };
+// tekshiruv turi bo'yicha rasmga olish ko'rsatmasi
+const PHOTO_HINT = {
+    before: 'Obyektning <b>hozirgi (buzishdan oldingi) holatini</b> kameraga oling.',
+    process: '<b>Buzish jarayonini</b> kameraga oling.',
+    after: 'Hududning <b>buzilgandan keyingi holatini</b> kameraga oling.',
+    court: 'Obyektning <b>hozirgi holatini</b> kameraga oling.',
+    found: 'Hududning <b>hozirgi (buzilgan) holatini</b> kameraga oling.',
+    followup: 'Izoh bo‘yicha <b>bajarilgan ish holatini</b> kameraga oling.',
 };
-// moderator izohi bo'yicha bajarilgan ishni tasdiqlash (followup)
-const FU_TITLES = { location: '1. Joylashuv', after_photo: '2. Bajarilgan ish rasmi', after_video: '3. Bajarilgan ish videosi', reason: '4. Izoh', confirm: 'Tasdiqlash' };
 
 // Sust/uzilib qoladigan mobil internet: so'rov cheksiz osilib qolmasligi uchun vaqt chegarasi.
 async function post(path, body, ms) {
@@ -169,8 +158,8 @@ async function render(s) {
     session && session.abort && session.abort();
     session = null;
     TgCam.release();
-    $('addr').textContent = s.address + (s.mahalla ? ' (' + s.mahalla + ')' : '');
-    $('title').textContent = (s.followup ? FU_TITLES[s.step] : TITLES[s.step]) || 'Tekshiruv';
+    $('addr').textContent = s.kind_label + ' · ' + s.address + (s.mahalla ? ' (' + s.mahalla + ')' : '');
+    $('title').textContent = STEPS[s.step] || 'Tekshiruv';
     $('cancelLink').classList.remove('hidden');
     $('cancelLink').textContent = s.rework ? '❌ Tuzatishni bekor qilish' : '❌ Tekshiruvni bekor qilish';
     $('noteBox').classList.toggle('hidden', !s.note);
@@ -180,85 +169,48 @@ async function render(s) {
     switch (s.step) {
         case 'edit': show('sEdit'); renderEdit(s); break;
         case 'location': show('sLocation'); $('goLoc').textContent = '📍 Joylashuvni yuborish'; $('goLoc').disabled = false; checkLocation(); break;
-        case 'before_photo':
-        case 'after_photo':
+        case 'photo':
             show('sPhoto');
-            $('photoHint').innerHTML = s.followup ? 'Izoh bo‘yicha <b>bajarilgan ish holatini</b> kameraga oling.'
-                : s.step === 'before_photo'
-                ? 'Hududning <b>hozirgi (buzishdan oldingi) holatini</b> kameraga oling.'
-                : 'Hududning <b>buzilgandan keyingi holatini</b> kameraga oling.';
+            $('photoHint').innerHTML = PHOTO_HINT[s.kind] || PHOTO_HINT.before;
             await openPhotoCam();
             break;
-        case 'before_video':
-        case 'after_video':
+        case 'video':
             show('sVideo');
-            $('skipVideo').classList.toggle('hidden', s.step !== 'before_video');
             $('goRec').classList.remove('hidden'); $('stopRec').classList.add('hidden'); $('timer').textContent = '0.0 s';
             await openVideoCam();
             break;
-        case 'demolished': show('sDemo'); break;
-        case 'reason':
-            show('sReason');
-            if (s.rework || s.followup) $('reason').value = $('reason').value || (s.followup ? '' : s.reason || '');
-            $('title').textContent = s.followup ? FU_TITLES.reason : s.in_progress ? '5. Buzish jarayoni' : TITLES.reason;
-            $('reasonHint').innerHTML = s.followup
-                ? 'Izoh bo‘yicha <b>nima qilindi</b>? Qisqa yozing (kamida 10 ta belgi).'
-                : s.in_progress
-                ?'Buzish jarayoni haqida <b>izoh yozing</b>: necha foizi buzilgan, kim buzmoqda, qachon tugaydi (kamida 10 ta belgi).'
-                : 'Obyekt nima uchun buzilmagan? <b>Sababini yozing</b> (kamida 10 ta belgi).';
-            $('reason').placeholder = s.in_progress ? 'Masalan: 70% buzilgan, tadbirkor o‘zi buzmoqda…' : 'Sabab…';
+        case 'reason': show('sReason'); break;
+        case 'documents':
+            show('sDocs'); renderDocs(s);
+            $('docNote').value = $('docNote').value || s.reason || '';
             break;
-        case 'issue':
-            show('sIssue');
-            if (s.rework && s.exempt_type) {
-                const r = document.querySelector('input[name=issueType][value="' + s.exempt_type + '"]');
-                r && (r.checked = true, r.onchange());
-                $('issueText').value = $('issueText').value || s.reason || '';
-            }
-            break;
-        case 'documents': show('sDocs'); renderDocs(s); break;
         case 'confirm': show('sConfirm'); renderSummary(s); break;
         default: say('Tekshiruv yakunlangan.', 'ok-t');
     }
 }
 
 // ---------------------------------------------------------------- tuzatish menyusi (rad etilgan natija)
-function resultLabel(s) {
-    return s.demolished ? '✅ Buzilgan' : s.exempt_type === 'court_cancelled' ? '⚖️ Sud qarori bekor'
-        : s.exempt_type === 'other' ? '📝 Boshqa muammo' : s.in_progress ? '🚧 Jarayonda' : '❌ Buzilmagan';
-}
-
 function renderEdit(s) {
-    const has = k => (s.media || []).includes(k);
     const items = [
-        ['before_photo', '📷 Hozirgi holat rasmi', has('before_photo') ? '✅' : '—'],
-        ['before_video', '🎥 Hudud videosi (ixtiyoriy)', has('before_video') ? '✅' : '—'],
-        ['demolished', '📋 Natija: ' + resultLabel(s), ''],
+        ['photo', '📷 Rasm', s.photo_taken ? '✅' : '❗'],
+        ['video', '🎥 Video', s.video_taken ? '✅' : '❗'],
     ];
-    if (s.demolished) {
-        items.push(['after_photo', '📷 Buzilgandan keyingi rasm', has('after_photo') ? '✅' : '❗']);
-        items.push(['after_video', '🎥 Buzilgan hudud videosi', has('after_video') ? '✅' : '❗']);
-    } else if (s.exempt_type) {
-        items.push(['issue', '📝 Muammo izohi', '✅']);
-        if (s.exempt_type === 'court_cancelled') items.push(['documents', '📎 Sud qarori hujjatlari: ' + (s.documents || []).length + ' ta', (s.documents || []).length ? '✅' : '❗']);
-    } else {
-        items.push(['reason', s.in_progress ? '📝 Buzish jarayoni izohi' : '📝 Buzilmaganlik sababi', '✅']);
-    }
+    if (s.kind === 'court') items.push(['documents', '📎 Sud qarori hujjatlari: ' + (s.documents || []).length + ' ta', (s.documents || []).length ? '✅' : '❗']);
     $('editList').innerHTML = '';
     items.forEach(([item, label, mark]) => {
         const row = document.createElement('div');
         row.className = 'edit';
         const name = document.createElement('span');
-        name.textContent = (mark ? mark + ' ' : '') + label;
+        name.textContent = mark + ' ' + label;
         const b = document.createElement('button');
         b.className = 'secondary';
-        b.textContent = ['reason', 'issue', 'documents', 'demolished'].includes(item) ? '✏️ O‘zgartirish' : '🔄 Qayta olish';
+        b.textContent = item === 'documents' ? '✏️ O‘zgartirish' : '🔄 Qayta olish';
         b.onclick = () => edit(item);
         row.append(name, b);
         $('editList').appendChild(row);
     });
     $('goEditDone').disabled = !s.complete;
-    if (!s.located) say('Rasm, video yoki natijani qayta olishda joylashuvingiz qayta tekshiriladi (obyekt hududida bo‘ling).');
+    if (!s.located) say('Rasm yoki videoni qayta olishda joylashuvingiz qayta tekshiriladi (obyekt hududida bo‘ling).');
 }
 
 async function edit(item) {
@@ -274,19 +226,8 @@ async function edit(item) {
 $('goEditDone').onclick = () => edit('confirm');
 
 function renderSummary(s) {
-    if (s.followup) {
-        const lines = ['📍 ' + s.address, '💬 Moderator izohi bo‘yicha bajarilgan ish', 'Izoh: ' + (s.reason || ''), 'Rasm va video: ' + (s.media || []).length + ' ta'];
-        if (s.distance !== null && s.distance !== undefined) lines.push('Obyektgacha masofa: ' + s.distance + ' m' + (s.far ? ' ⚠️' : ''));
-        $('sum').innerHTML = '';
-        lines.forEach(l => { const d = document.createElement('div'); d.textContent = l; $('sum').appendChild(d); });
-        return;
-    }
-    const result = s.demolished ? '✅ Natija: BUZILGAN'
-        : s.exempt_type === 'court_cancelled' ? '⚖️ Natija: SUD QARORI BEKOR QILINGAN'
-        : s.exempt_type === 'other' ? '📝 Natija: BOSHQA MUAMMO'
-        : s.in_progress ? '🚧 Natija: JARAYONDA (qisman buzilgan)' : '❌ Natija: BUZILMAGAN';
-    const lines = ['📍 ' + s.address, ...(s.rework ? ['🔁 Tuzatib qayta yuborilmoqda'] : []), result];
-    if (!s.demolished && s.reason) lines.push((s.in_progress || s.exempt_type ? 'Izoh: ' : 'Sabab: ') + s.reason);
+    const lines = ['📍 ' + s.address, ...(s.rework ? ['🔁 Tuzatib qayta yuborilmoqda'] : []), 'Tekshiruv: ' + s.kind_label];
+    if (s.reason) lines.push('Izoh: ' + s.reason);
     if ((s.documents || []).length) lines.push('Ilova qilingan hujjatlar: ' + s.documents.length + ' ta');
     lines.push('Rasm va video: ' + (s.media || []).filter(k => !k.startsWith('document_')).length + ' ta');
     if (s.distance !== null && s.distance !== undefined) lines.push('Obyektgacha masofa: ' + s.distance + ' m' + (s.far ? ' ⚠️' : ''));
@@ -350,7 +291,7 @@ $('goRec').onclick = async () => {
     if (busy) return;
     if (!TgCam.stream) return openVideoCam();
     busy = true;
-    $('goRec').classList.add('hidden'); $('skipVideo').classList.add('hidden');
+    $('goRec').classList.add('hidden');
     $('stopRec').classList.remove('hidden'); $('stopRec').disabled = true;
     say('Yozilmoqda…');
     session = TgCam.record({
@@ -388,41 +329,13 @@ async function retryVideo(text) {
     busy = false; session = null;
     $('stopRec').classList.add('hidden');
     $('goRec').classList.remove('hidden'); $('timer').textContent = '0.0 s';
-    $('skipVideo').classList.toggle('hidden', !state || state.step !== 'before_video');
     await openVideoCam();
     say(text, 'err');
 }
 
-$('skipVideo').onclick = async () => {
-    const { ok, j } = await api('skip');
-    ok ? render(j) : say(j.message || 'Xatolik yuz berdi.', 'err');
-};
-
-// ---------------------------------------------------------------- natija, sabab, tasdiq
-document.querySelectorAll('#sDemo button').forEach(b => b.onclick = async () => {
-    const { ok, j } = await api('demolished', { value: b.dataset.v });
-    ok ? render(j) : say(j.message || 'Xatolik yuz berdi.', 'err');
-});
-
+// ---------------------------------------------------------------- izoh (moderator izohi bo'yicha), hujjatlar, tasdiq
 $('goReason').onclick = async () => {
     const { ok, j } = await api('reason', { reason: $('reason').value });
-    ok ? render(j) : say(j.message || 'Xatolik yuz berdi.', 'err');
-};
-
-// ---------------------------------------------------------------- muammo: sud qarori bekor / boshqa
-document.querySelectorAll('input[name=issueType]').forEach(r => r.onchange = () => {
-    const court = r.value === 'court_cancelled' && r.checked;
-    $('issueHint').textContent = court
-        ? 'Izoh yozing: qaysi sud, qaror raqami va sanasi (kamida 10 ta belgi).'
-        : 'Sababini batafsil yozing (kamida 10 ta belgi).';
-    $('issueText').placeholder = court ? 'Masalan: Mirzo Ulug‘bek tumanlararo sudi, 08.01.2025, №2-1001-2412/47918' : 'Sabab…';
-});
-
-$('goIssue').onclick = async () => {
-    const checked = document.querySelector('input[name=issueType]:checked');
-    if (!checked) return say('Turini tanlang: sud qarori bekor qilingan yoki boshqa muammo.', 'err');
-    const type = checked.value;
-    const { ok, j } = await api('issue', { type, reason: $('issueText').value });
     ok ? render(j) : say(j.message || 'Xatolik yuz berdi.', 'err');
 };
 
@@ -485,7 +398,7 @@ $('docFile').onchange = async () => {
 };
 
 $('goDocsDone').onclick = async () => {
-    const { ok, j } = await api('documents/done');
+    const { ok, j } = await api('documents/done', { reason: $('docNote').value });
     ok ? render(j) : say(j.message || 'Xatolik yuz berdi.', 'err');
 };
 

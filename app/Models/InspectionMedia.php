@@ -11,6 +11,8 @@ class InspectionMedia extends Model
     public const BEFORE_VIDEO = 'before_video';
     public const AFTER_PHOTO = 'after_photo';
     public const AFTER_VIDEO = 'after_video';
+    public const PROCESS_PHOTO = 'process_photo'; // buzish jarayoni
+    public const PROCESS_VIDEO = 'process_video';
 
     protected $table = 'inspection_media';
 

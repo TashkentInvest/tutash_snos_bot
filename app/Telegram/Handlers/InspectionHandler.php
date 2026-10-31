@@ -20,10 +20,8 @@ use SergiX44\Nutgram\Telegram\Types\WebApp\WebAppInfo;
  * tugma ikki marta bosilsa ham jarayon buzilmaydi. Bot faqat qoralamani ochadi; joylashuv, rasm, video, natija va sabab
  * Telegram Mini App ichida (InspectionAppController) olinadi — chatga yuborilgan media qabul qilinmaydi.
  *
- * location -> before_photo -> before_video(ixtiyoriy) -> demolished?
- *   yo'q: issue (sud qarori bekor -> documents | boshqa muammo) -> confirm
- *   jarayonda: reason -> confirm
- *   ha:   after_photo -> after_video(majburiy, dumaloq) -> confirm
+ * Tur "Tekshiruvni boshlash" dan keyin tanlanadi (Inspection::KINDS): location -> photo -> video -> [sud qarori: documents] -> confirm
+ * "Tekshirish" bosqichlari turli kunlarda: oldingi holat -> buzish jarayoni -> buzilgandan keyingi holat (moderator tasdig'i).
  */
 class InspectionHandler
 {
@@ -32,38 +30,88 @@ class InspectionHandler
         return Inspection::with(['site.mahalla', 'media'])->where('staff_id', $staff->id)->where('status', Inspection::DRAFT)->first();
     }
 
-    public function begin(Nutgram $bot, string $siteId): void
+    /** Tekshiruv boshlanishi mumkin bo'lgan obyekt (yoki null — sababi xodimga ko'rsatiladi). */
+    private function startableSite(Nutgram $bot, Staff $staff, string $siteId): ?Site
     {
-        if (! $staff = BrowseHandler::guardEmployee($bot)) {
-            return;
+        $site = Site::find((int) $siteId);
+        if (! $site || ! $staff->canAccessDistrict($site->district_id) || $site->isDemolished() || $site->isExempt()) {
+            $bot->answerCallbackQuery();
+
+            return null;
+        }
+        if (Inspection::where('site_id', $site->id)->where('status', Inspection::SUBMITTED)->where('review_status', Inspection::REVIEW_PENDING)->exists()) {
+            $bot->answerCallbackQuery(['text' => Ui::t('Bu obyekt bo‘yicha natija moderator tasdig‘ini kutmoqda.'), 'show_alert' => true]);
+
+            return null;
         }
         $bot->answerCallbackQuery();
 
-        $site = Site::find((int) $siteId);
-        if (! $site || ! $staff->canAccessDistrict($site->district_id) || $site->isDemolished()) {
+        return $site;
+    }
+
+    /** Obyekt bo'yicha oldingi holat qayd etilganmi (yoki avval har qanday natija yuborilganmi). */
+    public static function hasBefore(Site $site): bool
+    {
+        return Inspection::counted()->where('site_id', $site->id)->exists();
+    }
+
+    /** "Tekshiruvni boshlash" ("go:{id}"): uchta yo'l — tekshirish, sud qarori, kelganda buzilgan. */
+    public function begin(Nutgram $bot, string $siteId): void
+    {
+        if (! ($staff = BrowseHandler::guardEmployee($bot)) || ! ($site = $this->startableSite($bot, $staff, $siteId))) {
             return;
         }
 
-        if (Inspection::where('site_id', $site->id)->where('status', Inspection::SUBMITTED)->where('review_status', Inspection::REVIEW_PENDING)->exists()) {
-            $bot->answerCallbackQuery(['text' => Ui::t('Bu obyekt bo‘yicha “buzilgan” natijasi moderator tasdig‘ini kutmoqda.'), 'show_alert' => true]);
+        // shu obyekt bo'yicha tugallanmagan tekshiruv bo'lsa — davom ettiriladi
+        if (($draft = self::draft($staff)) && $draft->site_id === $site->id) {
+            $this->prompt($bot, $draft);
 
+            return;
+        }
+
+        Ui::say($bot, '<b>'.Ui::e(Ui::cut($site->address, 60))."</b>\n\nTekshiruv turini tanlang:", Ui::markup([
+            [Ui::btn('📋 Tekshirish (oldin → jarayon → keyin)', "gk:{$site->id}:check")],
+            [Ui::btn('⚖️ Sud qarori bekor qilingan', "gk:{$site->id}:court")],
+            [Ui::btn('🏚 Kelganda buzilgan ekan', "gk:{$site->id}:found")],
+            [Ui::btn('⬅️ Orqaga', "s:{$site->id}")],
+        ]));
+    }
+
+    /**
+     * Tur tanlandi ("gk:{id}:{kind}"). "Tekshirish" bosqichlari turli kunlarda: oldingi holat qayd etilmagan bo'lsa — u,
+     * aks holda xodim tanlaydi: buzish jarayoni yoki buzib bo'lingan (keyingi holat).
+     */
+    public function chooseKind(Nutgram $bot, string $siteId, string $kind): void
+    {
+        if (! ($staff = BrowseHandler::guardEmployee($bot)) || ! ($site = $this->startableSite($bot, $staff, $siteId))) {
+            return;
+        }
+
+        if ($kind === 'check') {
+            if (! self::hasBefore($site)) {
+                $kind = Inspection::KIND_BEFORE;
+            } else {
+                Ui::say($bot, '<b>'.Ui::e(Ui::cut($site->address, 60))."</b>\n\nObyektning oldingi holati qayd etilgan. Qaysi bosqich?", Ui::markup([
+                    [Ui::btn('🚧 Buzish jarayoni', "gk:{$site->id}:process")],
+                    [Ui::btn('✅ Buzib bo‘lindi (keyingi holat)', "gk:{$site->id}:after")],
+                    [Ui::btn('⬅️ Orqaga', "go:{$site->id}")],
+                ]));
+
+                return;
+            }
+        }
+        if (! isset(Inspection::KINDS[$kind]) || (in_array($kind, [Inspection::KIND_PROCESS, Inspection::KIND_AFTER], true) && ! self::hasBefore($site))) {
             return;
         }
 
         $draft = self::draft($staff);
-        if ($draft && $draft->site_id !== $site->id) {
-            $draft->delete(); // eski tugallanmagan qoralama bekor qilinadi
-            $draft = null;
+        $draft?->delete(); // eski tugallanmagan qoralama bekor qilinadi
+        try {
+            $draft = Inspection::create(['site_id' => $site->id, 'staff_id' => $staff->id, 'step' => 'location', ...Inspection::kindAttributes($kind)]);
+        } catch (UniqueConstraintViolationException) {
+            return; // parallel urinish
         }
-
-        if (! $draft) {
-            try {
-                $draft = Inspection::create(['site_id' => $site->id, 'staff_id' => $staff->id, 'step' => 'location']);
-            } catch (UniqueConstraintViolationException) {
-                return; // parallel urinish
-            }
-            $draft->load(['site.mahalla', 'media']);
-        }
+        $draft->load(['site.mahalla', 'media']);
 
         $this->prompt($bot, $draft);
     }
@@ -107,7 +155,7 @@ class InspectionHandler
         }
 
         Ui::say($bot, '<b>'.Ui::e(Ui::cut($site->address, 60)).'</b>'."\n\n💬 Moderator izohi: <i>".Ui::e((string) $old->review_note)."</i>\n\n"
-            .'Oynani oching va <b>qaysi qismini qayta olishni</b> tanlang: rasm, video, natija yoki izoh. Qolgan ma’lumotlar avvalgidek saqlanadi.', self::webAppMarkup());
+            .'Oynani oching va <b>qaysi qismini qayta olishni</b> tanlang: rasm, video yoki hujjat. Qolgan ma’lumotlar avvalgidek saqlanadi.', self::webAppMarkup());
     }
 
     /** Tasdiqlangan natija bo'yicha moderator izohi bajarilganini rasm va video bilan tasdiqlash ("fu:{id}"). */
@@ -133,7 +181,7 @@ class InspectionHandler
         try {
             $draft ??= Inspection::create([
                 'site_id' => $parent->site_id, 'staff_id' => $staff->id, 'step' => 'location', 'followup_of' => $parent->id,
-                'is_demolished' => $parent->is_demolished, 'exempt_type' => $parent->exempt_type,
+                'kind' => Inspection::KIND_AFTER, 'is_demolished' => $parent->is_demolished, 'exempt_type' => $parent->exempt_type,
             ]);
         } catch (UniqueConstraintViolationException) {
             return;
@@ -158,8 +206,10 @@ class InspectionHandler
     public function prompt(Nutgram $bot, Inspection $in): void
     {
         $addr = '<b>'.Ui::e(Ui::cut($in->site->address, 60)).'</b>';
+        $kind = $in->isFollowup() ? 'Izoh bo‘yicha bajarilgan ish' : Inspection::KINDS[$in->kindValue()];
+        $steps = 'joylashuv → rasm → video'.($in->kindValue() === Inspection::KIND_COURT && ! $in->isFollowup() ? ' → sud qarori hujjatlari' : '');
 
-        Ui::say($bot, "{$addr}\n\nTekshiruv pastdagi tugma orqali ochiladigan oynada o‘tkaziladi: joylashuv → rasm → video → natija.\n<i>Joylashuv, rasm va video faqat shu oynada, telefon GPS’i va jonli kamerasidan olinadi; chatga yuborilgan fayllar qabul qilinmaydi.</i>", self::webAppMarkup());
+        Ui::say($bot, "{$addr}\nTekshiruv: <b>".Ui::e($kind)."</b>\n\nPastdagi tugma orqali oynani oching: {$steps}.\n<i>Joylashuv, rasm va video faqat shu oynada, telefon GPS’i va jonli kamerasidan olinadi; chatga yuborilgan fayllar qabul qilinmaydi.</i>", self::webAppMarkup());
     }
 
     private function advance(Inspection $in, string $step): void
@@ -229,19 +279,16 @@ class InspectionHandler
 
     public function complete(Inspection $in): bool
     {
-        if ($in->isFollowup()) {
-            return $in->mediaOf(InspectionMedia::AFTER_PHOTO) && $in->mediaOf(InspectionMedia::AFTER_VIDEO) && mb_strlen((string) $in->reason) >= 10;
-        }
-        if (! $in->mediaOf(InspectionMedia::BEFORE_PHOTO)) {
+        // har bir turda rasm va video majburiy; sud qarori — hujjat ham; izoh bo'yicha tasdiq — izoh ham
+        [$photo, $video] = $in->mediaKinds();
+        if (! $in->mediaOf($photo) || ! $in->mediaOf($video)) {
             return false;
         }
-
-        if ($in->is_demolished === true) {
-            return $in->mediaOf(InspectionMedia::AFTER_PHOTO) && $in->mediaOf(InspectionMedia::AFTER_VIDEO);
+        if ($in->isFollowup()) {
+            return mb_strlen((string) $in->reason) >= 10;
         }
 
-        return $in->is_demolished === false && mb_strlen((string) $in->reason) >= 10
-            && (! $in->isCourtCancelled() || $in->documents()->isNotEmpty());
+        return $in->kindValue() !== Inspection::KIND_COURT || $in->documents()->isNotEmpty();
     }
 
     // ---------------------------------------------------------------- xabarlar (chatga yuborilgan narsalar qabul qilinmaydi)

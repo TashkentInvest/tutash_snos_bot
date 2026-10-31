@@ -137,11 +137,13 @@ class InspectionResource extends Resource
     public static function result(Inspection $in): string
     {
         return match (true) {
+            $in->kind === Inspection::KIND_FOUND => 'Buzilgan (kelganda)',
             (bool) $in->is_demolished => 'Buzilgan',
             $in->isCourtCancelled() => 'Sud qarori bekor',
             $in->exempt_type === Inspection::EXEMPT_OTHER => 'Boshqa muammo',
             (bool) $in->in_progress => 'Jarayonda',
-            default => 'Buzilmagan',
+            $in->kind === Inspection::KIND_BEFORE => 'Oldingi holat',
+            default => 'Buzilmagan', // eski natijalar
         };
     }
 
@@ -183,12 +185,13 @@ class InspectionResource extends Resource
                 Tables\Filters\SelectFilter::make('district')->label('Tuman')
                     ->relationship('site.district', 'name'),
                 Tables\Filters\SelectFilter::make('result')->label('Natija')
-                    ->options(['demolished' => 'Buzilgan', 'in_progress' => 'Jarayonda', 'court_cancelled' => 'Sud qarori bekor', 'other' => 'Boshqa muammo', 'standing' => 'Buzilmagan'])
+                    ->options(['before' => 'Oldingi holat', 'in_progress' => 'Jarayonda', 'demolished' => 'Buzilgan', 'found' => 'Buzilgan (kelganda)', 'court_cancelled' => 'Sud qarori bekor', 'other' => 'Boshqa muammo (eski)', 'standing' => 'Buzilmagan (eski)'])
                     ->query(fn ($query, array $data) => match ($data['value'] ?? null) {
+                        'before', 'found' => $query->where('kind', $data['value']),
                         'demolished' => $query->where('is_demolished', true),
                         'in_progress' => $query->where('is_demolished', false)->where('in_progress', true),
                         'court_cancelled', 'other' => $query->where('exempt_type', $data['value']),
-                        'standing' => $query->where('is_demolished', false)->where('in_progress', false)->whereNull('exempt_type'),
+                        'standing' => $query->whereNull('kind')->where('is_demolished', false)->where('in_progress', false)->whereNull('exempt_type'),
                         default => $query,
                     }),
                 Tables\Filters\SelectFilter::make('review_status')->label('Tasdiq')->options(self::REVIEW),
