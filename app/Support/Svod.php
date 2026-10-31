@@ -14,9 +14,9 @@ use Carbon\CarbonInterface;
  */
 class Svod
 {
-    public const COLUMNS = ['№', 'Tuman nomi', 'Qoldiq soni', 'Qoldiq maydoni (ga)', 'Bugun buzilgan', 'Jarayonda'];
+    public const COLUMNS = ['№', 'Tuman nomi', 'Qoldiq soni', 'Qoldiq maydoni (ga)', 'Bugun buzilgan', 'Jarayonda', 'Sud qarori bekor'];
 
-    /** @return array{rows: array<int, array{name: string, left: int, area: float, today: int, progress: int}>, total: array{name: string, left: int, area: float, today: int, progress: int}} */
+    /** @return array{rows: array<int, array{name: string, left: int, area: float, today: int, progress: int, court: int}>, total: array{name: string, left: int, area: float, today: int, progress: int, court: int}} */
     public static function data(?CarbonInterface $day = null): array
     {
         $period = ReportPeriod::for($day ?? ReportPeriod::current()->day);
@@ -41,13 +41,21 @@ class Svod
             $inProgress = fn (Site $s) => ($l = $latest[$s->id] ?? null) && ! $l->is_demolished && ! $l->exempt_type && $l->in_progress;
         }
 
+        // sud qarori bekor qilingani tasdiqlangan (jami sondan chiqarilgan) obyektlar; o'tgan kun uchun — davr oxirigacha tasdiqlanganlari
+        $courtAt = Inspection::where('status', Inspection::SUBMITTED)->where('exempt_type', Inspection::EXEMPT_COURT)
+            ->where('review_status', Inspection::REVIEW_APPROVED)->whereNull('followup_of')
+            ->selectRaw('site_id, min(submitted_at) as at')->groupBy('site_id')->pluck('at', 'site_id');
+        $court = Site::where('status', Site::EXEMPT)->get(['id', 'district_id'])
+            ->filter(fn (Site $s) => $period->isOpen() || ! isset($courtAt[$s->id]) || Carbon::parse($courtAt[$s->id])->lessThanOrEqualTo($period->to))
+            ->countBy('district_id');
+
         // davrda "buzilgan" deb yuborilgan obyektlar (tasdiqlangan va tasdiq kutayotgan; rad etilganlar hisobga olinmaydi)
         $districtOf = $sites->pluck('district_id', 'id');
         $today = $period->inspections()->orderBy('submitted_at')->get(['site_id', 'is_demolished'])->keyBy('site_id')
             ->where('is_demolished', true)->countBy(fn (Inspection $in) => $districtOf[$in->site_id] ?? null);
 
         $bySite = $sites->groupBy('district_id');
-        $rows = District::query()->orderBy('name')->get(['id', 'name'])->map(function (District $d) use ($bySite, $demolished, $inProgress, $today) {
+        $rows = District::query()->orderBy('name')->get(['id', 'name'])->map(function (District $d) use ($bySite, $demolished, $inProgress, $today, $court) {
             $left = ($bySite[$d->id] ?? collect())->reject($demolished);
 
             return [
@@ -56,6 +64,7 @@ class Svod
                 'area' => round((float) $left->sum('area_m2') / 10000, 2),
                 'today' => (int) ($today[$d->id] ?? 0),
                 'progress' => $left->filter($inProgress)->count(),
+                'court' => (int) ($court[$d->id] ?? 0),
             ];
         })->values()->all();
 
@@ -65,6 +74,7 @@ class Svod
             'area' => round(array_sum(array_column($rows, 'area')), 2),
             'today' => array_sum(array_column($rows, 'today')),
             'progress' => array_sum(array_column($rows, 'progress')),
+            'court' => array_sum(array_column($rows, 'court')),
         ];
 
         return ['rows' => $rows, 'total' => $total];
@@ -84,7 +94,7 @@ class Svod
         $bold = self::font(true);
 
         $k = 2; // aniq ko'rinishi uchun ikki baravar o'lchamda chiziladi
-        $widths = array_map(fn ($w) => $w * $k, [44, 250, 96, 124, 104, 104]);
+        $widths = array_map(fn ($w) => $w * $k, [44, 250, 96, 124, 104, 104, 104]);
         $width = array_sum($widths) + 2 * $k;
         $titleH = 46 * $k;
         $headH = 54 * $k;
@@ -123,7 +133,7 @@ class Svod
         // ustun nomlari
         $y = $titleH;
         imagefilledrectangle($img, $k, $y, $width - $k, $y + $headH, $head);
-        $heads = ['№', 'Tuman nomi', "Qoldiq\nsoni", "Qoldiq\nmaydoni (ga)", "Bugun\nbuzilgan", 'Jarayonda'];
+        $heads = ['№', 'Tuman nomi', "Qoldiq\nsoni", "Qoldiq\nmaydoni (ga)", "Bugun\nbuzilgan", 'Jarayonda', "Sud qarori\nbekor"];
         $x = $k;
         foreach ($widths as $i => $w) {
             $center($t($heads[$i]), $x, $y, $w, $headH, 11, $bold, $text);
@@ -141,7 +151,7 @@ class Svod
                 imagefilledrectangle($img, $k, $y, $width - $k, $y + $rowH, $sum);
             }
             $f = $r['sum'] ? $bold : $font;
-            $cells = [$r['n'], $r['name'], (string) $r['left'], self::area($r['area']), (string) $r['today'], (string) $r['progress']];
+            $cells = [$r['n'], $r['name'], (string) $r['left'], self::area($r['area']), (string) $r['today'], (string) $r['progress'], (string) $r['court']];
             $x = $k;
             foreach ($widths as $i => $w) {
                 $color = $i === 4 && $r['today'] > 0 ? $red : $text;
@@ -204,14 +214,14 @@ class Svod
         $xml = $row(1, ['Tumanlar kesimida svod — '.$day->format('d.m.Y')], 1)
             .$row(2, self::COLUMNS, 2);
         $t = $data['total'];
-        $xml .= $row(3, ['', $t['name'], $t['left'], $t['area'], $t['today'], $t['progress']], 3);
+        $xml .= $row(3, ['', $t['name'], $t['left'], $t['area'], $t['today'], $t['progress'], $t['court']], 3);
         foreach ($data['rows'] as $i => $r) {
-            $xml .= $row($i + 4, [$i + 1, $r['name'], $r['left'], $r['area'], $r['today'], $r['progress']]);
+            $xml .= $row($i + 4, [$i + 1, $r['name'], $r['left'], $r['area'], $r['today'], $r['progress'], $r['court']]);
         }
 
         $sheet = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-            .'<cols><col min="1" max="1" width="5" customWidth="1"/><col min="2" max="2" width="28" customWidth="1"/><col min="3" max="6" width="16" customWidth="1"/></cols>'
+            .'<cols><col min="1" max="1" width="5" customWidth="1"/><col min="2" max="2" width="28" customWidth="1"/><col min="3" max="7" width="16" customWidth="1"/></cols>'
             ."<sheetData>{$xml}</sheetData></worksheet>";
 
         $styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'

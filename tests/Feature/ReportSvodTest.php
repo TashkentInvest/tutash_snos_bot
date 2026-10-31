@@ -100,8 +100,8 @@ class ReportSvodTest extends TestCase
         $data = Svod::data(today());
 
         $this->assertSame(['Bektemir tumani', 'Chilonzor tumani'], array_column($data['rows'], 'name'));
-        $this->assertSame(['name' => 'Bektemir tumani', 'left' => 2, 'area' => 0.67, 'today' => 1, 'progress' => 1], $data['rows'][0]);
-        $this->assertSame(['name' => 'Chilonzor tumani', 'left' => 1, 'area' => 1.58, 'today' => 1, 'progress' => 0], $data['rows'][1]);
+        $this->assertSame(['name' => 'Bektemir tumani', 'left' => 2, 'area' => 0.67, 'today' => 1, 'progress' => 1, 'court' => 1], $data['rows'][0]);
+        $this->assertSame(['name' => 'Chilonzor tumani', 'left' => 1, 'area' => 1.58, 'today' => 1, 'progress' => 0, 'court' => 0], $data['rows'][1]);
         $this->assertSame(3, $data['total']['left']);
         $this->assertSame(2.25, $data['total']['area']);
         $this->assertSame('2,25', Svod::area($data['total']['area']));

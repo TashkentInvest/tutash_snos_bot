@@ -22,6 +22,7 @@
                         <td style="border:1px solid rgba(128,128,128,.4);padding:.5rem;text-align:center;">{{ \App\Support\Svod::area($total['area']) }}</td>
                         <td style="border:1px solid rgba(128,128,128,.4);padding:.5rem;text-align:center;{{ $total['today'] ? 'color:#c0392b;' : '' }}">{{ $total['today'] }}</td>
                         <td style="border:1px solid rgba(128,128,128,.4);padding:.5rem;text-align:center;">{{ $total['progress'] }}</td>
+                        <td style="border:1px solid rgba(128,128,128,.4);padding:.5rem;text-align:center;">{{ $total['court'] }}</td>
                     </tr>
                     @foreach ($rows as $i => $r)
                         <tr>
@@ -31,6 +32,7 @@
                             <td style="border:1px solid rgba(128,128,128,.4);padding:.5rem;text-align:center;">{{ \App\Support\Svod::area($r['area']) }}</td>
                             <td style="border:1px solid rgba(128,128,128,.4);padding:.5rem;text-align:center;{{ $r['today'] ? 'color:#c0392b;font-weight:700;' : '' }}">{{ $r['today'] }}</td>
                             <td style="border:1px solid rgba(128,128,128,.4);padding:.5rem;text-align:center;">{{ $r['progress'] }}</td>
+                            <td style="border:1px solid rgba(128,128,128,.4);padding:.5rem;text-align:center;">{{ $r['court'] }}</td>
                         </tr>
                     @endforeach
                 </tbody>
