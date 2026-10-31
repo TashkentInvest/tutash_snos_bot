@@ -13,6 +13,9 @@ class StatsOverview extends StatsOverviewWidget
 {
     protected static ?int $sort = 1;
 
+    // standart 5 soniya o'rniga: sust aloqada sahifa og'irlashmasin
+    protected static ?string $pollingInterval = '60s';
+
     protected ?string $heading = 'Umumiy holat';
 
     protected function getStats(): array

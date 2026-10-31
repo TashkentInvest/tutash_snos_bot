@@ -6,27 +6,34 @@ use App\Models\AuditLog;
 use App\Models\User;
 use App\Telegram\Support\AttendanceReport;
 use App\Telegram\Support\InspectionReport;
+use App\Telegram\Support\Script;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Dashboard as BaseDashboard;
 use SergiX44\Nutgram\Nutgram;
 
-/** Bosh sahifa: jadval bo'yicha yuboriladigan hisobotlarni istalgan payt adminlarga qo'lda yuborish tugmalari. */
+/** Bosh sahifa: jadval bo'yicha yuboriladigan hisobotlarni istalgan payt adminlarga qo'lda yuborish (avval namuna ko'rsatiladi). */
 class Dashboard extends BaseDashboard
 {
     protected function getHeaderActions(): array
     {
-        $recipients = fn () => AttendanceReport::recipients()->pluck('full_name')->join(', ') ?: 'oluvchi yo‘q';
-
         return [
             Action::make('sendInspectionReport')->label('Buzilish hisobotini yuborish')->icon('heroicon-o-paper-airplane')
-                ->requiresConfirmation()->modalHeading('Buzilish hisoboti (svod jadval) yuborilsinmi?')
-                ->modalDescription(fn () => 'Bugungi holat bo‘yicha. Oluvchilar: '.$recipients())
+                ->modalHeading('Buzilish hisoboti — namuna')->modalWidth('2xl')->modalSubmitActionLabel('Yuborish')
+                ->modalContent(fn () => view('filament.pages.report-preview', [
+                    'recipients' => AttendanceReport::recipients(),
+                    'texts' => [Script::apply(InspectionReport::caption(today()))],
+                    'image' => route('admin.svod.png', ['t' => now()->timestamp]),
+                ]))
                 ->visible(fn () => User::currentIsAdmin())
                 ->action(fn () => $this->report('inspection', fn (Nutgram $bot) => InspectionReport::send($bot, today()))),
             Action::make('sendAttendanceReport')->label('Davomat hisobotini yuborish')->icon('heroicon-o-clipboard-document-list')->color('gray')
-                ->requiresConfirmation()->modalHeading('Davomat hisoboti yuborilsinmi?')
-                ->modalDescription(fn () => 'Bugungi davomat bo‘yicha. Oluvchilar: '.$recipients())
+                ->modalHeading('Davomat hisoboti — namuna')->modalWidth('2xl')->modalSubmitActionLabel('Yuborish')
+                ->modalContent(fn () => view('filament.pages.report-preview', [
+                    'recipients' => AttendanceReport::recipients(),
+                    'texts' => array_map([Script::class, 'apply'], AttendanceReport::chunks(today())),
+                    'image' => null,
+                ]))
                 ->visible(fn () => User::currentIsAdmin())
                 ->action(fn () => $this->report('attendance', fn (Nutgram $bot) => AttendanceReport::sendToAdmins($bot, today()))),
         ];

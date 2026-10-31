@@ -9,6 +9,8 @@ class InspectionsChart extends ChartWidget
 {
     protected static ?int $sort = 2;
 
+    protected static ?string $pollingInterval = null; // grafik kunlik ma'lumot — qayta so'ralmaydi
+
     protected static ?string $heading = 'Oxirgi 14 kun tekshiruvlari';
 
     /**

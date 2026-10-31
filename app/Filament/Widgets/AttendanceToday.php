@@ -16,6 +16,9 @@ class AttendanceToday extends StatsOverviewWidget
 
     protected static ?int $sort = 1;
 
+    // standart 5 soniya o'rniga: sust aloqada sahifa og'irlashmasin
+    protected static ?string $pollingInterval = '60s';
+
     protected ?string $heading = 'Bugungi davomat';
 
     protected function getStats(): array

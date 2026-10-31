@@ -6,6 +6,9 @@ use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/admin');
 
+// Livewire yangilanishlari: 419 sababini jurnalga yozish uchun o'ralgan (LivewireUpdateController)
+Route::post('/livewire/update', \App\Http\Controllers\LivewireUpdateController::class)->middleware('web')->name('app.livewire.update');
+
 // Arxivlangan rasm/videolar faqat tizimga kirgan administratorlarga beriladi.
 Route::get('/admin-media/{media}', MediaController::class)->middleware(['auth'])->name('admin.media');
 // Svod jadval (Excel) — faqat adminlar
@@ -19,6 +22,14 @@ Route::get('/admin-svod.xlsx', function () {
         'Cache-Control' => 'no-store',
     ]);
 })->middleware(['auth'])->name('admin.svod');
+// Svod jadval rasmi (hisobot namunasi uchun) — faqat adminlar
+Route::get('/admin-svod.png', function () {
+    abort_unless(\App\Models\User::currentIsAdmin(), 403);
+
+    return response(\App\Support\Svod::png(today(), fn (string $s) => \App\Telegram\Support\Script::apply($s)), 200, [
+        'Content-Type' => 'image/png', 'Cache-Control' => 'private, no-store',
+    ]);
+})->middleware(['auth'])->name('admin.svod.png');
 Route::get('/admin-attendance/{attendance}',[MediaController::class, 'attendanceVideo'])->middleware(['auth'])->name('admin.attendance-video');
 
 // Davomat joylashuvi (Telegram Mini App). Imzo (initData) controllerda tekshiriladi.
