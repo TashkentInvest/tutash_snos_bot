@@ -34,23 +34,23 @@ class StatsOverview extends StatsOverviewWidget
         $inspections = fn (array $filters) => InspectionResource::getUrl('index', ['tableFilters' => $filters]);
 
         return [
-            Stat::make('Jami obyektlar', number_format($total, 0, '', ' '))->url($sites())
+            Stat::make('Jami obyektlar', number_format($total, 0, '', ' '))->icon('fas-building')->url($sites())
                 ->description($exempt ? "Sud qarori bekor qilingan {$exempt} ta obyekt hisobga olinmagan" : ''),
-            Stat::make('Buzilgan', number_format($demolished, 0, '', ' '))
+            Stat::make('Buzilgan', number_format($demolished, 0, '', ' '))->icon('fas-house-crack')
                 ->description($total ? round($demolished / $total * 100, 1).'% bajarildi' : '')->color('success')
                 ->url($sites(['status' => ['value' => Site::DEMOLISHED]])),
-            Stat::make('Jarayonda', number_format($inProgress, 0, '', ' '))->color('info')
+            Stat::make('Jarayonda', number_format($inProgress, 0, '', ' '))->icon('fas-person-digging')->color('info')
                 ->description($total ? round($inProgress / $total * 100, 1).'% — buzish boshlangan' : '')
                 ->url($sites(['status' => ['value' => Site::IN_PROGRESS]])),
-            Stat::make('Buzilmagan', number_format($total - $demolished - $inProgress, 0, '', ' '))->color('warning')
+            Stat::make('Buzilmagan', number_format($total - $demolished - $inProgress, 0, '', ' '))->icon('fas-house')->color('warning')
                 ->url($sites(['status' => ['value' => Site::NOT_DEMOLISHED]])),
-            Stat::make('Tasdiqlanmagan', $awaiting)->color($awaiting ? 'danger' : 'gray')
+            Stat::make('Tasdiqlanmagan', $awaiting)->icon('fas-hourglass-half')->color($awaiting ? 'danger' : 'gray')
                 ->description('Moderator tasdig‘ini kutayotgan natijalar (buzilgan / sud qarori bekor)')
                 ->url($inspections(['review_status' => ['value' => Inspection::REVIEW_PENDING]])),
-            Stat::make('Moderator izohlari', $followDone)->color($followDone ? 'danger' : 'gray')
+            Stat::make('Moderator izohlari', $followDone)->icon('fas-comment-dots')->color($followDone ? 'danger' : 'gray')
                 ->description("Xodim bajardi, tekshirish kerak · bajarilmagan: {$followOpen}")
                 ->url($inspections(['followup' => ['value' => $followDone || ! $followOpen ? Inspection::FOLLOWUP_DONE : Inspection::FOLLOWUP_OPEN]])),
-            Stat::make('Shubhali tekshiruvlar', $suspicious)->color($suspicious ? 'danger' : 'gray')
+            Stat::make('Shubhali tekshiruvlar', $suspicious)->icon('fas-triangle-exclamation')->color($suspicious ? 'danger' : 'gray')
                 ->description('Obyektdan uzoqda yoki takroriy fayl')
                 ->url($inspections(['suspicious' => ['value' => 1]])),
         ];

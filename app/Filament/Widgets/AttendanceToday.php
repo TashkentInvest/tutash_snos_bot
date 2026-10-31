@@ -42,10 +42,10 @@ class AttendanceToday extends StatsOverviewWidget
         $url = fn (?string $status = null) => AttendanceResource::getUrl('index', ['tableFilters' => ['date' => $today] + ($status ? ['status' => ['value' => $status]] : [])]);
 
         return [
-            Stat::make('So‘rov yuborilgan', $total)->url($url()),
-            Stat::make('Ishda', $count([Attendance::PRESENT]))->color('success')->url($url(Attendance::PRESENT)),
-            Stat::make('Sabab bilan yo‘q', $count([Attendance::ABSENT]))->color('warning')->url($url(Attendance::ABSENT)),
-            Stat::make('Javob bermagan', $count([Attendance::MISSED, ...Attendance::OPEN]))->color('danger')->url($url(Attendance::MISSED)),
+            Stat::make('So‘rov yuborilgan', $total)->icon('fas-paper-plane')->url($url()),
+            Stat::make('Ishda', $count([Attendance::PRESENT]))->icon('fas-user-check')->color('success')->url($url(Attendance::PRESENT)),
+            Stat::make('Sabab bilan yo‘q', $count([Attendance::ABSENT]))->icon('fas-user-clock')->color('warning')->url($url(Attendance::ABSENT)),
+            Stat::make('Javob bermagan', $count([Attendance::MISSED, ...Attendance::OPEN]))->icon('fas-user-xmark')->color('danger')->url($url(Attendance::MISSED)),
         ];
     }
 }

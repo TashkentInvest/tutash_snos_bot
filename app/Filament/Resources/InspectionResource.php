@@ -170,7 +170,7 @@ class InspectionResource extends Resource
                         Inspection::REVIEW_REJECTED => 'gray',
                         default => 'gray',
                     })
-                    ->description(fn (Inspection $record) => $record->rework_of ? '🔁 Tuzatib qayta yuborilgan' : null),
+                    ->description(fn (Inspection $record) => $record->rework_of ? 'Tuzatib qayta yuborilgan' : null),
                 Tables\Columns\TextColumn::make('followup')->label('Izoh holati')->badge()
                     ->formatStateUsing(fn ($state) => Inspection::FOLLOWUPS[$state] ?? '—')
                     ->color(fn ($state) => self::followupColor($state))

@@ -60,15 +60,18 @@ class DistrictResource extends Resource
                 Tables\Columns\TextColumn::make('phone')->label('Telefon'),
                 Tables\Columns\TextColumn::make('responsibleStaff.full_name')->label('Botda')->badge()
                     ->state(fn (District $record) => $record->responsibleStaff
-                        ? '✅ '.$record->responsibleStaff->full_name
-                        : ($record->phone ? '❌ Ro‘yxatdan o‘tmagan' : 'Telefon kiritilmagan'))
+                        ? $record->responsibleStaff->full_name
+                        : ($record->phone ? 'Ro‘yxatdan o‘tmagan' : 'Telefon kiritilmagan'))
+                    ->icon(fn (District $record) => $record->responsibleStaff ? 'fas-circle-check' : 'fas-circle-xmark')
                     ->color(fn (District $record) => $record->responsibleStaff ? 'success' : 'danger')
                     ->tooltip(fn (District $record) => $record->responsibleStaff?->registered_at
                         ? 'Ro‘yxatdan o‘tgan: '.$record->responsibleStaff->registered_at->format('d.m.Y H:i') : null),
                 Tables\Columns\TextColumn::make('phones')->label('Qo‘shimcha xodimlar')->badge()->placeholder('—')
-                    ->state(fn (District $record) => $record->phones->map(fn ($p) => ($p->staff ? '✅ '.$p->staff->full_name : '❌ '.($p->name ?: $p->phone)))->all())
-                    ->color(fn (string $state) => str_starts_with($state, '✅') ? 'success' : 'danger')
-                    ->tooltip('❌ — shu raqam bilan hali botda ro‘yxatdan o‘tilmagan'),
+                    // ro'yxatdan o'tmaganlar "(kutilmoqda)" belgisi bilan — rang va ikonka shunga qarab
+                    ->state(fn (District $record) => $record->phones->map(fn ($p) => $p->staff ? $p->staff->full_name : ($p->name ?: $p->phone).' (kutilmoqda)')->all())
+                    ->icon(fn (string $state) => str_ends_with($state, '(kutilmoqda)') ? 'fas-clock' : 'fas-circle-check')
+                    ->color(fn (string $state) => str_ends_with($state, '(kutilmoqda)') ? 'warning' : 'success')
+                    ->tooltip('«kutilmoqda» — shu raqam bilan hali botda ro‘yxatdan o‘tilmagan'),
                 Tables\Columns\TextColumn::make('sites_count')->label('Obyektlar')->counts('sites'),
                 Tables\Columns\TextColumn::make('staff_count')->label('Xodimlar')->counts('staff'),
             ])

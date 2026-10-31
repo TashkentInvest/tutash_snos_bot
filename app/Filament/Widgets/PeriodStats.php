@@ -44,12 +44,13 @@ class PeriodStats extends StatsOverviewWidget
         $url = InspectionResource::getUrl('index', ['tableFilters' => ['date' => ['from' => $p->from->toDateString(), 'to' => $p->to->toDateString()]]]);
 
         return [
-            Stat::make('Tekshiruvlar', $s['inspections'])->url($url),
-            Stat::make('🏚 Buzilgan', $s['demolished'])->color('success')
-                ->description($s['demolished'] ? "✅ {$s['approved']} tasdiqlangan · ⏳ {$s['pending']} kutilmoqda" : null),
-            Stat::make('🚧 Jarayonda', $s['progress'])->color('info'),
-            Stat::make('⚖️ Sud qarori bekor', $s['court'])->color('gray'),
-            Stat::make('🏠 Buzilmagan (sabab bilan)', $s['other'])->color('warning'),
+            Stat::make('Tekshiruvlar', $s['inspections'])->icon('fas-clipboard-check')->url($url),
+            Stat::make('Buzilgan', $s['demolished'])->icon('fas-house-crack')->color('success')
+                ->description($s['demolished'] ? "{$s['approved']} tasdiqlangan · {$s['pending']} tasdiq kutilmoqda" : null)
+                ->descriptionIcon($s['pending'] ? 'fas-clock' : ($s['demolished'] ? 'fas-circle-check' : null)),
+            Stat::make('Jarayonda', $s['progress'])->icon('fas-person-digging')->color('info'),
+            Stat::make('Sud qarori bekor', $s['court'])->icon('fas-scale-balanced')->color('gray'),
+            Stat::make('Buzilmagan (sabab bilan)', $s['other'])->icon('fas-house')->color('warning'),
         ];
     }
 }

@@ -17,7 +17,7 @@
                 <div class="text-sm text-gray-500">Fayl yuklanmoqda…</div>
             @elseif ($media->isPdf())
                 <a href="{{ route('admin.media', ['media' => $media, 'v' => $media->updated_at?->timestamp]) }}" target="_blank"
-                   style="display:flex;align-items:center;justify-content:center;height:120px;border:1px dashed #8886;border-radius:.5rem;">📄 PDF faylni ochish</a>
+                   style="display:flex;align-items:center;justify-content:center;gap:.5rem;height:120px;border:1px dashed #8886;border-radius:.5rem;">@svg('fas-file-pdf', '', ['style' => 'width:1.25rem;height:1.25rem;color:#b91c1c;']) PDF faylni ochish</a>
             @elseif ($media->isVideo())
                 <video controls preload="metadata" style="width:240px;height:240px;border-radius:50%;object-fit:cover;background:#000;"
                        src="{{ route('admin.media', ['media' => $media, 'v' => $media->updated_at?->timestamp]) }}"></video>

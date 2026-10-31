@@ -87,7 +87,7 @@ class AdminPagesTest extends TestCase
             ->assertSee('Ro‘yxatdan o‘tmagan: 1')->assertSee('C tumani — Xasan');
 
         \Livewire\Livewire::actingAs($user)->test(\App\Filament\Resources\DistrictResource\Pages\ManageDistricts::class)
-            ->assertSee('✅ Azim Testov')->assertSee('❌ Ro‘yxatdan o‘tmagan')
+            ->assertSee('Azim Testov')->assertSee('Ro‘yxatdan o‘tmagan')->assertDontSee('✅')
             ->filterTable('registered', false)
             ->assertCanSeeTableRecords([$c])->assertCanNotSeeTableRecords([$a, $b]);
 
