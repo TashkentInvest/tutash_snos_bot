@@ -14,7 +14,7 @@ use Carbon\CarbonInterface;
  */
 class Svod
 {
-    public const COLUMNS = ['№', 'Tuman nomi', 'Qoldiq soni', 'Qoldiq maydoni (ga)', 'Bugun buzilgan', 'Jarayonda', 'Sud qarori bekor'];
+    public const COLUMNS = ['№', 'Tuman nomi', 'Qoldiq soni', 'Qoldiq maydoni (ga)', 'Bugun buzilgan', 'Sud qarori bekor', 'Jarayonda'];
 
     /** @return array{rows: array<int, array{name: string, all: int, left: int, area: float, today: int, progress: int, court: int}>, total: array{name: string, all: int, left: int, area: float, today: int, progress: int, court: int}} */
     public static function data(?CarbonInterface $day = null): array
@@ -94,7 +94,8 @@ class Svod
         $rows = [];
         foreach ([$data['total'], ...$data['rows']] as $n => $r) { // 0 — jami qatori
             $rows[] = [
-                'cells' => [$n ? (string) $n : '', $r['name'], (string) $r['left'], self::area($r['area']), (string) $r['today'], (string) $r['progress'], (string) $r['court']],
+                // ish yopilganlar yonma-yon: bugun buzilgan, sud qarori bekor, so'ng jarayonda
+                'cells' => [$n ? (string) $n : '', $r['name'], (string) $r['left'], self::area($r['area']), (string) $r['today'], (string) $r['court'], (string) $r['progress']],
                 'sum' => $n === 0,
                 'colors' => $r['today'] > 0 ? [4 => 'red'] : [],
             ];
@@ -102,29 +103,47 @@ class Svod
 
         return self::table(
             'Tumanlar kesimida svod — '.$day->format('d.m.Y'),
-            ['№', 'Tuman nomi', "Qoldiq\nsoni", "Qoldiq\nmaydoni (ga)", "Bugun\nbuzilgan", 'Jarayonda', "Sud qarori\nbekor"],
+            ['№', 'Tuman nomi', "Qoldiq\nsoni", "Qoldiq\nmaydoni (ga)", "Bugun\nbuzilgan", "Sud qarori\nbekor", 'Jarayonda'],
             [44, 250, 96, 124, 104, 104, 104], $rows, $t);
     }
 
-    /** Tumanlar kesimida bajarilish rasmi (PNG): jami, buzilgan, qolgan, bajarilish foizi. */
+    /**
+     * Bajarilish ko'rsatkichlari: sud qarori bekor qilinganlar ham ish yopilgan (bajarilgan) hisoblanadi.
+     *
+     * @return array{all: int, demolished: int, court: int, left: int, done: int, pct: float}
+     */
+    public static function progress(array $r): array
+    {
+        $all = $r['all'] + $r['court']; // jami: hisobdagi + sud qarori bekor qilinganlar
+        $done = $all - $r['left'];
+
+        return ['all' => $all, 'demolished' => $r['all'] - $r['left'], 'court' => $r['court'], 'left' => $r['left'], 'done' => $done,
+            'pct' => $all ? round($done / $all * 100, 1) : 0.0];
+    }
+
+    public static function pct(float $pct): string
+    {
+        return str_replace('.', ',', (string) $pct).'%';
+    }
+
+    /** Tumanlar kesimida bajarilish rasmi (PNG): jami, buzilgan, sud qarori bekor, qolgan, bajarilish foizi. */
     public static function progressPng(CarbonInterface $day, ?callable $t = null): string
     {
         $data = self::data($day);
-        $pct = fn (array $r) => $r['all'] ? round(($r['all'] - $r['left']) / $r['all'] * 100, 1) : 0;
         $rows = [];
         foreach ([$data['total'], ...$data['rows']] as $n => $r) { // 0 — jami qatori
+            $p = self::progress($r);
             $rows[] = [
-                'cells' => [$n ? (string) $n : '', $r['name'], (string) $r['all'], (string) ($r['all'] - $r['left']), (string) $r['left'],
-                    str_replace('.', ',', (string) $pct($r)).'%'],
+                'cells' => [$n ? (string) $n : '', $r['name'], (string) $p['all'], (string) $p['demolished'], (string) $p['court'], (string) $p['left'], self::pct($p['pct'])],
                 'sum' => $n === 0,
-                'colors' => [3 => 'green', 4 => 'orange'],
+                'colors' => [3 => 'green', 4 => 'green', 5 => 'orange'],
             ];
         }
 
         return self::table(
             'Tumanlar kesimida bajarilish — '.$day->format('d.m.Y'),
-            ['№', 'Tuman nomi', 'Jami', 'Buzilgan', 'Qolgan', 'Bajarilish'],
-            [44, 250, 104, 104, 104, 112], $rows, $t);
+            ['№', 'Tuman nomi', 'Jami', 'Buzilgan', "Sud qarori\nbekor", 'Qolgan', 'Bajarilish'],
+            [44, 250, 96, 104, 104, 96, 112], $rows, $t);
     }
 
     /**
@@ -252,9 +271,9 @@ class Svod
         $xml = $row(1, ['Tumanlar kesimida svod — '.$day->format('d.m.Y')], 1)
             .$row(2, self::COLUMNS, 2);
         $t = $data['total'];
-        $xml .= $row(3, ['', $t['name'], $t['left'], $t['area'], $t['today'], $t['progress'], $t['court']], 3);
+        $xml .= $row(3, ['', $t['name'], $t['left'], $t['area'], $t['today'], $t['court'], $t['progress']], 3);
         foreach ($data['rows'] as $i => $r) {
-            $xml .= $row($i + 4, [$i + 1, $r['name'], $r['left'], $r['area'], $r['today'], $r['progress'], $r['court']]);
+            $xml .= $row($i + 4, [$i + 1, $r['name'], $r['left'], $r['area'], $r['today'], $r['court'], $r['progress']]);
         }
 
         $sheet = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'

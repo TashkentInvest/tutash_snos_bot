@@ -115,6 +115,8 @@ class ReportSvodTest extends TestCase
         $this->assertStringStartsWith("\x89PNG", $progress);
         $getenv && file_put_contents(str_replace('.png', '-progress.png', $getenv), $progress);
         $this->assertSame(4, $data['total']['all']);
+        // sud qarori bekor qilingan ham bajarilgan: jami 5 (4 + 1), bajarildi 2 (1 buzilgan + 1 sud qarori), 40%
+        $this->assertSame(['all' => 5, 'demolished' => 1, 'court' => 1, 'left' => 3, 'done' => 2, 'pct' => 40.0], Svod::progress($data['total']));
 
         $xlsx = Svod::xlsx(today());
         $this->assertStringStartsWith('PK', $xlsx);

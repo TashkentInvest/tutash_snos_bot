@@ -21,22 +21,21 @@ class InspectionReport
         $period = ReportPeriod::for($day);
         $s = $period->summary(); // rad etilganlar (arxiv) hisobga olinmaydi
 
-        $total = Site::countable()->count();
         $svod = Svod::data($day)['total'];
-        $done = $total - $svod['left'];
+        $p = Svod::progress($svod); // sud qarori bekor qilinganlar ham bajarilgan hisoblanadi
 
         $lines = [
             '📊 <b>Kunlik hisobot — '.$day->format('d.m.Y').'</b>',
             '<i>'.$period->label().'</i>',
             "Tekshiruvlar: <b>{$s['inspections']}</b>",
             "🏚 Buzilgan: <b>{$s['demolished']}</b>",
+            ...($s['court'] ? ["⚖️ Sud qarori bekor: <b>{$s['court']}</b>"] : []),
             "🚧 Jarayonda: <b>{$s['progress']}</b>",
         ];
-        $s['court'] && $lines[] = "⚖️ Sud qarori bekor: <b>{$s['court']}</b>";
         $s['before'] && $lines[] = "📷 Oldingi holat qayd etildi: <b>{$s['before']}</b>";
         $lines[] = '';
         $lines[] = "Qoldiq: <b>{$svod['left']}</b> ta · ".Svod::area($svod['area']).' ga';
-        $lines[] = "Umumiy bajarilish: <b>{$done}</b> / {$total}".($total ? ' ('.round($done / $total * 100, 1).'%)' : '');
+        $lines[] = "Umumiy bajarilish: <b>{$p['done']}</b> / {$p['all']} (".Svod::pct($p['pct']).')';
         $s['inspections'] || $lines[] = "\nBu davrda tekshiruv natijasi kiritilmagan.";
 
         return implode("\n", $lines);
