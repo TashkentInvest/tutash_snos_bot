@@ -20,7 +20,7 @@ class Site extends Model
     protected $fillable = [
         'district_id', 'mahalla_id', 'source_no', 'address', 'lat', 'lng',
         'violator_name', 'violator_passport', 'org_inn', 'area_m2', 'is_tutash',
-        'court_date', 'court_number', 'court_status', 'status', 'demolished_at', 'last_inspected_at',
+        'court_date', 'court_number', 'court_status', 'status', 'demolished_at', 'last_inspected_at', 'photos',
     ];
 
     protected $casts = [
@@ -33,6 +33,7 @@ class Site extends Model
         'lat' => 'float',
         'lng' => 'float',
         'area_m2' => 'float',
+        'photos' => 'array', // avvalgi holat rasmlari (media diskdagi yo'llar)
     ];
 
     public function district(): BelongsTo

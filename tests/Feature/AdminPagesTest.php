@@ -151,6 +151,35 @@ class AdminPagesTest extends TestCase
         $this->actingAs($plain)->get('/admin')->assertForbidden();
     }
 
+    public function test_site_before_photos_are_uploaded_on_create_and_served_privately(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $d = District::create(['name' => 'Test tumani']);
+        $viewer = (new User)->forceFill(['name' => 'Kuzatuvchi', 'email' => 'v@t.test', 'password' => 'secret-pass-3', 'is_viewer' => true]);
+        $viewer->save();
+
+        // kuzatuvchi obyekt yaratadi va rasm yuklaydi
+        \Livewire\Livewire::actingAs($viewer)->test(\App\Filament\Resources\SiteResource\Pages\CreateSite::class)
+            ->fillForm([
+                'district_id' => $d->id, 'address' => 'Yangi ko‘cha 5', 'status' => Site::NOT_DEMOLISHED,
+                'photos' => [\Illuminate\Http\UploadedFile::fake()->image('oldin.jpg', 1200, 900)],
+            ])
+            ->call('create')->assertHasNoFormErrors();
+
+        $site = Site::where('address', 'Yangi ko‘cha 5')->first();
+        $this->assertCount(1, $site->photos);
+        $path = $site->photos[0];
+        $this->assertStringStartsWith('sites/', $path);
+        \Illuminate\Support\Facades\Storage::disk('local')->assertExists($path);
+
+        $this->actingAs($viewer)->get("/admin/sites/{$site->id}")->assertOk()->assertSee('Avvalgi holat rasmlari');
+        $this->actingAs($viewer)->get('/admin-site-photo?path='.urlencode($path))->assertOk();
+        $this->actingAs($viewer)->get('/admin-site-photo?path='.urlencode('inspections/1/x.jpg'))->assertNotFound(); // boshqa papka — yo'q
+        $this->actingAs($viewer)->get('/admin-site-photo?path='.urlencode('sites/../.env'))->assertNotFound();
+        auth()->logout();
+        $this->get('/admin-site-photo?path='.urlencode($path))->assertRedirect();
+    }
+
     public function test_viewer_sees_only_sites_read_only(): void
     {
         $d = District::create(['name' => 'Test tumani']);

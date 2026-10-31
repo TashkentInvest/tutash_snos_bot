@@ -64,6 +64,20 @@ class SiteResource extends Resource
                 Forms\Components\TextInput::make('lat')->label('Kenglik (lat)')->numeric()->minValue(-90)->maxValue(90),
                 Forms\Components\TextInput::make('lng')->label('Uzunlik (lng)')->numeric()->minValue(-180)->maxValue(180),
             ]),
+            // telefon rasmi bir necha MB — yuklashdan oldin brauzerda 1920 px gacha kichraytiriladi (nginx chegarasi 5 MB)
+            Forms\Components\Section::make('Avvalgi holat rasmlari')->description('Obyektning buzishdan oldingi holati. Xodimlar tekshiruvda obyektni tanib olishi uchun.')->schema([
+                Forms\Components\FileUpload::make('photos')->hiddenLabel()->multiple()->image()->maxFiles(10)->maxSize(5000)
+                    ->disk(config('tutash.media_disk'))->directory('sites')->visibility('private')
+                    ->imageResizeMode('contain')->imageResizeTargetWidth('1920')->imageResizeTargetHeight('1920')->imageResizeUpscale(false)
+                    ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp', 'image/heic'])
+                    ->panelLayout('grid')->reorderable()->appendFiles()
+                    // yopiq diskdagi rasm ko'rinishi himoyalangan manzil orqali
+                    ->getUploadedFileUsing(fn ($component, string $file, $storedFileNames) => [
+                        'name' => basename($file), 'size' => 0, 'type' => null,
+                        'url' => route('admin.site-photo', ['path' => $file]),
+                    ])
+                    ->helperText('Ko‘pi bilan 10 ta rasm (JPG, PNG). Katta rasmlar avtomatik kichraytiriladi.'),
+            ]),
             Forms\Components\Section::make('Huquqbuzar')->columns(2)->schema([
                 Forms\Components\TextInput::make('violator_name')->label('F.I.SH / tashkilot'),
                 Forms\Components\TextInput::make('violator_passport')->label('Pasport'),
@@ -99,6 +113,9 @@ class SiteResource extends Resource
                 Infolists\Components\TextEntry::make('map')->label('Xarita')
                     ->state(fn (Site $record) => $record->lat ? 'Yandex Xaritada ochish' : '—')
                     ->url(fn (Site $record) => $record->lat ? \App\Support\Maps::url($record->lat, $record->lng) : null, true),
+            ]),
+            Infolists\Components\Section::make('Avvalgi holat rasmlari')->visible(fn (Site $record) => ! empty($record->photos))->schema([
+                Infolists\Components\ViewEntry::make('photos')->hiddenLabel()->view('filament.infolists.site-photos'),
             ]),
         ]);
     }

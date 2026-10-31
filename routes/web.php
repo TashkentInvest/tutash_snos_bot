@@ -11,6 +11,17 @@ Route::post('/livewire/update', \App\Http\Controllers\LivewireUpdateController::
 
 // Arxivlangan rasm/videolar faqat tizimga kirgan administratorlarga beriladi.
 Route::get('/admin-media/{media}', MediaController::class)->middleware(['auth'])->name('admin.media');
+// Obyektning avvalgi holat rasmlari (yopiq diskda) — panelga kira oladiganlar (admin, kuzatuvchi)
+Route::get('/admin-site-photo', function (\Illuminate\Http\Request $request) {
+    $path = (string) $request->query('path');
+    abort_unless(auth()->user()?->canAccessPanel(\Filament\Facades\Filament::getPanel('admin')), 403);
+    // faqat sites/ papkasidagi oddiy fayl nomi (../ va boshqa papkalar emas)
+    abort_unless(preg_match('#^sites/[A-Za-z0-9._-]+$#', $path) === 1, 404);
+    $disk = \Illuminate\Support\Facades\Storage::disk(config('tutash.media_disk'));
+    abort_unless($disk->exists($path), 404);
+
+    return response()->file($disk->path($path), ['Cache-Control' => 'private, max-age=86400']);
+})->middleware(['auth'])->name('admin.site-photo');
 // Svod jadval (Excel) — faqat adminlar
 Route::get('/admin-svod.xlsx', function (\Illuminate\Http\Request $request) {
     abort_unless(\App\Models\User::currentIsAdmin(), 403);
