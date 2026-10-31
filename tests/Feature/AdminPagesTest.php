@@ -165,10 +165,11 @@ class AdminPagesTest extends TestCase
         $viewer = (new User)->forceFill(['name' => 'Kuzatuvchi', 'email' => 'v@t.test', 'password' => 'secret-pass-3', 'is_viewer' => true]);
         $viewer->save();
 
-        foreach (['/admin', '/admin/sites', "/admin/sites/{$site->id}", "/admin/inspections/{$in->id}", "/admin-media/{$media->id}"] as $url) {
+        // kuzatuvchi obyekt qo'sha oladi, lekin tahrirlay/o'chira olmaydi
+        foreach (['/admin', '/admin/sites', '/admin/sites/create', "/admin/sites/{$site->id}", "/admin/inspections/{$in->id}", "/admin-media/{$media->id}"] as $url) {
             $this->actingAs($viewer)->get($url)->assertOk();
         }
-        foreach (['/admin/staff', '/admin/districts', '/admin/attendances', '/admin/sites/create', "/admin/sites/{$site->id}/edit", route('admin.attendance-video', $att)] as $url) {
+        foreach (['/admin/staff', '/admin/districts', '/admin/attendances', "/admin/sites/{$site->id}/edit", route('admin.attendance-video', $att)] as $url) {
             $this->actingAs($viewer)->get($url)->assertForbidden();
         }
 

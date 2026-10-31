@@ -155,7 +155,7 @@ class RegistrationHandler
         $global = Staff::isGlobalPhone($phone);
         $districts = ($global || Staff::isAllDistrictsEmployeePhone($phone))
             ? District::all()
-            : ($phone ? District::where('phone', $phone)->get() : collect());
+            : ($phone ? District::forPhone($phone)->get() : collect());
 
         if ($districts->isEmpty()) {
             $staff->increment('failed_attempts');

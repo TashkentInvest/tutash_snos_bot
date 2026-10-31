@@ -37,6 +37,17 @@ class DistrictResource extends Resource
             Forms\Components\TextInput::make('phone')->label('Mas\'ul xodim telefoni (9 raqam)')
                 ->helperText('Masalan: 992012272. Xodim shu raqam bilan botga kirganda tumanga biriktiriladi.')
                 ->regex('/^\d{9}$/')->length(9),
+            // bitta tumanga 2-3 xodim: har bir raqam egasi botga kirganda shu tumanga xodim sifatida biriktiriladi
+            Forms\Components\Repeater::make('phones')->relationship()->label('Qo‘shimcha xodimlar')
+                ->helperText('Shu tumanda ishlaydigan boshqa xodimlar. Raqam egasi botda /start bosib, telefonini yuborganda tumanga biriktiriladi.')
+                ->schema([
+                    Forms\Components\TextInput::make('name')->label('F.I.SH')->maxLength(100),
+                    Forms\Components\TextInput::make('phone')->label('Telefon (9 raqam)')->required()
+                        ->regex('/^\d{9}$/')->length(9)->placeholder('901234567')
+                        ->distinct(),
+                ])
+                ->columns(2)->defaultItems(0)->addActionLabel('Xodim telefoni qo‘shish')->reorderable(false)
+                ->columnSpanFull(),
         ]);
     }
 
@@ -54,10 +65,14 @@ class DistrictResource extends Resource
                     ->color(fn (District $record) => $record->responsibleStaff ? 'success' : 'danger')
                     ->tooltip(fn (District $record) => $record->responsibleStaff?->registered_at
                         ? 'Ro‘yxatdan o‘tgan: '.$record->responsibleStaff->registered_at->format('d.m.Y H:i') : null),
+                Tables\Columns\TextColumn::make('phones')->label('Qo‘shimcha xodimlar')->badge()->placeholder('—')
+                    ->state(fn (District $record) => $record->phones->map(fn ($p) => ($p->staff ? '✅ '.$p->staff->full_name : '❌ '.($p->name ?: $p->phone)))->all())
+                    ->color(fn (string $state) => str_starts_with($state, '✅') ? 'success' : 'danger')
+                    ->tooltip('❌ — shu raqam bilan hali botda ro‘yxatdan o‘tilmagan'),
                 Tables\Columns\TextColumn::make('sites_count')->label('Obyektlar')->counts('sites'),
                 Tables\Columns\TextColumn::make('staff_count')->label('Xodimlar')->counts('staff'),
             ])
-            ->modifyQueryUsing(fn ($query) => $query->with('responsibleStaff'))
+            ->modifyQueryUsing(fn ($query) => $query->with(['responsibleStaff', 'phones.staff']))
             ->filters([
                 Tables\Filters\TernaryFilter::make('registered')->label('Mas’ul botda')
                     ->trueLabel('Ro‘yxatdan o‘tgan')->falseLabel('Ro‘yxatdan o‘tmagan')

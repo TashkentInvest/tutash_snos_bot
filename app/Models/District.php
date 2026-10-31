@@ -29,6 +29,18 @@ class District extends Model
             ->where('status', Staff::ACTIVE)->where('role', Staff::ROLE_EMPLOYEE);
     }
 
+    /** Qo'shimcha xodim telefonlari (bitta tumanga 2-3 xodim). */
+    public function phones(): HasMany
+    {
+        return $this->hasMany(DistrictPhone::class)->orderBy('id');
+    }
+
+    /** Shu raqam tumanning mas'ul yoki qo'shimcha xodim telefoni bo'lgan tumanlar. */
+    public function scopeForPhone(Builder $query, ?string $phone): Builder
+    {
+        return $query->where(fn ($q) => $q->where('phone', $phone)->orWhereHas('phones', fn ($q) => $q->where('phone', $phone)));
+    }
+
     /** Mas'ul telefoni kiritilgan, lekin o'sha raqam bilan hali hech kim botda ro'yxatdan o'tmagan tumanlar. */
     public function scopeUnregistered(Builder $query): Builder
     {

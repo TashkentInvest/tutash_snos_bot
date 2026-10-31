@@ -132,6 +132,49 @@ class BotFlowTest extends TestCase
         $this->get('/tg/permissions')->assertOk()->assertSee('Ruxsatlarni tekshirish')->assertSee('/js/tg-location.js', false);
     }
 
+    public function test_district_can_have_several_staff_phones(): void
+    {
+        // Yunusobod mas'uli 999075300; admin qo'shimcha xodim raqamini kiritadi
+        $this->yunus->phones()->create(['phone' => '+998 90 111 22 33', 'name' => 'Sanjar']);
+        $this->assertSame('901112233', $this->yunus->phones()->value('phone')); // raqam normallashtiriladi
+
+        $this->register('+998901112233');
+        $staff = Staff::where('telegram_id', self::UID)->first();
+        $this->assertSame(Staff::ACTIVE, $staff->status);
+        $this->assertEquals([$this->yunus->id], $staff->districts->pluck('id')->all());
+
+        // ikkinchi tumanga ham qo'shilsa — darhol ikkalasiga biriktiriladi; o'chirilsa — chiqariladi
+        $p = $this->olmazor->phones()->create(['phone' => '901112233']);
+        $this->assertEqualsCanonicalizing([$this->yunus->id, $this->olmazor->id], $staff->districts()->pluck('districts.id')->all());
+        $p->delete();
+        $this->assertEquals([$this->yunus->id], $staff->districts()->pluck('districts.id')->all());
+    }
+
+    public function test_waiting_person_is_activated_when_admin_adds_phone(): void
+    {
+        // raqam ro'yxatda yo'q — kutib qoladi
+        $this->register('+998 93 555 44 33');
+        $staff = Staff::where('telegram_id', self::UID)->first();
+        $this->assertSame(Staff::REGISTERING, $staff->status);
+
+        // admin raqamni Mirzo Ulug'bek (bu yerda Olmazor) tumaniga qo'shadi — avtomatik tasdiqlanadi va xabar oladi
+        $bot = $this->bot();
+        $this->olmazor->phones()->create(['phone' => '935554433', 'name' => 'Yangi xodim']);
+        $staff->refresh();
+        $this->assertSame(Staff::ACTIVE, $staff->status);
+        $this->assertSame(Staff::ROLE_EMPLOYEE, $staff->role);
+        $this->assertEquals([$this->olmazor->id], $staff->districts()->pluck('districts.id')->all());
+        $sent = collect($bot->getRequestHistory())->map(fn ($r) => urldecode((string) $r['request']->getBody()))->implode("\n");
+        $this->assertStringContainsString('Olmazor tumani', $sent);
+
+        // admin panel: tumanlar ro'yxatida qo'shimcha xodim ko'rinadi
+        $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin)->get('/admin/districts')->assertOk()->assertSee('Qo‘shimcha xodimlar')->assertSee('Aliyev Ali Aliyevich');
+        \Livewire\Livewire::test(\App\Filament\Resources\DistrictResource\Pages\ManageDistricts::class)
+            ->mountTableAction('edit', $this->olmazor)->assertSee('Xodim telefoni qo‘shish');
+    }
+
     public function test_one_phone_responsible_for_two_districts(): void
     {
         // bitta raqam ikki tumanga mas'ul bo'lgan holat

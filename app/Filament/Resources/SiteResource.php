@@ -19,10 +19,10 @@ class SiteResource extends Resource
 {
     protected static ?string $model = Site::class;
 
-    // Kuzatuvchi obyektlarni faqat ko'radi: qo'shish, tahrirlash, o'chirish — faqat admin.
+    // Kuzatuvchi obyektlarni ko'radi va yangi obyekt qo'sha oladi; tahrirlash va o'chirish — faqat admin.
     public static function canCreate(): bool
     {
-        return User::currentIsAdmin();
+        return User::currentIsAdmin() || (bool) auth()->user()?->is_viewer;
     }
 
     public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool

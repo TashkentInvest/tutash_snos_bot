@@ -65,7 +65,36 @@ class Staff extends Model
         self::where('status', self::ACTIVE)->where('role', self::ROLE_EMPLOYEE)->where('is_global', false)
             ->whereIn('phone', $phones)->get()
             ->reject(fn (Staff $s) => self::isAllDistrictsEmployeePhone($s->phone))
-            ->each(fn (Staff $s) => $s->districts()->sync(District::where('phone', $s->phone)->pluck('id')));
+            ->each(fn (Staff $s) => $s->districts()->sync(District::forPhone($s->phone)->pluck('id')));
+
+        self::activateWaitingByPhone($phones);
+    }
+
+    /**
+     * Raqami ro'yxatda topilmagani uchun kutib qolgan (yoki urinishlari tugagan) odamlar: admin raqamni tumanga qo'shgach,
+     * avtomatik xodim sifatida tasdiqlanadi va botda xabar oladi — qayta /start bosishi shart emas.
+     * Raqam egaligi avval Telegram kontakti orqali tasdiqlangan (RegistrationHandler).
+     */
+    public static function activateWaitingByPhone(array $phones): void
+    {
+        self::whereIn('status', [self::REGISTERING, self::REJECTED])->whereIn('phone', array_values(array_filter($phones)))
+            ->whereNotNull('telegram_id')->get()
+            ->each(function (Staff $s) {
+                $districts = District::forPhone($s->phone)->get();
+                if ($districts->isEmpty()) {
+                    return;
+                }
+                $s->update(['status' => self::ACTIVE, 'role' => self::ROLE_EMPLOYEE, 'registered_at' => now(), 'failed_attempts' => 0, 'attendance_required' => true]);
+                $s->districts()->sync($districts->pluck('id'));
+                AuditLog::record('registration.activated_by_admin', $s->telegram_id, ['districts' => $districts->pluck('name')]);
+                try {
+                    app(\SergiX44\Nutgram\Nutgram::class)->sendMessage(\App\Telegram\Support\Script::apply(
+                        "✅ Telefon raqamingiz tasdiqlandi.\nSizga biriktirilgan hudud: <b>".e($districts->pluck('name')->join(', '))."</b>\n\nIshni boshlash uchun /start bosing."
+                    ), ['chat_id' => $s->telegram_id, 'parse_mode' => 'HTML']);
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            });
     }
 
     public function inspections(): HasMany
