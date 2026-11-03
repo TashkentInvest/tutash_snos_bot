@@ -175,6 +175,46 @@ class BotFlowTest extends TestCase
         $this->assertSame([$this->yunus->id], $staff->districts()->pluck('districts.id')->all());
     }
 
+    public function test_admin_adds_contract_and_employee_staff_in_advance(): void
+    {
+        $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin);
+        $page = fn () => \Livewire\Livewire::test(\App\Filament\Resources\StaffResource\Pages\ManageStaff::class);
+
+        // shartnoma xodimi: tumansiz ham kira oladi, faqat davomat va soatlik qayd
+        $page()->callAction('invite', ['full_name' => 'Raxmat Karimov', 'phone' => '+998 99 331 34 41', 'role' => Staff::ROLE_CONTRACT])->assertHasNoActionErrors();
+        $this->assertDatabaseHas('staff_invites', ['phone' => '993313441', 'role' => Staff::ROLE_CONTRACT]);
+        $this->get('/admin/staff-invites')->assertOk()->assertSee('Raxmat Karimov')->assertSee('Botga kirishi kutilmoqda');
+
+        $bot = $this->bot();
+        $this->register('+998993313441');
+        $staff = Staff::where('telegram_id', self::UID)->first();
+        $this->assertSame(Staff::ACTIVE, $staff->status);
+        $this->assertSame(Staff::ROLE_CONTRACT, $staff->role);
+        $this->assertSame('Raxmat Karimov', $staff->full_name);
+        $this->assertCount(0, $staff->districts);
+        $this->assertNotNull(\App\Models\StaffInvite::first()->used_at);
+        $sent = collect($bot->getRequestHistory())->map(fn ($r) => urldecode((string) $r['request']->getBody()))->implode("\n");
+        $this->assertStringContainsString('shartnoma asosida', $sent);
+
+        // obyektlar bilan ishlamaydi: tekshiruv boshlanmaydi
+        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
+        $this->bot()->hearCallbackQueryData("gk:{$this->site->id}:check")->reply();
+        $this->assertSame(0, Inspection::count());
+
+        // botda bor xodimning rolini o'zgartirish — darhol
+        $page()->callAction('invite', ['full_name' => 'Raxmat Karimov', 'phone' => '993313441', 'role' => Staff::ROLE_EMPLOYEE, 'district_ids' => [$this->olmazor->id]])
+            ->assertNotified('Raxmat Karimov botda bor — roli yangilandi.');
+        $staff->refresh();
+        $this->assertSame(Staff::ROLE_EMPLOYEE, $staff->role);
+        $this->assertEquals([$this->olmazor->id], $staff->districts()->pluck('districts.id')->all());
+
+        // xodim uchun tuman tanlash majburiy
+        $page()->callAction('invite', ['full_name' => 'X', 'phone' => '901234500', 'role' => Staff::ROLE_EMPLOYEE, 'district_ids' => []])
+            ->assertHasActionErrors(['district_ids']);
+    }
+
     public function test_waiting_person_is_activated_when_admin_adds_phone(): void
     {
         // raqam ro'yxatda yo'q — kutib qoladi

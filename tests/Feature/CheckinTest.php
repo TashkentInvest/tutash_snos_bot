@@ -58,9 +58,9 @@ class CheckinTest extends TestCase
 
     public function test_contract_staff_get_hourly_request_and_check_in_with_location_and_video(): void
     {
-        $contract = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Aslanov Sanjar', 'phone' => '950507174', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_contract' => true]);
+        $contract = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Aslanov Sanjar', 'phone' => '950507174', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
         Staff::create(['telegram_id' => 777002, 'full_name' => 'Oddiy xodim', 'phone' => '900000002', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE]);
-        $absent = Staff::create(['telegram_id' => 777003, 'full_name' => 'Kasal', 'phone' => '900000003', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_contract' => true]);
+        $absent = Staff::create(['telegram_id' => 777003, 'full_name' => 'Kasal', 'phone' => '900000003', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
         Attendance::create(['staff_id' => $absent->id, 'date' => today(), 'status' => Attendance::ABSENT, 'reason' => 'Kasal']);
 
         // 09:30 — soatlik so'rov vaqti emas
@@ -110,8 +110,8 @@ class CheckinTest extends TestCase
 
     public function test_board_reminds_staff_who_have_not_answered(): void
     {
-        $late = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Javob bermagan', 'phone' => '950507174', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_contract' => true]);
-        $done = Staff::create(['telegram_id' => 777005, 'full_name' => 'Yuborgan', 'phone' => '900000005', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_contract' => true]);
+        $late = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Javob bermagan', 'phone' => '950507174', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
+        $done = Staff::create(['telegram_id' => 777005, 'full_name' => 'Yuborgan', 'phone' => '900000005', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
         $this->travelTo(today()->setTime(15, 10));
         $this->artisan('checkins:run')->assertSuccessful();
         Checkin::where('staff_id', $done->id)->update(['status' => Checkin::PRESENT, 'responded_at' => now()]);

@@ -27,7 +27,7 @@ class SendAttendance extends Command
 
         $sent = $failed = $retry = 0;
 
-        Staff::where('status', Staff::ACTIVE)->where('role', Staff::ROLE_EMPLOYEE)->where('attendance_required', true)
+        Staff::where('status', Staff::ACTIVE)->whereIn('role', Staff::WORK_ROLES)->where('attendance_required', true)
             ->each(function (Staff $staff) use ($bot, &$sent, &$failed, &$retry) {
                 $row = Attendance::firstOrCreate(['staff_id' => $staff->id, 'date' => today()->toDateString()], ['status' => Attendance::SENT]);
                 if ($row->sent_at) {

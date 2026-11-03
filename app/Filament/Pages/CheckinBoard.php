@@ -78,7 +78,7 @@ class CheckinBoard extends Page
         } catch (\Throwable) {
             $day = today();
         }
-        $staff = Staff::where('is_contract', true)->where('status', Staff::ACTIVE)->orderBy('full_name')->get();
+        $staff = Staff::where('role', Staff::ROLE_CONTRACT)->where('status', Staff::ACTIVE)->orderBy('full_name')->get();
         $checkins = Checkin::whereDate('date', $day)->whereIn('staff_id', $staff->pluck('id'))->get()->groupBy('staff_id');
         $attendance = Attendance::whereDate('date', $day)->whereIn('staff_id', $staff->pluck('id'))->get()->keyBy('staff_id');
 

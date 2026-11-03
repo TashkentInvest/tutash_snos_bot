@@ -46,7 +46,7 @@ class AttendanceLocationController extends Controller
             return [null, null, response()->json(['ok' => false, 'message' => 'Telegram imzosi tasdiqlanmadi. Botdan tugmani qayta bosing.'], 403)];
         }
 
-        $staff = Staff::where('telegram_id', $user['id'])->where('status', Staff::ACTIVE)->where('role', Staff::ROLE_EMPLOYEE)->first();
+        $staff = Staff::where('telegram_id', $user['id'])->where('status', Staff::ACTIVE)->whereIn('role', Staff::WORK_ROLES)->first();
         $row = $staff ? Attendance::where('staff_id', $staff->id)->whereDate('date', today())->first() : null;
 
         return [$user, $row, null];

@@ -26,7 +26,13 @@ class HelpHandler
 
         $common = "/menu — bosh sahifa (tuman → MFY → obyekt)\n/yordam — shu qo‘llanma\n/bekor — joriy amalni bekor qilish";
 
-        if ($staff->isActive()) {
+        if ($staff->isActive() && $staff->isContract()) {
+            $text = "<b>Shartnoma xodimi uchun qo‘llanma</b>\n\n"
+                .'1. Har ish kuni soat '.config('tutash.attendance.send_at').' da davomat so‘raladi — '.config('tutash.attendance.deadline')." gacha javob bering.\n"
+                .'2. Ish vaqtida har soatda ('.implode(', ', \App\Models\Checkin::slots()).") «Soatlik qayd» so‘rovi keladi: tugmani bosib, joylashuv va qisqa video yuboring. Javob muddati — keyingi soatgacha.\n"
+                ."3. 13:00–14:00 — tushlik, so‘rov kelmaydi.\n\n"
+                ."/menu — bugungi holat\n/davomat — bugungi davomat\n/yordam — shu qo‘llanma";
+        } elseif ($staff->isActive()) {
             $text = "<b>Xodim uchun qo‘llanma</b>\n\n"
                 ."1. /menu orqali tumaningiz, MFY va obyektni tanlang (🔍 qidirish yoki 📍 yaqin obyektlar ham mavjud).\n"
                 ."2. «Tekshiruvni boshlash» ni bosing va turini tanlang:\n"

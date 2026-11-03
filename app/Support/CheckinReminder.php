@@ -33,7 +33,7 @@ class CheckinReminder
     public static function recipients(string $scope): Collection
     {
         return $scope === self::ALL
-            ? Staff::where('status', Staff::ACTIVE)->where('is_contract', true)->whereNotNull('telegram_id')->orderBy('full_name')->get()
+            ? Staff::where('status', Staff::ACTIVE)->where('role', Staff::ROLE_CONTRACT)->whereNotNull('telegram_id')->orderBy('full_name')->get()
             : self::pending()->map->staff->values();
     }
 

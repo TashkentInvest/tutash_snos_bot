@@ -41,10 +41,14 @@ class StaffResource extends Resource
         Staff::CITIZEN => 'Aholi',
     ];
 
-    private const ROLES = [
+    public const ROLES = [
         Staff::ROLE_EMPLOYEE => 'Xodim',
+        Staff::ROLE_CONTRACT => 'Shartnoma',
         Staff::ROLE_CITIZEN => 'Aholi',
     ];
+
+    /** Xodim — obyektlar bilan ishlaydi; Shartnoma — faqat davomat va har soatlik qayd. */
+    public const ROLE_HINT = 'Xodim — obyektlar bilan ishlaydi (tekshiruv). Shartnoma — faqat ertalabki davomat va ish kuni davomida har soatda joylashuv va video (10:00–12:00, 14:00–18:00), obyektlar bilan ishlamaydi.';
 
     public static function form(Form $form): Form
     {
@@ -52,12 +56,10 @@ class StaffResource extends Resource
             Forms\Components\TextInput::make('full_name')->label('F.I.SH')->required(),
             Forms\Components\TextInput::make('phone')->label('Telefon (9 raqam)')->disabled(),
             Forms\Components\Select::make('status')->label('Holat')->options(self::STATUSES)->required(),
-            Forms\Components\Select::make('role')->label('Rol')->options(self::ROLES),
+            Forms\Components\Select::make('role')->label('Rol')->options(self::ROLES)->helperText(self::ROLE_HINT),
             Forms\Components\TextInput::make('failed_attempts')->label('Noto‘g‘ri urinishlar (0 — qayta ochish)')->numeric()->minValue(0),
             Forms\Components\Toggle::make('attendance_required')->label('Kunlik davomat yuritiladi'),
             Forms\Components\Toggle::make('is_global')->label('Barcha tumanlarni ko‘radi (admin)'),
-            Forms\Components\Toggle::make('is_contract')->label('Shartnoma xodimi')
-                ->helperText('Ish kuni davomida har soatda (10:00–12:00, 14:00–18:00) joylashuv va video so‘raladi. Natijalar «Shartnoma» bo‘limida.'),
             Forms\Components\Toggle::make('receives_reports')->label('Hisobot oladi')
                 ->helperText('Kunlik buzilish (svod) va davomat hisobotlari botda yuboriladi. Faqat shu belgi qo‘yilganlarga boradi (admin bo‘lsa ham).'),
             // telefon orqali biriktiriladi (Staff::assignDistricts): tanlov tumanlarning «Qo'shimcha xodimlar» ro'yxatiga yoziladi
@@ -80,7 +82,8 @@ class StaffResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('full_name')->label('F.I.SH')->searchable(),
                 Tables\Columns\TextColumn::make('phone')->label('Telefon')->searchable(),
-                Tables\Columns\TextColumn::make('role')->label('Rol')->badge()->formatStateUsing(fn ($state) => self::ROLES[$state] ?? '—'),
+                Tables\Columns\TextColumn::make('role')->label('Rol')->badge()->formatStateUsing(fn ($state) => self::ROLES[$state] ?? '—')
+                    ->color(fn ($state) => match ($state) { Staff::ROLE_CONTRACT => 'warning', Staff::ROLE_CITIZEN => 'gray', default => 'primary' }),
                 // barcha tumanlarni ko'radigan adminda 12 ta nishon o'rniga bitta yozuv; boshqalarda 3 tadan keyin "yana N ta"
                 Tables\Columns\TextColumn::make('districts.name')->label('Tumanlar')->badge()
                     ->state(fn (Staff $record) => $record->is_global ? ['Barcha tumanlar'] : $record->districts->pluck('name')->all())
@@ -96,10 +99,6 @@ class StaffResource extends Resource
                 Tables\Columns\IconColumn::make('receives_reports')->label('Hisobot')->boolean()
                     ->tooltip('Bosing: hisobot yuborishni yoqish / o‘chirish')
                     ->action(fn (Staff $record) => $record->update(['receives_reports' => ! $record->receives_reports])),
-                Tables\Columns\IconColumn::make('is_contract')->label('Shartnoma')->boolean()
-                    ->trueIcon('heroicon-o-document-check')->falseIcon('heroicon-o-minus')->falseColor('gray')
-                    ->tooltip('Bosing: shartnoma xodimi (soatlik qayd) yoqish / o‘chirish')
-                    ->action(fn (Staff $record) => $record->trashed() || $record->update(['is_contract' => ! $record->is_contract])),
                 Tables\Columns\TextColumn::make('inspections_count')->label('Tekshiruvlar')->counts('inspections'),
                 Tables\Columns\TextColumn::make('last_seen_at')->label('Oxirgi faollik')->since()->sortable(),
             ])
@@ -108,8 +107,6 @@ class StaffResource extends Resource
                 Tables\Filters\SelectFilter::make('role')->label('Rol')->options(self::ROLES),
                 Tables\Filters\Filter::make('reports')->label('Hisobot oladi')
                     ->query(fn ($query) => $query->where('receives_reports', true)),
-                Tables\Filters\Filter::make('contract')->label('Shartnoma xodimlari')
-                    ->query(fn ($query) => $query->where('is_contract', true)),
                 // o'chirilganlar (arxiv): natijalari, davomati va videolari saqlangan
                 Tables\Filters\TrashedFilter::make()->label('O‘chirilganlar')
                     ->placeholder('O‘chirilmaganlar')->trueLabel('Hammasi')->falseLabel('Faqat o‘chirilganlar'),

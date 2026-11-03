@@ -45,8 +45,34 @@ class BrowseHandler
         return $staff;
     }
 
+    /** Shartnoma xodimi: obyektlar o'rniga vazifasi va bugungi qaydlari. */
+    private function contractHome(Nutgram $bot, Staff $staff): void
+    {
+        $bot->callbackQuery() && $bot->answerCallbackQuery();
+        $done = $staff->checkins()->whereDate('date', today())->where('status', \App\Models\Checkin::PRESENT)->pluck('slot')->sort()->join(', ');
+        $att = $staff->attendances()->whereDate('date', today())->value('status');
+
+        Ui::show($bot, '👋 <b>'.Ui::e($staff->full_name)."</b>, xush kelibsiz.\n\nSiz <b>shartnoma asosida</b> ishlaysiz:"
+            ."\n• har ish kuni 08:00 da — davomat (09:00 gacha);"
+            ."\n• ish vaqtida har soatda (".implode(', ', \App\Models\Checkin::slots()).') — joylashuv va qisqa video.'
+            ."\n\nSo‘rov kelganda tugmani bosib javob bering."
+            ."\n\n<b>Bugun:</b> davomat — ".match ($att) {
+                \App\Models\Attendance::PRESENT => 'qayd etilgan ✅',
+                \App\Models\Attendance::ABSENT => 'sabab bilan yo‘q',
+                \App\Models\Attendance::MISSED => 'javob berilmagan',
+                null => 'so‘rov hali yuborilmagan',
+                default => 'javob kutilmoqda',
+            }.'; soatlik qaydlar — '.($done ?: 'hali yo‘q').'.');
+    }
+
     public function home(Nutgram $bot): void
     {
+        $self = Staff::where('telegram_id', $bot->userId())->first();
+        if ($self?->isActive() && $self->isContract()) {
+            $this->contractHome($bot, $self);
+
+            return;
+        }
         if (! $staff = self::guard($bot)) {
             return;
         }

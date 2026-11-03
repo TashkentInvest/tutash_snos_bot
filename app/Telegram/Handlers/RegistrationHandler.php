@@ -25,7 +25,7 @@ class RegistrationHandler
         if ($staff->trashed()) {
             $staff->restore();
             $staff->forceFill(['status' => Staff::REGISTERING, 'role' => null, 'phone' => null, 'is_global' => false,
-                'receives_reports' => false, 'is_contract' => false, 'failed_attempts' => 0])->save();
+                'receives_reports' => false, 'failed_attempts' => 0])->save();
             $staff->districts()->detach();
         }
         $staff->forceFill(['username' => $bot->user()?->username, 'last_seen_at' => now()])->save();
@@ -159,6 +159,19 @@ class RegistrationHandler
         }
 
         $phone = Staff::normalizePhone($message->contact->phone_number);
+
+        // admin oldindan qo'shgan raqam (Xodimlar → «Xodim qo'shish»): rol va tumanlar shu yerdan
+        if (! Staff::isGlobalPhone($phone) && \App\Support\StaffInvites::applyOnRegistration($staff, $phone)) {
+            $staff->refresh();
+            Ui::say($bot, "✅ Shaxsingiz muvaffaqiyatli tasdiqlandi.\n".($staff->isContract()
+                ? "Siz <b>shartnoma asosida</b> ishlaysiz: har ish kuni 08:00 da davomat va ish vaqtida har soatda joylashuv va video so‘raladi."
+                : 'Sizga biriktirilgan hudud: <b>'.Ui::e($staff->districts()->pluck('name')->join(', ') ?: '—').'</b>'), Ui::removeKeyboard());
+            self::permissionsPrompt($bot);
+            (new BrowseHandler)->home($bot);
+
+            return;
+        }
+
         $global = Staff::isGlobalPhone($phone);
         $districts = ($global || Staff::isAllDistrictsEmployeePhone($phone))
             ? District::all()

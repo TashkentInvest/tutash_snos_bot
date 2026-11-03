@@ -21,12 +21,16 @@ class Staff extends Model
 
     public const ROLE_EMPLOYEE = 'employee';
     public const ROLE_CITIZEN = 'citizen';
+    public const ROLE_CONTRACT = 'contract'; // shartnoma: faqat davomat va har soatlik qayd (obyektlar bilan ishlamaydi)
+
+    /** Ishga chiqadigan (davomat yuritiladigan) rollar. */
+    public const WORK_ROLES = [self::ROLE_EMPLOYEE, self::ROLE_CONTRACT];
 
     protected $table = 'staff';
 
-    protected $fillable = ['telegram_id', 'username', 'full_name', 'phone', 'status', 'role', 'is_global', 'attendance_required', 'receives_reports', 'is_contract', 'failed_attempts', 'registered_at', 'last_seen_at'];
+    protected $fillable = ['telegram_id', 'username', 'full_name', 'phone', 'status', 'role', 'is_global', 'attendance_required', 'receives_reports', 'failed_attempts', 'registered_at', 'last_seen_at'];
 
-    protected $casts = ['is_global' => 'boolean', 'attendance_required' => 'boolean', 'receives_reports' => 'boolean', 'is_contract' => 'boolean', 'registered_at' => 'datetime', 'last_seen_at' => 'datetime'];
+    protected $casts = ['is_global' => 'boolean', 'attendance_required' => 'boolean', 'receives_reports' => 'boolean', 'registered_at' => 'datetime', 'last_seen_at' => 'datetime'];
 
     public function districts(): BelongsToMany
     {
@@ -145,10 +149,15 @@ class Staff extends Model
         return $this->status === self::CITIZEN;
     }
 
-    /** Botda ko'rish huquqi bor: tasdiqlangan xodim yoki aholi. */
+    public function isContract(): bool
+    {
+        return $this->role === self::ROLE_CONTRACT;
+    }
+
+    /** Botda obyektlarni ko'rish huquqi: tasdiqlangan xodim yoki aholi (shartnoma xodimi obyektlar bilan ishlamaydi). */
     public function canBrowse(): bool
     {
-        return $this->isActive() || $this->isCitizen();
+        return ($this->isActive() && ! $this->isContract()) || $this->isCitizen();
     }
 
     public function isActive(): bool

@@ -17,7 +17,7 @@ class Broadcast
     /** Xabar oluvchilar: faol xodimlar; tuman tanlansa — faqat shu tumanlarga biriktirilganlar. */
     public static function recipients(array $districtIds = []): Builder
     {
-        return Staff::where('status', Staff::ACTIVE)->where('role', Staff::ROLE_EMPLOYEE)->whereNotNull('telegram_id')
+        return Staff::where('status', Staff::ACTIVE)->whereIn('role', Staff::WORK_ROLES)->whereNotNull('telegram_id')
             ->when($districtIds, fn ($q) => $q->whereHas('districts', fn ($q) => $q->whereIn('districts.id', $districtIds)));
     }
 
