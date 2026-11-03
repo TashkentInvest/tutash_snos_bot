@@ -70,7 +70,11 @@ class StaffResource extends Resource
                 Tables\Columns\TextColumn::make('full_name')->label('F.I.SH')->searchable(),
                 Tables\Columns\TextColumn::make('phone')->label('Telefon')->searchable(),
                 Tables\Columns\TextColumn::make('role')->label('Rol')->badge()->formatStateUsing(fn ($state) => self::ROLES[$state] ?? '—'),
-                Tables\Columns\TextColumn::make('districts.name')->label('Tumanlar')->badge(),
+                // barcha tumanlarni ko'radigan adminda 12 ta nishon o'rniga bitta yozuv; boshqalarda 3 tadan keyin "yana N ta"
+                Tables\Columns\TextColumn::make('districts.name')->label('Tumanlar')->badge()
+                    ->state(fn (Staff $record) => $record->is_global ? ['Barcha tumanlar'] : $record->districts->pluck('name')->all())
+                    ->color(fn (string $state) => $state === 'Barcha tumanlar' ? 'success' : 'primary')
+                    ->limitList(3)->expandableLimitedList(),
                 Tables\Columns\TextColumn::make('status')->label('Holat')->badge()
                     ->formatStateUsing(fn ($state) => self::STATUSES[$state] ?? $state)
                     ->color(fn ($state) => match ($state) {

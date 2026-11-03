@@ -29,6 +29,8 @@ class AdminPanelProvider extends PanelProvider
             ->login()
             ->brandName('Tutash Snos')
             ->sidebarCollapsibleOnDesktop()
+            // jadvallar ekran kengligida (standart ~1280 px cheklovsiz)
+            ->maxContentWidth(\Filament\Support\Enums\MaxWidth::Full)
             ->renderHook(\Filament\View\PanelsRenderHook::USER_MENU_BEFORE, fn () => \App\Models\User::currentIsAdmin() ? \Illuminate\Support\Facades\Blade::render("@livewire('unregistered-districts-bell') @livewire('pending-inspections-bell')") : '')
             ->colors([
                 'primary' => Color::Blue,

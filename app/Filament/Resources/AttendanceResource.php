@@ -45,7 +45,7 @@ class AttendanceResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('date')->label('Sana')->date('d.m.Y')->sortable(),
                 Tables\Columns\TextColumn::make('staff.full_name')->label('Xodim')->searchable(),
-                Tables\Columns\TextColumn::make('staff.districts.name')->label('Tuman')->badge(),
+                Tables\Columns\TextColumn::make('staff.districts.name')->label('Tuman')->badge()->limitList(2)->expandableLimitedList(),
                 Tables\Columns\TextColumn::make('status')->label('Holat')->badge()
                     ->formatStateUsing(fn ($state) => self::STATUSES[$state] ?? $state)
                     ->color(fn ($state) => match ($state) {
