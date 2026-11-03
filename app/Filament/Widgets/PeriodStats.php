@@ -41,16 +41,18 @@ class PeriodStats extends StatsOverviewWidget
     {
         $p = $this->period();
         $s = $p->summary();
-        $url = InspectionResource::getUrl('index', ['tableFilters' => ['date' => ['from' => $p->from->toDateString(), 'to' => $p->to->toDateString()]]]);
+        // har bir karta — tekshiruvlar ro'yxati shu hisobot davri (18:00–18:00) va natija bo'yicha
+        $url = fn (?string $result = null) => InspectionResource::getUrl('index', ['tableFilters' => ['period' => ['day' => $p->day->toDateString()]]
+            + ($result ? ['result' => ['value' => $result]] : [])]);
 
         return [
-            Stat::make('Tekshiruvlar', $s['inspections'])->icon('fas-clipboard-check')->url($url),
-            Stat::make('Buzilgan', $s['demolished'])->icon('fas-house-crack')->color('success')
+            Stat::make('Tekshiruvlar', $s['inspections'])->icon('fas-clipboard-check')->url($url()),
+            Stat::make('Buzilgan', $s['demolished'])->icon('fas-house-crack')->color('success')->url($url('demolished'))
                 ->description($s['demolished'] ? "{$s['approved']} tasdiqlangan · {$s['pending']} tasdiq kutilmoqda" : null)
                 ->descriptionIcon($s['pending'] ? 'fas-clock' : ($s['demolished'] ? 'fas-circle-check' : null)),
-            Stat::make('Jarayonda', $s['progress'])->icon('fas-person-digging')->color('info'),
-            Stat::make('Sud qarori bekor', $s['court'])->icon('fas-scale-balanced')->color('gray'),
-            Stat::make('Oldingi holat qayd etildi', $s['before'])->icon('fas-camera')->color('gray'),
+            Stat::make('Jarayonda', $s['progress'])->icon('fas-person-digging')->color('info')->url($url('in_progress')),
+            Stat::make('Sud qarori bekor', $s['court'])->icon('fas-scale-balanced')->color('gray')->url($url('court_cancelled')),
+            Stat::make('Oldingi holat qayd etildi', $s['before'])->icon('fas-camera')->color('gray')->url($url('before')),
         ];
     }
 }

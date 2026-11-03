@@ -88,7 +88,15 @@ class ReportSvodTest extends TestCase
         $admin->save();
         $this->actingAs($admin);
         \Livewire\Livewire::test(\App\Filament\Widgets\PeriodStats::class, ['filters' => ['day' => $yesterday->toDateString()]])
-            ->assertSee('Kunlik natija — '.$yesterday->format('d.m.Y'));
+            ->assertSee('Kunlik natija — '.$yesterday->format('d.m.Y'))
+            ->assertSee('tableFilters%5Bperiod%5D%5Bday%5D='.$yesterday->toDateString(), false);
+
+        // kartadan ochiladigan ro'yxat: aynan shu davr (kecha 17:00 — kechagi kun; kecha 19:00 — bugungi kun)
+        $inA = Inspection::where('site_id', $a->id)->first();
+        $inB = Inspection::where('site_id', $b->id)->first();
+        \Livewire\Livewire::test(\App\Filament\Resources\InspectionResource\Pages\ListInspections::class)
+            ->filterTable('period', ['day' => $yesterday->toDateString()])->assertCanSeeTableRecords([$inA])->assertCanNotSeeTableRecords([$inB])
+            ->filterTable('period', ['day' => today()->toDateString()])->assertCanSeeTableRecords([$inB])->assertCanNotSeeTableRecords([$inA]);
         $dash = \Livewire\Livewire::test(\App\Filament\Pages\Dashboard::class)->assertOk();
         $this->assertTrue(\App\Support\ReportPeriod::fromFilter($dash->get('filters.day'))->day->isTomorrow()); // 18:00 dan keyin — ertangi davr
         $this->get('/admin-svod.xlsx?day='.$yesterday->toDateString())->assertOk()->assertHeader('Content-Disposition', 'attachment; filename="svod-'.$yesterday->format('Y-m-d').'.xlsx"');

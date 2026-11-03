@@ -258,6 +258,18 @@ class InspectionResource extends Resource
                     ->query(fn ($query, array $data) => $query
                         ->when($data['from'] ?? null, fn ($query, $v) => $query->whereDate('submitted_at', '>=', $v))
                         ->when($data['to'] ?? null, fn ($query, $v) => $query->whereDate('submitted_at', '<=', $v))),
+                // hisobot kuni: oldingi kun 18:00 dan shu kun 18:00 gacha (dashboarddagi «Kunlik natija» kartalari shu filtr bilan ochiladi)
+                Tables\Filters\Filter::make('period')->label('Hisobot kuni')
+                    ->form([\Filament\Forms\Components\DatePicker::make('day')->label('Hisobot kuni (18:00–18:00)')])
+                    ->query(function ($query, array $data) {
+                        if (! ($data['day'] ?? null)) {
+                            return $query;
+                        }
+                        $p = \App\Support\ReportPeriod::for($data['day']);
+
+                        return $query->where('submitted_at', '>', $p->from)->where('submitted_at', '<=', $p->to);
+                    })
+                    ->indicateUsing(fn (array $data) => ($data['day'] ?? null) ? 'Hisobot kuni: '.\App\Support\ReportPeriod::for($data['day'])->label() : null),
             ])
             ->actions([Tables\Actions\ViewAction::make(), ...self::reviewActions(),
                 Tables\Actions\ActionGroup::make(self::fixActions())->tooltip('Tuzatish')])
