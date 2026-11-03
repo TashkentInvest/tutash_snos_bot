@@ -150,6 +150,31 @@ class BotFlowTest extends TestCase
         $this->assertEquals([$this->yunus->id], $staff->districts()->pluck('districts.id')->all());
     }
 
+    public function test_districts_assigned_from_staff_page_go_through_district_phones(): void
+    {
+        $this->register(); // 999075300 — Yunusobod mas'uli
+        $staff = Staff::where('telegram_id', self::UID)->first();
+        $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin);
+        $edit = fn (array $ids) => \Livewire\Livewire::test(\App\Filament\Resources\StaffResource\Pages\ManageStaff::class)
+            ->mountTableAction('edit', $staff)->setTableActionData(['district_ids' => $ids])->callMountedTableAction()->assertHasNoTableActionErrors();
+
+        // Olmazor qo'shiladi — raqam Olmazorning «Qo'shimcha xodimlar» ro'yxatiga yoziladi
+        $edit([$this->yunus->id, $this->olmazor->id]);
+        $this->assertTrue($this->olmazor->phones()->where('phone', '999075300')->exists());
+        $this->assertEqualsCanonicalizing([$this->yunus->id, $this->olmazor->id], $staff->districts()->pluck('districts.id')->all());
+
+        // boshqa tuman telefoni o'zgarsa ham (qayta hisoblash) — saqlanib qoladi
+        $this->olmazor->update(['phone' => '901234567']);
+        $this->assertEqualsCanonicalizing([$this->yunus->id, $this->olmazor->id], $staff->refresh()->districts()->pluck('districts.id')->all());
+
+        // Olmazor olib tashlanadi; mas'ul tuman (Yunusobod) bu yerdan olib tashlanmaydi
+        $edit([]);
+        $this->assertFalse($this->olmazor->phones()->where('phone', '999075300')->exists());
+        $this->assertSame([$this->yunus->id], $staff->districts()->pluck('districts.id')->all());
+    }
+
     public function test_waiting_person_is_activated_when_admin_adds_phone(): void
     {
         // raqam ro'yxatda yo'q — kutib qoladi

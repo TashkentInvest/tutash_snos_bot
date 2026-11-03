@@ -58,8 +58,17 @@ class StaffResource extends Resource
             Forms\Components\Toggle::make('is_global')->label('Barcha tumanlarni ko‘radi (admin)'),
             Forms\Components\Toggle::make('receives_reports')->label('Hisobot oladi')
                 ->helperText('Kunlik buzilish (svod) va davomat hisobotlari botda yuboriladi. Faqat shu belgi qo‘yilganlarga boradi (admin bo‘lsa ham).'),
-            Forms\Components\Select::make('districts')->label('Biriktirilgan tumanlar')
-                ->relationship('districts', 'name')->multiple()->preload(),
+            // telefon orqali biriktiriladi (Staff::assignDistricts): tanlov tumanlarning «Qo'shimcha xodimlar» ro'yxatiga yoziladi
+            Forms\Components\Select::make('district_ids')->label('Biriktirilgan tumanlar')->multiple()
+                ->options(fn () => \App\Models\District::orderBy('name')->pluck('name', 'id'))
+                ->afterStateHydrated(fn ($component, ?Staff $record) => $component->state($record?->districts()->pluck('districts.id')->all() ?? []))
+                ->disabled(fn (?Staff $record) => ! $record?->phone || $record->is_global)
+                ->helperText(fn (?Staff $record) => match (true) {
+                    ! $record?->phone => 'Xodim telefoni yo‘q — avval botda ro‘yxatdan o‘tishi kerak.',
+                    (bool) $record->is_global => 'Admin barcha tumanlarni ko‘radi.',
+                    default => 'Xodim telefoni tanlangan tumanlarning «Qo‘shimcha xodimlar» ro‘yxatiga qo‘shiladi (Tumanlar sahifasida ham ko‘rinadi). '
+                        .'Mas’ul xodim sifatida biriktirilgan tuman faqat Tumanlar sahifasida o‘zgartiriladi.',
+                }),
         ]);
     }
 
@@ -95,7 +104,14 @@ class StaffResource extends Resource
                     ->query(fn ($query) => $query->where('receives_reports', true)),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()->using(function (Staff $record, array $data) {
+                    $ids = $data['district_ids'] ?? null;
+                    unset($data['district_ids']);
+                    $record->update($data);
+                    $ids !== null && ! $record->is_global && $record->assignDistricts($ids);
+
+                    return $record;
+                }),
                 Tables\Actions\Action::make('block')->label('Bloklash')->color('danger')->icon('heroicon-o-no-symbol')
                     ->requiresConfirmation()->visible(fn (Staff $record) => $record->status !== Staff::BLOCKED)
                     ->action(fn (Staff $record) => $record->update(['status' => Staff::BLOCKED])),

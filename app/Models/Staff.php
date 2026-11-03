@@ -71,6 +71,29 @@ class Staff extends Model
     }
 
     /**
+     * Xodim tumanlarini telefon orqali belgilaydi (Xodimlar sahifasidan): tanlangan tumanlarning «Qo'shimcha xodimlar»
+     * ro'yxatiga raqami qo'shiladi, tanlanmaganlaridan olib tashlanadi. Raqami mas'ul telefon bo'lgan tumanlar
+     * (Tumanlar sahifasida) saqlanib qoladi. Bog'lanish har doim telefonlar bo'yicha qayta hisoblanadi — qo'lda qo'shilgan
+     * tuman keyinroq o'chib ketmaydi.
+     */
+    public function assignDistricts(array $districtIds): void
+    {
+        if (! $this->phone) {
+            return;
+        }
+        $ids = array_map('intval', $districtIds);
+        $main = District::where('phone', $this->phone)->pluck('id')->all(); // mas'ul sifatida — bu yerdan o'zgarmaydi
+
+        DistrictPhone::withoutEvents(function () use ($ids, $main) {
+            DistrictPhone::where('phone', $this->phone)->whereNotIn('district_id', $ids)->delete();
+            foreach (array_diff($ids, $main) as $id) {
+                DistrictPhone::firstOrCreate(['district_id' => $id, 'phone' => $this->phone], ['name' => $this->full_name]);
+            }
+        });
+        self::resyncDistrictsByPhone([$this->phone]);
+    }
+
+    /**
      * Raqami ro'yxatda topilmagani uchun kutib qolgan (yoki urinishlari tugagan) odamlar: admin raqamni tumanga qo'shgach,
      * avtomatik xodim sifatida tasdiqlanadi va botda xabar oladi — qayta /start bosishi shart emas.
      * Raqam egaligi avval Telegram kontakti orqali tasdiqlangan (RegistrationHandler).
