@@ -6,7 +6,11 @@ use App\Models\Attendance;
 use App\Models\Checkin;
 use App\Models\Staff;
 use App\Models\User;
+use App\Support\CheckinReminder;
 use Carbon\Carbon;
+use Filament\Actions\Action;
+use Filament\Forms;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Livewire\Attributes\Url;
 
@@ -38,6 +42,33 @@ class CheckinBoard extends Page
     public function mount(): void
     {
         $this->day ??= today()->toDateString();
+    }
+
+    /** Barchaga birdan eslatma: hozirgi so'rovga javob bermaganlar (yuborish tugmasi bilan) yoki barcha shartnoma xodimlari. */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('remind')->label(fn () => 'Eslatma yuborish ('.CheckinReminder::pending()->count().' ta javob kutilmoqda)')
+                ->icon('heroicon-o-bell-alert')->color('warning')
+                ->modalHeading('Shartnoma xodimlariga eslatma')->modalSubmitActionLabel('Yuborish')
+                ->form([
+                    Forms\Components\Radio::make('scope')->label('Kimlarga')->required()->live()
+                        ->options(fn () => [
+                            CheckinReminder::PENDING => 'Hozirgi so‘rovga javob bermaganlar ('.CheckinReminder::pending()->count().' ta)',
+                            CheckinReminder::ALL => 'Barcha shartnoma xodimlari ('.CheckinReminder::recipients(CheckinReminder::ALL)->count().' ta)',
+                        ])
+                        ->default(CheckinReminder::PENDING)
+                        ->helperText(fn (Forms\Get $get) => 'Oluvchilar: '.(CheckinReminder::recipients($get('scope') ?? CheckinReminder::PENDING)->pluck('full_name')->join(', ') ?: 'yo‘q')),
+                    Forms\Components\Textarea::make('text')->label('Xabar matni')->required()->rows(4)->maxLength(1000)
+                        ->default(CheckinReminder::DEFAULT_TEXT)
+                        ->helperText('Javob kutilayotgan xodimga xabar «📍 Joylashuv va video yuborish» tugmasi bilan boradi.'),
+                ])
+                ->action(function (array $data) {
+                    $r = CheckinReminder::send($data['scope'], $data['text'], auth()->id());
+                    Notification::make()->title($r['sent'] ? "Eslatma yuborildi: {$r['sent']} ta xodimga".($r['failed'] ? ", yetkazilmadi: {$r['failed']}" : '') : 'Yuborilmadi: oluvchi yo‘q')
+                        ->{$r['sent'] ? 'success' : 'warning'}()->send();
+                }),
+        ];
     }
 
     protected function getViewData(): array

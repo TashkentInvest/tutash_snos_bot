@@ -107,4 +107,35 @@ class CheckinTest extends TestCase
         $this->get('/admin/checkins')->assertOk()->assertSee('Qayd etildi');
         $this->get(route('admin.checkin-video', $row))->assertOk();
     }
+
+    public function test_board_reminds_staff_who_have_not_answered(): void
+    {
+        $late = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Javob bermagan', 'phone' => '950507174', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_contract' => true]);
+        $done = Staff::create(['telegram_id' => 777005, 'full_name' => 'Yuborgan', 'phone' => '900000005', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_contract' => true]);
+        $this->travelTo(today()->setTime(15, 10));
+        $this->artisan('checkins:run')->assertSuccessful();
+        Checkin::where('staff_id', $done->id)->update(['status' => Checkin::PRESENT, 'responded_at' => now()]);
+        $this->assertSame([$late->id], \App\Support\CheckinReminder::pending()->keys()->all());
+
+        $admin = (new User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin);
+        $bot = app(Nutgram::class);
+        $before = count($bot->getRequestHistory());
+
+        // faqat javob bermaganga — matn va yuborish tugmasi bilan
+        \Livewire\Livewire::test(\App\Filament\Pages\CheckinBoard::class)
+            ->callAction('remind', ['scope' => 'pending', 'text' => 'Qayerdasiz? Nega yubormadingiz?'])
+            ->assertNotified('Eslatma yuborildi: 1 ta xodimga');
+        $sent = collect($bot->getRequestHistory())->slice($before)->map(fn ($r) => (string) array_values($r)[0]->getBody())->implode("\n");
+        $this->assertStringContainsString((string) self::UID, $sent);
+        $this->assertStringNotContainsString('777005', $sent);
+        $this->assertStringContainsString('checkin', $sent); // mini app tugmasi
+        $this->assertStringContainsString('15:00', $sent);
+
+        // hammaga
+        \Livewire\Livewire::test(\App\Filament\Pages\CheckinBoard::class)
+            ->callAction('remind', ['scope' => 'all', 'text' => 'Ertaga 08:00 da yig‘ilish'])
+            ->assertNotified('Eslatma yuborildi: 2 ta xodimga');
+    }
 }
