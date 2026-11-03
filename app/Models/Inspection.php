@@ -206,7 +206,7 @@ class Inspection extends Model
 
     public function staff(): BelongsTo
     {
-        return $this->belongsTo(Staff::class);
+        return $this->belongsTo(Staff::class)->withTrashed(); // o'chirilgan (arxivdagi) xodimning tarixi ham ko'rinadi
     }
 
     public function media(): HasMany

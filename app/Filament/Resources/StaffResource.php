@@ -56,6 +56,8 @@ class StaffResource extends Resource
             Forms\Components\TextInput::make('failed_attempts')->label('Noto‘g‘ri urinishlar (0 — qayta ochish)')->numeric()->minValue(0),
             Forms\Components\Toggle::make('attendance_required')->label('Kunlik davomat yuritiladi'),
             Forms\Components\Toggle::make('is_global')->label('Barcha tumanlarni ko‘radi (admin)'),
+            Forms\Components\Toggle::make('is_contract')->label('Shartnoma xodimi')
+                ->helperText('Ish kuni davomida har soatda (10:00–12:00, 14:00–18:00) joylashuv va video so‘raladi. Natijalar «Shartnoma» bo‘limida.'),
             Forms\Components\Toggle::make('receives_reports')->label('Hisobot oladi')
                 ->helperText('Kunlik buzilish (svod) va davomat hisobotlari botda yuboriladi. Faqat shu belgi qo‘yilganlarga boradi (admin bo‘lsa ham).'),
             // telefon orqali biriktiriladi (Staff::assignDistricts): tanlov tumanlarning «Qo'shimcha xodimlar» ro'yxatiga yoziladi
@@ -94,6 +96,10 @@ class StaffResource extends Resource
                 Tables\Columns\IconColumn::make('receives_reports')->label('Hisobot')->boolean()
                     ->tooltip('Bosing: hisobot yuborishni yoqish / o‘chirish')
                     ->action(fn (Staff $record) => $record->update(['receives_reports' => ! $record->receives_reports])),
+                Tables\Columns\IconColumn::make('is_contract')->label('Shartnoma')->boolean()
+                    ->trueIcon('heroicon-o-document-check')->falseIcon('heroicon-o-minus')->falseColor('gray')
+                    ->tooltip('Bosing: shartnoma xodimi (soatlik qayd) yoqish / o‘chirish')
+                    ->action(fn (Staff $record) => $record->trashed() || $record->update(['is_contract' => ! $record->is_contract])),
                 Tables\Columns\TextColumn::make('inspections_count')->label('Tekshiruvlar')->counts('inspections'),
                 Tables\Columns\TextColumn::make('last_seen_at')->label('Oxirgi faollik')->since()->sortable(),
             ])
@@ -102,9 +108,16 @@ class StaffResource extends Resource
                 Tables\Filters\SelectFilter::make('role')->label('Rol')->options(self::ROLES),
                 Tables\Filters\Filter::make('reports')->label('Hisobot oladi')
                     ->query(fn ($query) => $query->where('receives_reports', true)),
+                Tables\Filters\Filter::make('contract')->label('Shartnoma xodimlari')
+                    ->query(fn ($query) => $query->where('is_contract', true)),
+                // o'chirilganlar (arxiv): natijalari, davomati va videolari saqlangan
+                Tables\Filters\TrashedFilter::make()->label('O‘chirilganlar')
+                    ->placeholder('O‘chirilmaganlar')->trueLabel('Hammasi')->falseLabel('Faqat o‘chirilganlar'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make()->using(function (Staff $record, array $data) {
+                Tables\Actions\RestoreAction::make()->label('Tiklash')
+                    ->modalDescription('Xodim ro‘yxatga qaytariladi (holati va tumanlari o‘zgarmaydi).'),
+                Tables\Actions\EditAction::make()->hidden(fn (Staff $record) => $record->trashed())->using(function (Staff $record, array $data) {
                     $ids = $data['district_ids'] ?? null;
                     unset($data['district_ids']);
                     $record->update($data);
@@ -113,35 +126,31 @@ class StaffResource extends Resource
                     return $record;
                 }),
                 Tables\Actions\Action::make('block')->label('Bloklash')->color('danger')->icon('heroicon-o-no-symbol')
-                    ->requiresConfirmation()->visible(fn (Staff $record) => $record->status !== Staff::BLOCKED)
+                    ->requiresConfirmation()->visible(fn (Staff $record) => $record->status !== Staff::BLOCKED && ! $record->trashed())
                     ->action(fn (Staff $record) => $record->update(['status' => Staff::BLOCKED])),
                 Tables\Actions\DeleteAction::make()->label('O‘chirish')
-                    ->modalDescription('Xodim, uning davomat yozuvlari va tugallanmagan qoralamalari o‘chiriladi. Qayta ro‘yxatdan o‘tishi mumkin.')
+                    ->modalDescription('Xodim ro‘yxatdan olib tashlanadi va botdan foydalana olmaydi. Natijalari, davomati va videolari arxivda saqlanadi — «O‘chirilganlar» filtri orqali topiladi va tiklanadi. Botga qayta kirsa, yangidan ro‘yxatdan o‘tadi.')
+                    ->successNotificationTitle('Xodim o‘chirildi (arxivga o‘tkazildi)')
                     ->using(fn (Staff $record) => self::deleteStaff($record)),
             ])
             ->defaultSort('last_seen_at', 'desc');
     }
 
-    /** Yuborilgan natijasi bor xodim o'chirilmaydi (tarix saqlanadi) — uni bloklash kerak. */
+    /** O'chirish — arxivga o'tkazish (soft delete): faqat tugallanmagan qoralamalar o'chadi, tarix saqlanadi. */
     public static function deleteStaff(Staff $staff): bool
     {
-        if ($staff->inspections()->where('status', '!=', 'draft')->exists()) {
-            Notification::make()->title('O‘chirib bo‘lmaydi: xodimning yuborilgan natijalari bor')
-                ->body('Natijalar tarixi saqlanishi uchun xodimni bloklang.')->danger()->send();
-
-            return false;
-        }
-
-        $disk = Storage::disk(config('tutash.media_disk'));
-        DB::transaction(function () use ($staff, $disk) {
-            $staff->inspections()->get()->each->delete(); // qoralamalar fayllari bilan
-            foreach ($staff->attendances()->get() as $a) {
-                $disk->delete(array_filter([$a->video_path, $a->face_video_path]));
-            }
-            $staff->delete(); // davomat va tuman bog'lanishlari cascade
+        DB::transaction(function () use ($staff) {
+            $staff->inspections()->where('status', \App\Models\Inspection::DRAFT)->get()->each->delete(); // qoralamalar fayllari bilan
+            $staff->delete();
         });
 
         return true;
+    }
+
+    /** O'chirilganlar (arxiv) ham filtr orqali ko'rinishi uchun. */
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        return parent::getEloquentQuery()->withoutGlobalScopes([\Illuminate\Database\Eloquent\SoftDeletingScope::class]);
     }
 
     public static function canCreate(): bool

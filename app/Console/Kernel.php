@@ -24,6 +24,8 @@ class Kernel extends ConsoleKernel
         $schedule->command('inspections:report')->dailyAt(config('tutash.daily_report_at'))->withoutOverlapping();
         $schedule->command('attendance:remind')->days(config('tutash.attendance.days'))->dailyAt(config('tutash.attendance.remind_at'))->withoutOverlapping();
         $schedule->command('attendance:close')->days(config('tutash.attendance.days'))->dailyAt(config('tutash.attendance.deadline'))->withoutOverlapping();
+        // Shartnoma xodimlari: soatlik qayd (10:00–18:59, 13:00–14:00 tushlik — CHECKIN_SLOTS); har daqiqa — yetmaganlar qayta yuboriladi.
+        $schedule->command('checkins:run')->days(config('tutash.attendance.days'))->everyMinute()->between('10:00', '19:05')->withoutOverlapping();
         // Bajarilmagan moderator izohlari bo'yicha eslatma — ish kunlari ertalab.
         $schedule->command('followups:remind')->days(config('tutash.attendance.days'))->dailyAt(config('tutash.followup_remind_at'))->withoutOverlapping();
     }

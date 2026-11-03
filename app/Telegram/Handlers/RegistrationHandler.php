@@ -17,10 +17,17 @@ class RegistrationHandler
 {
     public static function staff(Nutgram $bot): Staff
     {
-        $staff = Staff::firstOrCreate(
+        $staff = Staff::withTrashed()->firstOrCreate(
             ['telegram_id' => $bot->userId()],
             ['status' => Staff::REGISTERING],
         );
+        // o'chirilgan (arxivdagi) odam qayta kirdi — yangidan ro'yxatdan o'tadi, eski natijalari tarixda qoladi
+        if ($staff->trashed()) {
+            $staff->restore();
+            $staff->forceFill(['status' => Staff::REGISTERING, 'role' => null, 'phone' => null, 'is_global' => false,
+                'receives_reports' => false, 'is_contract' => false, 'failed_attempts' => 0])->save();
+            $staff->districts()->detach();
+        }
         $staff->forceFill(['username' => $bot->user()?->username, 'last_seen_at' => now()])->save();
 
         return $staff;

@@ -40,6 +40,12 @@ return [
         'report_phones' => env('ATTENDANCE_REPORT_PHONES', ''),
     ],
 
+    // Shartnoma xodimlari: ish kuni davomida soatlik qayd (joylashuv + video). 13:00–14:00 — tushlik.
+    'checkins' => [
+        'slots' => env('CHECKIN_SLOTS', '10:00,11:00,12:00,14:00,15:00,16:00,17:00,18:00'),
+        'window_minutes' => (int) env('CHECKIN_WINDOW_MINUTES', 60), // javob muddati: keyingi soatgacha
+    ],
+
     // Kunlik buzilish (tekshiruvlar) hisoboti yuboriladigan vaqt.
     'daily_report_at' => env('DAILY_REPORT_AT', '18:00'),
 

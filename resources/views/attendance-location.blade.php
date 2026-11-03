@@ -1,9 +1,17 @@
 <!doctype html>
 <html lang="uz">
+@php
+    // Bir oyna ikki joyda: ertalabki davomat (standart) va shartnoma xodimlarining soatlik qaydi (CheckinController)
+    $title ??= 'Davomat';
+    $endpoints ??= ['state' => '/tg/attendance-state', 'location' => '/tg/attendance-location', 'video' => '/tg/attendance-video'];
+    $doneText ??= '✅ Davomatingiz qayd etildi. Oynani yopishingiz mumkin.';
+    $alreadyText ??= '✅ Davomatingiz allaqachon qayd etilgan.';
+    $noneText ??= 'Hozir davomat so‘rovi yo‘q yoki muddat tugagan. Botga qaytib, «Ha, ishni boshladim» tugmasini bosing.';
+@endphp
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-    <title>Davomat</title>
+    <title>{{ $title }}</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body { margin: 0; padding: 24px 16px; font-family: -apple-system, Roboto, sans-serif; background: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #111); text-align: center; }
@@ -24,7 +32,7 @@
 <body>
 <div id="stepLocation" class="hidden">
     <h1>📍 1/2. Joylashuvni aniqlash</h1>
-    <p>Pastdagi tugmani bosing. Telefoningiz GPS’idan joriy joylashuvingiz olinadi va davomatga qayd etiladi.</p>
+    <p>Pastdagi tugmani bosing. Telefoningiz GPS’idan joriy joylashuvingiz olinadi va qayd etiladi.</p>
     <button id="goLoc">Joylashuvni yuborish</button>
     <button id="goLocSettings" class="secondary hidden">⚙️ Ruxsatni yoqish</button>
 </div>
@@ -42,6 +50,7 @@
 <script src="/js/tg-location.js?v=2"></script>
 <script>
 const MIN = {{ (int) $minSeconds }}, MAX = 15;
+const API = @json($endpoints), TEXT = @json(['done' => $doneText, 'already' => $alreadyText, 'none' => $noneText]);
 const tg = window.Telegram && window.Telegram.WebApp;
 tg && (tg.ready(), tg.expand());
 const $ = id => document.getElementById(id), msg = $('msg');
@@ -77,7 +86,7 @@ function deviceInfo() {
 $('goLoc').onclick = async () => {
     $('goLoc').disabled = true; $('goLocSettings').classList.add('hidden'); say('Joylashuv aniqlanmoqda…');
     try {
-        const { ok, j } = await api('/tg/attendance-location', { initData: initData(), device: deviceInfo(), ...(await TgLoc.get()) });
+        const { ok, j } = await api(API.location, { initData: initData(), device: deviceInfo(), ...(await TgLoc.get()) });
         if (ok) { say(''); show('stepVideo'); startCamera(); return; }
         say(j.message || 'Xatolik yuz berdi. Qayta urinib ko‘ring.', 'err');
     } catch (e) {
@@ -222,10 +231,10 @@ async function upload(duration) {
     fd.append('video', mainBlob, 'video.' + ext(mainBlob));
     if (faceBlob.size > 3000) fd.append('face', faceBlob, 'face.' + ext(faceBlob));
     try {
-        const { ok, j } = await api('/tg/attendance-video', fd);
+        const { ok, j } = await api(API.video, fd);
         if (ok) {
             releaseCamera();
-            say('✅ Davomatingiz qayd etildi. Oynani yopishingiz mumkin.', 'ok');
+            say(TEXT.done, 'ok');
             setTimeout(() => tg && tg.close(), 1200);
             return;
         }
@@ -237,13 +246,13 @@ async function upload(duration) {
 (async () => {
     say('Yuklanmoqda…');
     try {
-        const { ok, j } = await api('/tg/attendance-state', { initData: initData() });
+        const { ok, j } = await api(API.state, { initData: initData() });
         if (!ok) return say(j.message || 'Telegram ichida oching.', 'err');
         say('');
         if (j.step === 'location') show('stepLocation');
         else if (j.step === 'video') { show('stepVideo'); startCamera(); }
-        else if (j.step === 'done') say('✅ Davomatingiz allaqachon qayd etilgan.', 'ok');
-        else say('Hozir davomat so‘rovi yo‘q yoki muddat tugagan. Botga qaytib, «Ha, ishni boshladim» tugmasini bosing.', 'err');
+        else if (j.step === 'done') say(TEXT.already, 'ok');
+        else say(TEXT.none, 'err');
     } catch (e) { say('Aloqa xatosi. Qayta oching.', 'err'); }
 })();
 </script>

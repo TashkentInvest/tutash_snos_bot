@@ -5,9 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Staff extends Model
 {
+    // o'chirish — arxivga o'tkazish: natijalar, davomat va videolar saqlanadi (admin panelda «O'chirilganlar» filtri, tiklash)
+    use SoftDeletes;
+
     public const REGISTERING = 'registering';
     public const AWAITING_PHONE = 'awaiting_phone';
     public const ACTIVE = 'active';
@@ -20,9 +24,9 @@ class Staff extends Model
 
     protected $table = 'staff';
 
-    protected $fillable = ['telegram_id', 'username', 'full_name', 'phone', 'status', 'role', 'is_global', 'attendance_required', 'receives_reports', 'failed_attempts', 'registered_at', 'last_seen_at'];
+    protected $fillable = ['telegram_id', 'username', 'full_name', 'phone', 'status', 'role', 'is_global', 'attendance_required', 'receives_reports', 'is_contract', 'failed_attempts', 'registered_at', 'last_seen_at'];
 
-    protected $casts = ['is_global' => 'boolean', 'attendance_required' => 'boolean', 'receives_reports' => 'boolean', 'registered_at' => 'datetime', 'last_seen_at' => 'datetime'];
+    protected $casts = ['is_global' => 'boolean', 'attendance_required' => 'boolean', 'receives_reports' => 'boolean', 'is_contract' => 'boolean', 'registered_at' => 'datetime', 'last_seen_at' => 'datetime'];
 
     public function districts(): BelongsToMany
     {
@@ -128,6 +132,12 @@ class Staff extends Model
     public function attendances(): HasMany
     {
         return $this->hasMany(Attendance::class);
+    }
+
+    /** Shartnoma xodimining soatlik qaydlari. */
+    public function checkins(): HasMany
+    {
+        return $this->hasMany(Checkin::class);
     }
 
     public function isCitizen(): bool

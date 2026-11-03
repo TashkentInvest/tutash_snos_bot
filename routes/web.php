@@ -46,6 +46,7 @@ Route::get('/admin-svod.png', function (\Illuminate\Http\Request $request) {
         'Content-Type' => 'image/png', 'Cache-Control' => 'private, no-store',
     ]);
 })->middleware(['auth'])->name('admin.svod.png');
+Route::get('/admin-checkin/{checkin}', [MediaController::class, 'checkinVideo'])->middleware(['auth'])->name('admin.checkin-video');
 Route::get('/admin-attendance/{attendance}',[MediaController::class, 'attendanceVideo'])->middleware(['auth'])->name('admin.attendance-video');
 
 // Davomat joylashuvi (Telegram Mini App). Imzo (initData) controllerda tekshiriladi.
@@ -55,6 +56,11 @@ Route::get('/tg/permissions', fn () => response()->view('permissions')->header('
 Route::post('/tg/attendance-state', [\App\Http\Controllers\AttendanceLocationController::class, 'state'])->middleware('throttle:tg-state');
 Route::post('/tg/attendance-video', [\App\Http\Controllers\AttendanceLocationController::class, 'video'])->middleware('throttle:tg-video');
 Route::post('/tg/attendance-location', [\App\Http\Controllers\AttendanceLocationController::class, 'store'])->middleware('throttle:tg-location');
+// Shartnoma xodimlarining soatlik qaydi (joylashuv + video)
+Route::get('/tg/checkin', [\App\Http\Controllers\CheckinController::class, 'page']);
+Route::post('/tg/checkin-state', [\App\Http\Controllers\CheckinController::class, 'state'])->middleware('throttle:tg-state');
+Route::post('/tg/checkin-location', [\App\Http\Controllers\CheckinController::class, 'location'])->middleware('throttle:tg-location');
+Route::post('/tg/checkin-video', [\App\Http\Controllers\CheckinController::class, 'video'])->middleware('throttle:tg-video');
 
 // Obyekt tekshiruvi (Telegram Mini App).
 Route::get('/tg/inspection', [\App\Http\Controllers\InspectionAppController::class, 'page']);

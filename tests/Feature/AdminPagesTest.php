@@ -228,12 +228,22 @@ class AdminPagesTest extends TestCase
         $user = (new User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
         $user->save();
 
+        // natijasi bor xodim ham o'chiriladi — arxivga: natijalari va davomati saqlanadi, faqat qoralama o'chadi
         $page = \Livewire\Livewire::actingAs($user)->test(\App\Filament\Resources\StaffResource\Pages\ManageStaff::class);
-        $page->callTableAction('delete', $worker)->assertNotified('O‘chirib bo‘lmaydi: xodimning yuborilgan natijalari bor');
-        $this->assertModelExists($worker);
+        $page->callTableAction('delete', $worker)->assertNotified('Xodim o‘chirildi (arxivga o‘tkazildi)');
+        $this->assertSoftDeleted($worker);
+        $this->assertSame('Ishlagan', Inspection::where('staff_id', $worker->id)->first()->staff->full_name); // tarixda ism ko'rinadi
 
         $page->callTableAction('delete', $idle);
-        $this->assertModelMissing($idle);
-        $this->assertSame(0, Inspection::where('staff_id', $idle->id)->count());
+        $this->assertSoftDeleted($idle);
+        $this->assertSame(0, Inspection::where('staff_id', $idle->id)->count()); // qoralama o'chdi
+        $this->assertSame(1, \App\Models\Attendance::where('staff_id', $idle->id)->count()); // davomat saqlandi
+
+        // ro'yxatda ko'rinmaydi, «O'chirilganlar» filtrida — bor; tiklanadi
+        $page = \Livewire\Livewire::actingAs($user)->test(\App\Filament\Resources\StaffResource\Pages\ManageStaff::class);
+        $page->assertCanNotSeeTableRecords([$worker, $idle]);
+        $page->filterTable('trashed', false)->assertCanSeeTableRecords([$worker, $idle]);
+        $page->callTableAction('restore', $worker->getKey());
+        $this->assertNotSoftDeleted($worker);
     }
 }
