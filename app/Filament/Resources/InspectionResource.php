@@ -88,6 +88,49 @@ class InspectionResource extends Resource
         ];
     }
 
+    /** Avvalgi holat rasm/videosini yuklash maydonlari (admin). Fayllar yopiq diskka, so'ng tekshiruvga biriktiriladi. */
+    public static function beforeUploadFields(): array
+    {
+        return [
+            Forms\Components\FileUpload::make('before_photo')->label('Avvalgi holat rasmi (ixtiyoriy)')->image()
+                ->disk(config('tutash.media_disk'))->directory('inspections/admin-uploads')->visibility('private')->maxSize(15000)
+                ->imageResizeMode('contain')->imageResizeTargetWidth('1920')->imageResizeTargetHeight('1920')->imageResizeUpscale(false),
+            Forms\Components\FileUpload::make('before_video')->label('Avvalgi holat videosi (ixtiyoriy)')
+                ->acceptedFileTypes(['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska', 'video/3gpp'])
+                ->disk(config('tutash.media_disk'))->directory('inspections/admin-uploads')->visibility('private')->maxSize(51200)
+                ->helperText('Ko‘pi bilan 50 MB.'),
+        ];
+    }
+
+    /** Ko'chirish / yuklash natijasini bildirish. */
+    public static function notifyFix(array $errors, string $ok): void
+    {
+        $errors
+            ? Notification::make()->title('Qisman bajarildi')->body(implode("\n", $errors))->warning()->send()
+            : Notification::make()->title($ok)->success()->send();
+    }
+
+    /** "Oldingi holat" natijasini keyingi holatga ko'chirish va avvalgi holatni yuklash — ro'yxatda. */
+    public static function fixActions(): array
+    {
+        return [
+            Tables\Actions\Action::make('moveToAfter')->label('Keyingi holatga ko‘chirish')->icon('heroicon-o-arrow-right-circle')->color('warning')
+                ->modalHeading('«Oldingi holat» → «Buzilgandan keyingi holat»')
+                ->modalDescription('Xodim yuborgan rasm va video keyingi (buzilgan) holat deb belgilanadi. Avvalgi (buzishdan oldingi) holatni pastda yuklang.')
+                ->form([...self::beforeUploadFields(),
+                    Forms\Components\Toggle::make('approve')->label('Darhol tasdiqlash — obyekt «Buzilgan» bo‘ladi')->default(true)])
+                ->visible(fn (Inspection $record) => \App\Support\InspectionFix::canMoveToAfter($record) && User::currentIsAdmin())
+                ->action(fn (Inspection $record, array $data) => self::notifyFix(\App\Support\InspectionFix::apply($record, ['move' => true] + $data, auth()->id()),
+                    ! empty($data['approve']) ? 'Ko‘chirildi va tasdiqlandi: obyekt «Buzilgan»' : 'Ko‘chirildi: tasdiq kutilmoqda')),
+            Tables\Actions\Action::make('uploadBefore')->label('Avvalgi holatni yuklash')->icon('heroicon-o-arrow-up-tray')->color('gray')
+                ->modalHeading('Avvalgi holat rasm/videosini yuklash')
+                ->form(self::beforeUploadFields())
+                ->visible(fn (Inspection $record) => User::currentIsAdmin() && ! $record->isFollowup() && $record->status === Inspection::SUBMITTED
+                    && in_array($record->kindValue(), [Inspection::KIND_AFTER, Inspection::KIND_FOUND, Inspection::KIND_PROCESS], true))
+                ->action(fn (Inspection $record, array $data) => self::notifyFix(\App\Support\InspectionFix::apply($record, $data, auth()->id()), 'Avvalgi holat yuklandi')),
+        ];
+    }
+
     public static function approveNote(): Forms\Components\Textarea
     {
         return Forms\Components\Textarea::make('note')->label('Izoh (ixtiyoriy)')->maxLength(500)
@@ -216,7 +259,8 @@ class InspectionResource extends Resource
                         ->when($data['from'] ?? null, fn ($query, $v) => $query->whereDate('submitted_at', '>=', $v))
                         ->when($data['to'] ?? null, fn ($query, $v) => $query->whereDate('submitted_at', '<=', $v))),
             ])
-            ->actions([Tables\Actions\ViewAction::make(), ...self::reviewActions()])
+            ->actions([Tables\Actions\ViewAction::make(), ...self::reviewActions(),
+                Tables\Actions\ActionGroup::make(self::fixActions())->tooltip('Tuzatish')])
             ->defaultSort('submitted_at', 'desc');
     }
 

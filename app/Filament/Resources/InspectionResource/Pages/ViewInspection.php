@@ -40,6 +40,26 @@ class ViewInspection extends ViewRecord
                     Notification::make()->title($ok ? 'Natija rad etildi, obyekt holati o‘zgarmadi' : 'Bu natija allaqachon ko‘rib chiqilgan')->{$ok ? 'success' : 'warning'}()->send();
                     $this->record->refresh();
                 }),
+            Action::make('moveToAfter')->label('Keyingi holatga ko‘chirish')->icon('heroicon-o-arrow-right-circle')->color('warning')
+                ->modalHeading('«Oldingi holat» → «Buzilgandan keyingi holat»')
+                ->modalDescription('Xodim yuborgan rasm va video keyingi (buzilgan) holat deb belgilanadi. Avvalgi (buzishdan oldingi) holatni pastda yuklang.')
+                ->form([...InspectionResource::beforeUploadFields(),
+                    \Filament\Forms\Components\Toggle::make('approve')->label('Darhol tasdiqlash — obyekt «Buzilgan» bo‘ladi')->default(true)])
+                ->visible(fn () => \App\Support\InspectionFix::canMoveToAfter($this->record) && \App\Models\User::currentIsAdmin())
+                ->action(function (array $data) {
+                    InspectionResource::notifyFix(\App\Support\InspectionFix::apply($this->record, ['move' => true] + $data, auth()->id()),
+                        ! empty($data['approve']) ? 'Ko‘chirildi va tasdiqlandi: obyekt «Buzilgan»' : 'Ko‘chirildi: tasdiq kutilmoqda');
+                    $this->record->refresh();
+                }),
+            Action::make('uploadBefore')->label('Avvalgi holatni yuklash')->icon('heroicon-o-arrow-up-tray')->color('gray')
+                ->modalHeading('Avvalgi holat rasm/videosini yuklash')
+                ->form(InspectionResource::beforeUploadFields())
+                ->visible(fn () => \App\Models\User::currentIsAdmin() && ! $this->record->isFollowup()
+                    && in_array($this->record->kindValue(), [Inspection::KIND_AFTER, Inspection::KIND_FOUND, Inspection::KIND_PROCESS], true))
+                ->action(function (array $data) {
+                    InspectionResource::notifyFix(\App\Support\InspectionFix::apply($this->record, $data, auth()->id()), 'Avvalgi holat yuklandi');
+                    $this->record->refresh();
+                }),
             Action::make('remindFollowup')->label('Eslatish')->icon('heroicon-o-bell-alert')->color('warning')
                 ->requiresConfirmation()->modalHeading('Xodimga eslatma yuborilsinmi?')
                 ->modalDescription(fn () => 'Xodimga botda izoh va «Bajardingizmi?» savoli tugmalar bilan boradi: '.$this->record->staff?->full_name)

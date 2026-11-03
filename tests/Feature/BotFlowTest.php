@@ -463,6 +463,40 @@ class BotFlowTest extends TestCase
         $this->assertNotNull($this->site->demolished_at);
     }
 
+    public function test_admin_moves_wrong_before_to_after_and_uploads_real_before(): void
+    {
+        $this->register();
+        $in = $this->start(); // xodim "oldingi holat" deb yubordi, lekin rasm/video aslida buzilgan holat
+        $this->capture();
+        $in->refresh();
+        $this->assertSame(Inspection::KIND_BEFORE, $in->kind);
+        $sentPhoto = $in->mediaOf(InspectionMedia::BEFORE_PHOTO)->path;
+
+        $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin);
+        \Livewire\Livewire::test(\App\Filament\Resources\InspectionResource\Pages\ViewInspection::class, ['record' => $in->getKey()])
+            ->assertActionVisible('moveToAfter')
+            ->callAction('moveToAfter', ['before_photo' => [UploadedFile::fake()->image('oldin.jpg', 1200, 900)], 'approve' => true])
+            ->assertHasNoActionErrors()->assertNotified('Ko‘chirildi va tasdiqlandi: obyekt «Buzilgan»');
+
+        $in->refresh()->load('media');
+        $this->assertSame(Inspection::KIND_AFTER, $in->kind);
+        $this->assertTrue($in->is_demolished);
+        $this->assertSame(Inspection::REVIEW_APPROVED, $in->review_status);
+        $this->assertSame($sentPhoto, $in->mediaOf(InspectionMedia::AFTER_PHOTO)->path); // xodim rasmi endi "keyingi holat"
+        $this->assertNotNull($in->mediaOf(InspectionMedia::AFTER_VIDEO));
+        $before = $in->mediaOf(InspectionMedia::BEFORE_PHOTO); // admin yuklagani
+        $this->assertSame('admin', $before->telegram_file_id);
+        Storage::disk('local')->assertExists($before->path);
+        $this->assertStringStartsWith("inspections/{$in->id}/before_photo_", $before->path);
+        $this->assertSame(Site::DEMOLISHED, $this->site->refresh()->status);
+
+        // endi ko'chirib bo'lmaydi; avvalgi holatni qayta yuklash mumkin
+        \Livewire\Livewire::test(\App\Filament\Resources\InspectionResource\Pages\ViewInspection::class, ['record' => $in->getKey()])
+            ->assertActionHidden('moveToAfter')->assertActionVisible('uploadBefore');
+    }
+
     public function test_far_location_is_rejected_in_strict_mode_and_flagged_otherwise(): void
     {
         $this->register();
