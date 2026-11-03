@@ -401,6 +401,31 @@ class RolesAttendanceTest extends TestCase
         $this->assertFalse(\App\Console\Commands\SendAttendance::isPermanent(new \RuntimeException('cURL error 28')));
     }
 
+    public function test_attendance_request_warns_and_unanswered_get_reminder_before_deadline(): void
+    {
+        $staff = $this->registerEmployee();
+        $other = Staff::create(['telegram_id' => 902, 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'full_name' => 'Javob berdi', 'phone' => '900000902']);
+        $this->travelTo(today()->setTime(8, 0));
+        $this->artisan('attendance:send')->assertSuccessful();
+        $this->assertStringContainsString('javob bermasangiz', $this->sent()); // so'rovning o'zida ogohlantirish
+        Attendance::where('staff_id', $other->id)->update(['status' => Attendance::PRESENT, 'responded_at' => now()]);
+
+        // 08:45 — faqat javob bermaganga, tugmalar bilan
+        $this->travelTo(today()->setTime(8, 45));
+        $bot = $this->bot();
+        $before = count($bot->getRequestHistory());
+        $this->artisan('attendance:remind')->expectsOutputToContain('Eslatma yuborildi: 1')->assertSuccessful();
+        $req = collect($bot->getRequestHistory())->slice($before)->map(fn ($r) => urldecode((string) array_values($r)[0]->getBody()))->implode("\n");
+        $this->assertStringContainsString('15 daqiqa qoldi', $req);
+        $this->assertStringContainsString('at:1', $req);
+        $this->assertStringContainsString((string) $staff->telegram_id, $req);
+        $this->assertStringNotContainsString('"chat_id":902', $req);
+
+        // muddatdan keyin — eslatma yuborilmaydi
+        $this->travelTo(Attendance::deadline()->addMinute());
+        $this->artisan('attendance:remind')->expectsOutputToContain('muddati tugagan')->assertSuccessful();
+    }
+
     public function test_never_delivered_request_is_closed_as_undeliverable_and_not_sent_after_deadline(): void
     {
         $staff = $this->registerEmployee();

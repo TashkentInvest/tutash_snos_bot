@@ -30,6 +30,8 @@ return [
     'attendance' => [
         'send_at' => env('ATTENDANCE_SEND_AT', '08:00'),
         'deadline' => env('ATTENDANCE_DEADLINE', '09:00'),
+        // muddat tugashidan oldin javob bermaganlarga eslatma
+        'remind_at' => env('ATTENDANCE_REMIND_AT', '08:45'),
         'days' => [1, 2, 3, 4, 5, 6], // dushanba–shanba
         'min_video_seconds' => 3,
         // Xodim biriktirilgan tumanlardagi eng yaqin obyektdan shu masofadan (metr) uzoqda bo'lsa davomat "shubhali" deb belgilanadi.

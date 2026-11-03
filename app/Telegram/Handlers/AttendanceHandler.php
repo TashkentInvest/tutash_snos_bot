@@ -45,7 +45,24 @@ class AttendanceHandler
     {
         return '<b>Davomat</b>'."\n\nHurmatli <b>".Ui::e($staff->full_name).'</b>!'
             ."\nIsh kuni boshlandi. Siz hududga chiqib, ishni boshladingizmi?\n\n"
-            .'<i>Javobni soat '.config('tutash.attendance.deadline').' gacha bildirishingiz kerak.</i>';
+            .'<i>Javobni soat '.config('tutash.attendance.deadline').' gacha bildirishingiz kerak.</i>'
+            ."\n⚠️ <i>".config('tutash.attendance.deadline').' gacha javob bermasangiz, davomatda «javob bermagan» (ishda yo‘q) deb belgilanasiz.</i>';
+    }
+
+    /** Muddat tugashidan oldin hali javob bermaganlarga eslatma: holatiga mos tugma bilan (yoki null — eslatilmaydi). */
+    public static function reminder(Attendance $row): ?array
+    {
+        $deadline = config('tutash.attendance.deadline');
+        $left = max(1, (int) ceil(now()->diffInMinutes(Attendance::deadline(), false)));
+        $head = "⏳ <b>Davomat muddati tugashiga {$left} daqiqa qoldi</b> (soat {$deadline} gacha).";
+        $tail = "\n\n⚠️ Javob bermasangiz, «javob bermagan» (ishda yo‘q) deb belgilanasiz.";
+
+        return match ($row->status) {
+            Attendance::SENT => [$head."\nSiz hududga chiqib, ishni boshladingizmi?".$tail, self::promptMarkup()],
+            Attendance::LOCATING, Attendance::RECORDING => [$head."\nDavomatni yakunlang: joylashuv va video yuborilmagan.".$tail, self::webAppMarkup('📍 Davomatni yakunlash')],
+            Attendance::REASONING => [$head."\nIshda emasligingiz sababini shu chatga yozib yuboring.".$tail, null],
+            default => null,
+        };
     }
 
     public static function promptMarkup()
