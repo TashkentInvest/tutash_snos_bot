@@ -13,6 +13,7 @@ use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\KeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardMarkup;
+use SergiX44\Nutgram\Telegram\Types\WebApp\WebAppInfo;
 
 /** Tuman -> MFY -> obyekt ro'yxati, qidiruv va "yaqinimdagi" ko'rinishlari. */
 class BrowseHandler
@@ -45,10 +46,35 @@ class BrowseHandler
         return $staff;
     }
 
+    /** Hozir javob kutilayotgan soatlik qayd (so'rov yuborilgan, muddati o'tmagan). */
+    public static function openCheckin(Staff $staff): ?\App\Models\Checkin
+    {
+        return $staff->checkins()->whereDate('date', today())->whereNotNull('sent_at')
+            ->whereIn('status', \App\Models\Checkin::OPEN)->where('deadline_at', '>=', now())->orderByDesc('slot')->first();
+    }
+
+    /** Javob kutilayotgan soatlik qayd bo'lsa — Mini App tugmasi. */
+    public static function checkinButton(Staff $staff): ?InlineKeyboardButton
+    {
+        return self::openCheckin($staff) ? InlineKeyboardButton::make(Ui::t('📍 Soatlik qayd: joylashuv va video'),
+            web_app: new WebAppInfo(rtrim((string) config('app.url'), '/').'/tg/checkin')) : null;
+    }
+
+    /** Oddiy xodimning ikkinchi vazifasi (soatlik qayd) holati. */
+    private static function checkinText(Staff $staff): string
+    {
+        $done = $staff->checkins()->whereDate('date', today())->where('status', \App\Models\Checkin::PRESENT)->pluck('slot')->sort()->join(', ');
+        $open = self::openCheckin($staff);
+
+        return '🕐 <b>Soatlik qayd</b> ('.implode(', ', \App\Models\Checkin::slots()).'): bugun — '.($done ?: 'hali yo‘q')
+            .($open ? ".\n⏳ <b>{$open->slot}</b> so‘rovi javob kutmoqda (".$open->deadline_at->format('H:i').' gacha) — pastdagi tugmani bosing.' : '.');
+    }
+
     /** Shartnoma xodimi: obyektlar o'rniga vazifasi va bugungi qaydlari. */
     private function contractHome(Nutgram $bot, Staff $staff): void
     {
         $bot->callbackQuery() && $bot->answerCallbackQuery();
+        $button = self::checkinButton($staff);
         $done = $staff->checkins()->whereDate('date', today())->where('status', \App\Models\Checkin::PRESENT)->pluck('slot')->sort()->join(', ');
         $att = $staff->attendances()->whereDate('date', today())->value('status');
 
@@ -62,7 +88,8 @@ class BrowseHandler
                 \App\Models\Attendance::MISSED => 'javob berilmagan',
                 null => 'so‘rov hali yuborilmagan',
                 default => 'javob kutilmoqda',
-            }.'; soatlik qaydlar — '.($done ?: 'hali yo‘q').'.');
+            }.'; soatlik qaydlar — '.($done ?: 'hali yo‘q').'.'
+            .($button ? "\n\n⏳ Hozir javob kutilmoqda — pastdagi tugmani bosing." : ''), $button ? Ui::markup([[$button]]) : null);
     }
 
     public function home(Nutgram $bot): void
@@ -81,7 +108,10 @@ class BrowseHandler
             ->withCount(['sites' => fn ($query) => $query->countable(), 'sites as demolished_count' => fn ($query) => $query->where('status', Site::DEMOLISHED)])
             ->orderBy('name')->get();
 
-        if ($districts->count() === 1) {
+        // ikkinchi vazifa (soatlik qayd) bo'lsa — holati va javob tugmasi tumanlar ro'yxati ustida
+        $hourly = $staff->isActive() && $staff->doesHourlyCheckin();
+
+        if ($districts->count() === 1 && ! $hourly) {
             $this->district($bot, (string) $districts->first()->id);
 
             return;
@@ -93,6 +123,10 @@ class BrowseHandler
         $head = $staff->isCitizen()
             ? '<b>«Tutash snos» axborot tizimi</b>'
             : '👋 <b>'.Ui::e($staff->full_name).'</b>, xush kelibsiz.';
+        if ($hourly) {
+            ($button = self::checkinButton($staff)) && array_unshift($rows, [$button]);
+            $head .= "\n\n".self::checkinText($staff)."\n";
+        }
         Ui::show($bot, $head."\nTumanni tanlang. Tugmada: <i>jami obyektlar / shundan buzilganlari</i>.", Ui::markup($rows));
     }
 

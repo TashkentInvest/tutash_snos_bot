@@ -92,6 +92,32 @@ class RolesAttendanceTest extends TestCase
         return Staff::where('telegram_id', self::UID)->first();
     }
 
+    /** Ikkinchi vazifa: /start da soatlik qayd holati va javob kutilayotgan bo'lsa — Mini App tugmasi. */
+    public function test_start_shows_hourly_checkin_for_employee_with_second_duty(): void
+    {
+        $staff = $this->registerEmployee();
+        $this->assertSame(Staff::ACTIVE, $staff->status);
+
+        // belgisiz: bitta tuman — to'g'ridan-to'g'ri MFY ro'yxati, soatlik qayd yo'q
+        $this->bot()->hearText('/start')->reply();
+        $this->assertStringNotContainsString('Soatlik qayd', $this->sent());
+
+        $staff->update(['hourly_checkin' => true]);
+        $this->bot()->hearText('/start')->reply();
+        $out = $this->sent();
+        $this->assertStringContainsString('Soatlik qayd', $out);
+        $this->assertStringContainsString('Yunusobod tumani', $out); // tuman tugmalari saqlanadi
+        $this->assertStringNotContainsString('/tg/checkin', $out); // javob kutilayotgan so'rov yo'q
+
+        \App\Models\Checkin::create(['staff_id' => $staff->id, 'date' => today()->toDateString(), 'slot' => '10:00', 'status' => \App\Models\Checkin::SENT,
+            'sent_at' => now(), 'deadline_at' => now()->addMinutes(30)]);
+        $this->bot()->hearText('/start')->reply();
+        $out = $this->sent();
+        $this->assertStringContainsString('Soatlik qayd: joylashuv va video', $out);
+        $this->assertStringContainsString('/tg/checkin', $out);
+        $this->assertStringContainsString('10:00', $out);
+    }
+
     public function test_new_user_chooses_role_once(): void
     {
         $this->bot()->hearText('/start')->reply();

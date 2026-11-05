@@ -9,14 +9,26 @@ use Carbon\Carbon;
 use Carbon\CarbonInterface;
 
 /**
- * Tumanlar kesimida svod jadval: qoldiq (buzilmagan obyektlar) soni va maydoni, bugun buzilganlar va jarayondagilar.
+ * Tumanlar kesimida svod jadval: kun boshidagi qoldiq (soni, maydoni), bugun buzilganlar (soni, maydoni) va kun oxiridagi qoldiq maydoni.
+ * Qo'shimcha (caption va bajarilish rasmi uchun): kun oxiridagi qoldiq soni/maydoni (left, area), sud qarori bekor, jarayondagilar.
  * Kunlik hisobotda rasm sifatida, admin panelda jadval va Excel ko'rinishida ishlatiladi.
  */
 class Svod
 {
-    public const COLUMNS = ['№', 'Tuman nomi', 'Qoldiq soni', 'Qoldiq maydoni (ga)', 'Bugun buzilgan', 'Sud qarori bekor', 'Jarayonda'];
+    public const COLUMNS = ['№', 'Tuman nomi', 'Qoldiq soni', 'Qoldiq maydoni (ga)', 'Bugun buzilgan', 'Bugun buzilganlar maydoni (ga)', 'Qoldiqlar maydoni (ga)'];
 
-    /** @return array{rows: array<int, array{name: string, all: int, left: int, area: float, today: int, progress: int, court: int}>, total: array{name: string, all: int, left: int, area: float, today: int, progress: int, court: int}} */
+    /**
+     * Jadvaldagi sonli ustunlar: kun boshidagi qoldiq (= kun oxiridagi qoldiq + bugun buzilganlar), bugun buzilganlar,
+     * qoldiqlar maydoni (= kun boshidagi maydon - bugun buzilganlar maydoni).
+     *
+     * @return array<int, int|float>
+     */
+    public static function cells(array $r): array
+    {
+        return [$r['start'], $r['start_area'], $r['today'], $r['today_area'], $r['rest_area']];
+    }
+
+    /** @return array{rows: array<int, array<string, int|float|string>>, total: array<string, int|float|string>} */
     public static function data(?CarbonInterface $day = null): array
     {
         $period = ReportPeriod::for($day ?? ReportPeriod::current()->day);
@@ -51,19 +63,28 @@ class Svod
 
         // davrda "buzilgan" deb yuborilgan obyektlar (tasdiqlangan va tasdiq kutayotgan; rad etilganlar hisobga olinmaydi)
         $districtOf = $sites->pluck('district_id', 'id');
-        $today = $period->inspections()->orderBy('submitted_at')->get(['site_id', 'is_demolished'])->keyBy('site_id')
-            ->where('is_demolished', true)->countBy(fn (Inspection $in) => $districtOf[$in->site_id] ?? null);
+        $todayIds = $period->inspections()->orderBy('submitted_at')->get(['site_id', 'is_demolished'])->keyBy('site_id')
+            ->where('is_demolished', true)->keys()->filter(fn ($id) => isset($districtOf[$id]))->flip();
 
         $bySite = $sites->groupBy('district_id');
-        $rows = District::query()->orderBy('name')->get(['id', 'name'])->map(function (District $d) use ($bySite, $demolished, $inProgress, $today, $court) {
-            $left = ($bySite[$d->id] ?? collect())->reject($demolished);
+        $rows = District::query()->orderBy('name')->get(['id', 'name'])->map(function (District $d) use ($bySite, $demolished, $inProgress, $todayIds, $court) {
+            $all = $bySite[$d->id] ?? collect();
+            $left = $all->reject($demolished);
+            $today = $all->filter(fn (Site $s) => isset($todayIds[$s->id]));
+            // kun boshidagi qoldiq: hozir qolganlar + bugun buzilganlar (tasdiq kutayotganlari hali qoldiqda — ikki marta sanalmaydi)
+            $start = $left->merge($today)->unique('id');
+            $m2 = fn ($c) => (float) $c->sum('area_m2');
 
             return [
                 'name' => $d->name,
-                'all' => ($bySite[$d->id] ?? collect())->count(), // jami (sud qarori bekor qilinganlarsiz)
+                'all' => $all->count(), // jami (sud qarori bekor qilinganlarsiz)
                 'left' => $left->count(),
-                'area' => round((float) $left->sum('area_m2') / 10000, 2),
-                'today' => (int) ($today[$d->id] ?? 0),
+                'area' => round($m2($left) / 10000, 2),
+                'today' => $today->count(),
+                'start' => $start->count(),
+                'start_area' => round($m2($start) / 10000, 2),
+                'today_area' => round($m2($today) / 10000, 2),
+                'rest_area' => round(($m2($start) - $m2($today)) / 10000, 2),
                 'progress' => $left->filter($inProgress)->count(),
                 'court' => (int) ($court[$d->id] ?? 0),
             ];
@@ -75,6 +96,10 @@ class Svod
             'left' => array_sum(array_column($rows, 'left')),
             'area' => round(array_sum(array_column($rows, 'area')), 2),
             'today' => array_sum(array_column($rows, 'today')),
+            'start' => array_sum(array_column($rows, 'start')),
+            'start_area' => round(array_sum(array_column($rows, 'start_area')), 2),
+            'today_area' => round(array_sum(array_column($rows, 'today_area')), 2),
+            'rest_area' => round(array_sum(array_column($rows, 'rest_area')), 2),
             'progress' => array_sum(array_column($rows, 'progress')),
             'court' => array_sum(array_column($rows, 'court')),
         ];
@@ -94,17 +119,17 @@ class Svod
         $rows = [];
         foreach ([$data['total'], ...$data['rows']] as $n => $r) { // 0 — jami qatori
             $rows[] = [
-                // ish yopilganlar yonma-yon: bugun buzilgan, sud qarori bekor, so'ng jarayonda
-                'cells' => [$n ? (string) $n : '', $r['name'], (string) $r['left'], self::area($r['area']), (string) $r['today'], (string) $r['court'], (string) $r['progress']],
+                'cells' => [$n ? (string) $n : '', $r['name'], (string) $r['start'], self::area($r['start_area']), (string) $r['today'],
+                    self::area($r['today_area']), self::area($r['rest_area'])],
                 'sum' => $n === 0,
-                'colors' => $r['today'] > 0 ? [4 => 'red'] : [],
+                'colors' => $r['today'] > 0 ? [4 => 'red', 5 => 'red'] : [],
             ];
         }
 
         return self::table(
             'Tumanlar kesimida svod — '.$day->format('d.m.Y'),
-            ['№', 'Tuman nomi', "Qoldiq\nsoni", "Qoldiq\nmaydoni (ga)", "Bugun\nbuzilgan", "Sud qarori\nbekor", 'Jarayonda'],
-            [44, 250, 96, 124, 104, 104, 104], $rows, $t);
+            ['№', 'Tuman nomi', "Qoldiq\nsoni", "Qoldiq\nmaydoni (ga)", "Bugun\nbuzilgan", "Bugun buzilganlar\nmaydoni (ga)", "Qoldiqlar\nmaydoni (ga)"],
+            [44, 250, 96, 124, 104, 168, 124], $rows, $t);
     }
 
     /**
@@ -271,9 +296,9 @@ class Svod
         $xml = $row(1, ['Tumanlar kesimida svod — '.$day->format('d.m.Y')], 1)
             .$row(2, self::COLUMNS, 2);
         $t = $data['total'];
-        $xml .= $row(3, ['', $t['name'], $t['left'], $t['area'], $t['today'], $t['court'], $t['progress']], 3);
+        $xml .= $row(3, ['', $t['name'], ...self::cells($t)], 3);
         foreach ($data['rows'] as $i => $r) {
-            $xml .= $row($i + 4, [$i + 1, $r['name'], $r['left'], $r['area'], $r['today'], $r['court'], $r['progress']]);
+            $xml .= $row($i + 4, [$i + 1, $r['name'], ...self::cells($r)]);
         }
 
         $sheet = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'

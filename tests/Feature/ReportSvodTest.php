@@ -108,8 +108,14 @@ class ReportSvodTest extends TestCase
         $data = Svod::data(today());
 
         $this->assertSame(['Bektemir tumani', 'Chilonzor tumani'], array_column($data['rows'], 'name'));
-        $this->assertSame(['name' => 'Bektemir tumani', 'all' => 3, 'left' => 2, 'area' => 0.67, 'today' => 1, 'progress' => 1, 'court' => 1], $data['rows'][0]);
-        $this->assertSame(['name' => 'Chilonzor tumani', 'all' => 1, 'left' => 1, 'area' => 1.58, 'today' => 1, 'progress' => 0, 'court' => 0], $data['rows'][1]);
+        // Bektemir: kun boshida 3 ta (4000 + 2700 + 9999 m²), bugun 1 ta (9999 m²) buzildi, qoldi 0,67 ga
+        $this->assertSame(['name' => 'Bektemir tumani', 'all' => 3, 'left' => 2, 'area' => 0.67, 'today' => 1,
+            'start' => 3, 'start_area' => 1.67, 'today_area' => 1.0, 'rest_area' => 0.67, 'progress' => 1, 'court' => 1], $data['rows'][0]);
+        // Chilonzor: buzilgan natija tasdiq kutmoqda — kun boshidagi qoldiqda bir marta, bugun buzilganlarda ham
+        $this->assertSame(['name' => 'Chilonzor tumani', 'all' => 1, 'left' => 1, 'area' => 1.58, 'today' => 1,
+            'start' => 1, 'start_area' => 1.58, 'today_area' => 1.58, 'rest_area' => 0.0, 'progress' => 0, 'court' => 0], $data['rows'][1]);
+        $this->assertSame([4, 3.25, 2, 2.58, 0.67], Svod::cells($data['total']));
+        $this->assertSame(['№', 'Tuman nomi', 'Qoldiq soni', 'Qoldiq maydoni (ga)', 'Bugun buzilgan', 'Bugun buzilganlar maydoni (ga)', 'Qoldiqlar maydoni (ga)'], Svod::COLUMNS);
         $this->assertSame(3, $data['total']['left']);
         $this->assertSame(2.25, $data['total']['area']);
         $this->assertSame('2,25', Svod::area($data['total']['area']));
@@ -132,7 +138,10 @@ class ReportSvodTest extends TestCase
         $tmp = tempnam(sys_get_temp_dir(), 'x');
         file_put_contents($tmp, $xlsx);
         $zip->open($tmp);
-        $this->assertStringContainsString('Toshkent shahar jami', $zip->getFromName('xl/worksheets/sheet1.xml'));
+        $sheet = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $this->assertStringContainsString('Toshkent shahar jami', $sheet);
+        $this->assertStringContainsString('Bugun buzilganlar maydoni (ga)', $sheet);
+        $this->assertStringNotContainsString('Jarayonda', $sheet);
         $zip->close();
         @unlink($tmp);
     }
@@ -177,7 +186,8 @@ class ReportSvodTest extends TestCase
 
         $this->actingAs($this->user(true))->get('/admin')->assertOk()->assertSee('svod-table');
         \Livewire\Livewire::test(\App\Filament\Widgets\SvodTable::class)
-            ->assertSee('Toshkent shahar jami')->assertSee('Excel yuklab olish')->assertSee('2,25');
+            ->assertSee('Toshkent shahar jami')->assertSee('Excel yuklab olish')
+            ->assertSee('Bugun buzilganlar maydoni (ga)')->assertSee('3,25')->assertSee('2,58')->assertSee('0,67')->assertDontSee('Jarayonda');
         $this->get('/admin-svod.xlsx')->assertOk()->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
         $this->flushSession(); // boshqa foydalanuvchi (AuthenticateSession avvalgi sessiyani rad etadi)
