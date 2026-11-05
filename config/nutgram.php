@@ -8,7 +8,8 @@ return [
     'safe_mode' => env('APP_ENV', 'local') === 'production',
 
     // Extra or specific configurations
-    'config' => [],
+    // Telegram API so'rovi muddati (soniya). Standart 5 s rasm albomini (kunlik hisobot) yuklashga yetmaydi.
+    'config' => ['timeout' => (int) env('TELEGRAM_TIMEOUT', 30)],
 
     // Set if the service provider should automatically load
     // handlers from /routes/telegram.php

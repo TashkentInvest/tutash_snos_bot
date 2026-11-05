@@ -58,14 +58,22 @@ class InspectionReport
         $ids = null; // birinchi yuborishdan keyin Telegram file_id'lari qayta ishlatiladi
         try {
             foreach (AttendanceReport::recipients() as $admin) {
-                try {
-                    $media = array_map(fn ($src) => ['type' => 'photo', 'media' => $src], $ids ?? array_map(fn ($f) => fopen($f, 'r'), array_values($files)));
-                    $media[0] += ['caption' => $caption, 'parse_mode' => ParseMode::HTML];
-                    $messages = $bot->sendMediaGroup($media, ['chat_id' => $admin->telegram_id]);
-                    $ids ??= self::fileIds($messages);
-                    $sent++;
-                } catch (\Throwable $e) {
-                    report($e); // admin botni bloklagan bo'lishi mumkin
+                // tarmoq uzilishi/timeout bo'lsa — bir marta qayta urinish; bloklangan bot kabi doimiy xatoda qayta urinilmaydi
+                for ($try = 1; $try <= 2; $try++) {
+                    try {
+                        $media = array_map(fn ($src) => ['type' => 'photo', 'media' => $src], $ids ?? array_map(fn ($f) => fopen($f, 'r'), array_values($files)));
+                        $media[0] += ['caption' => $caption, 'parse_mode' => ParseMode::HTML];
+                        $messages = $bot->sendMediaGroup($media, ['chat_id' => $admin->telegram_id]);
+                        $ids ??= self::fileIds($messages);
+                        $sent++;
+                        break;
+                    } catch (\Throwable $e) {
+                        if ($try === 2 || \App\Console\Commands\SendAttendance::isPermanent($e)) {
+                            report($e); // admin botni bloklagan bo'lishi mumkin
+                            break;
+                        }
+                        sleep(2);
+                    }
                 }
             }
         } finally {
