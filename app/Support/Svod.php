@@ -15,17 +15,17 @@ use Carbon\CarbonInterface;
  */
 class Svod
 {
-    public const COLUMNS = ['№', 'Tuman nomi', 'Qoldiq soni', 'Qoldiq maydoni (ga)', 'Bugun buzilgan', 'Bugun buzilganlar maydoni (ga)', 'Qoldiqlar maydoni (ga)'];
+    public const COLUMNS = ['№', 'Tuman nomi', 'Qoldiq soni', 'Qoldiq maydoni (ga)', 'Bugun buzilgan', 'Bugun buzilganlar maydoni (ga)', 'Jami buzilganlar maydoni (ga)'];
 
     /**
      * Jadvaldagi sonli ustunlar: kun boshidagi qoldiq (= kun oxiridagi qoldiq + bugun buzilganlar), bugun buzilganlar,
-     * qoldiqlar maydoni (= kun boshidagi maydon - bugun buzilganlar maydoni).
+     * jami buzilganlar maydoni (kun oxirigacha buzilgan barcha obyektlar, bugungilari bilan).
      *
      * @return array<int, int|float>
      */
     public static function cells(array $r): array
     {
-        return [$r['start'], $r['start_area'], $r['today'], $r['today_area'], $r['rest_area']];
+        return [$r['start'], $r['start_area'], $r['today'], $r['today_area'], $r['demolished_area']];
     }
 
     /** @return array{rows: array<int, array<string, int|float|string>>, total: array<string, int|float|string>} */
@@ -84,7 +84,8 @@ class Svod
                 'start' => $start->count(),
                 'start_area' => round($m2($start) / 10000, 2),
                 'today_area' => round($m2($today) / 10000, 2),
-                'rest_area' => round(($m2($start) - $m2($today)) / 10000, 2),
+                // jami buzilganlar: davr oxirigacha buzilganlar + bugun "buzilgan" deb yuborilib tasdiq kutayotganlar
+                'demolished_area' => round($m2($all->filter($demolished)->merge($today)->unique('id')) / 10000, 2),
                 'progress' => $left->filter($inProgress)->count(),
                 'court' => (int) ($court[$d->id] ?? 0),
             ];
@@ -99,7 +100,7 @@ class Svod
             'start' => array_sum(array_column($rows, 'start')),
             'start_area' => round(array_sum(array_column($rows, 'start_area')), 2),
             'today_area' => round(array_sum(array_column($rows, 'today_area')), 2),
-            'rest_area' => round(array_sum(array_column($rows, 'rest_area')), 2),
+            'demolished_area' => round(array_sum(array_column($rows, 'demolished_area')), 2),
             'progress' => array_sum(array_column($rows, 'progress')),
             'court' => array_sum(array_column($rows, 'court')),
         ];
@@ -120,7 +121,7 @@ class Svod
         foreach ([$data['total'], ...$data['rows']] as $n => $r) { // 0 — jami qatori
             $rows[] = [
                 'cells' => [$n ? (string) $n : '', $r['name'], (string) $r['start'], self::area($r['start_area']), (string) $r['today'],
-                    self::area($r['today_area']), self::area($r['rest_area'])],
+                    self::area($r['today_area']), self::area($r['demolished_area'])],
                 'sum' => $n === 0,
                 'colors' => $r['today'] > 0 ? [4 => 'red', 5 => 'red'] : [],
             ];
@@ -128,8 +129,8 @@ class Svod
 
         return self::table(
             'Tumanlar kesimida svod — '.$day->format('d.m.Y'),
-            ['№', 'Tuman nomi', "Qoldiq\nsoni", "Qoldiq\nmaydoni (ga)", "Bugun\nbuzilgan", "Bugun buzilganlar\nmaydoni (ga)", "Qoldiqlar\nmaydoni (ga)"],
-            [44, 250, 96, 124, 104, 168, 124], $rows, $t);
+            ['№', 'Tuman nomi', "Qoldiq\nsoni", "Qoldiq\nmaydoni (ga)", "Bugun\nbuzilgan", "Bugun buzilganlar\nmaydoni (ga)", "Jami buzilganlar\nmaydoni (ga)"],
+            [44, 250, 96, 124, 104, 168, 156], $rows, $t);
     }
 
     /**

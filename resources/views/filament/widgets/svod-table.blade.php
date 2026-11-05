@@ -7,7 +7,7 @@
 
         @php
             $td = 'border:1px solid rgba(128,128,128,.4);padding:.5rem;';
-            // ustunlar: kun boshidagi qoldiq soni, maydoni; bugun buzilgan soni, maydoni; qoldiqlar maydoni (1, 3, 4 — gektar)
+            // ustunlar: kun boshidagi qoldiq soni, maydoni; bugun buzilgan soni, maydoni; jami buzilganlar maydoni (1, 3, 4 — gektar)
             $fmt = fn (array $r) => collect(\App\Support\Svod::cells($r))->map(fn ($v, $i) => in_array($i, [1, 3, 4], true) ? \App\Support\Svod::area($v) : $v)->all();
         @endphp
         <div style="overflow-x:auto;">

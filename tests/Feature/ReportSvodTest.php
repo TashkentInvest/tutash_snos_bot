@@ -77,6 +77,9 @@ class ReportSvodTest extends TestCase
         // kechagi svod: kecha 18:00 dagi holat — A buzilgan, B hali jarayonda emas
         $this->assertSame(['left' => 2, 'today' => 1, 'progress' => 0], array_intersect_key(Svod::data($yesterday)['total'], ['left' => 0, 'today' => 0, 'progress' => 0]));
         $this->assertSame(['left' => 2, 'today' => 0, 'progress' => 1], array_intersect_key(Svod::data(today())['total'], ['left' => 0, 'today' => 0, 'progress' => 0]));
+        // jami buzilganlar maydoni — yig'ma: kecha buzilgan A (1000 m²) bugungi svodda ham, bugun buzilgan bo'lmasa ham
+        $this->assertSame([2, 0.2, 0, 0.0, 0.1], Svod::cells(Svod::data(today())['total']));
+        $this->assertSame([3, 0.3, 1, 0.1, 0.1], Svod::cells(Svod::data($yesterday)['total']));
 
         // 18:00 dan keyin joriy davr — ertangi kun, hisoblagichlar 0
         $this->travelTo(today()->setTime(18, 0, 1));
@@ -110,12 +113,12 @@ class ReportSvodTest extends TestCase
         $this->assertSame(['Bektemir tumani', 'Chilonzor tumani'], array_column($data['rows'], 'name'));
         // Bektemir: kun boshida 3 ta (4000 + 2700 + 9999 m²), bugun 1 ta (9999 m²) buzildi, qoldi 0,67 ga
         $this->assertSame(['name' => 'Bektemir tumani', 'all' => 3, 'left' => 2, 'area' => 0.67, 'today' => 1,
-            'start' => 3, 'start_area' => 1.67, 'today_area' => 1.0, 'rest_area' => 0.67, 'progress' => 1, 'court' => 1], $data['rows'][0]);
+            'start' => 3, 'start_area' => 1.67, 'today_area' => 1.0, 'demolished_area' => 1.0, 'progress' => 1, 'court' => 1], $data['rows'][0]);
         // Chilonzor: buzilgan natija tasdiq kutmoqda — kun boshidagi qoldiqda bir marta, bugun buzilganlarda ham
         $this->assertSame(['name' => 'Chilonzor tumani', 'all' => 1, 'left' => 1, 'area' => 1.58, 'today' => 1,
-            'start' => 1, 'start_area' => 1.58, 'today_area' => 1.58, 'rest_area' => 0.0, 'progress' => 0, 'court' => 0], $data['rows'][1]);
-        $this->assertSame([4, 3.25, 2, 2.58, 0.67], Svod::cells($data['total']));
-        $this->assertSame(['№', 'Tuman nomi', 'Qoldiq soni', 'Qoldiq maydoni (ga)', 'Bugun buzilgan', 'Bugun buzilganlar maydoni (ga)', 'Qoldiqlar maydoni (ga)'], Svod::COLUMNS);
+            'start' => 1, 'start_area' => 1.58, 'today_area' => 1.58, 'demolished_area' => 1.58, 'progress' => 0, 'court' => 0], $data['rows'][1]);
+        $this->assertSame([4, 3.25, 2, 2.58, 2.58], Svod::cells($data['total']));
+        $this->assertSame(['№', 'Tuman nomi', 'Qoldiq soni', 'Qoldiq maydoni (ga)', 'Bugun buzilgan', 'Bugun buzilganlar maydoni (ga)', 'Jami buzilganlar maydoni (ga)'], Svod::COLUMNS);
         $this->assertSame(3, $data['total']['left']);
         $this->assertSame(2.25, $data['total']['area']);
         $this->assertSame('2,25', Svod::area($data['total']['area']));
@@ -187,7 +190,7 @@ class ReportSvodTest extends TestCase
         $this->actingAs($this->user(true))->get('/admin')->assertOk()->assertSee('svod-table');
         \Livewire\Livewire::test(\App\Filament\Widgets\SvodTable::class)
             ->assertSee('Toshkent shahar jami')->assertSee('Excel yuklab olish')
-            ->assertSee('Bugun buzilganlar maydoni (ga)')->assertSee('3,25')->assertSee('2,58')->assertSee('0,67')->assertDontSee('Jarayonda');
+            ->assertSee('Bugun buzilganlar maydoni (ga)')->assertSee('3,25')->assertSee('2,58')->assertSee('Jami buzilganlar maydoni (ga)')->assertDontSee('Jarayonda');
         $this->get('/admin-svod.xlsx')->assertOk()->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
         $this->flushSession(); // boshqa foydalanuvchi (AuthenticateSession avvalgi sessiyani rad etadi)
