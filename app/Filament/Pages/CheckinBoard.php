@@ -15,17 +15,17 @@ use Filament\Pages\Page;
 use Livewire\Attributes\Url;
 
 /**
- * Shartnoma xodimlari — kunlik jadval: qatorda xodim, ustunda ertalabki davomat va har bir soat (qayd vaqti, xarita, video).
+ * Soatlik qayd yuritiladigan xodimlar (shartnoma + «Soatlik qayd» belgili xodimlar) — kunlik jadval: qatorda xodim, ustunda ertalabki davomat va har bir soat (qayd vaqti, xarita, video).
  */
 class CheckinBoard extends Page
 {
-    protected static ?string $navigationGroup = 'Shartnoma';
+    protected static ?string $navigationGroup = 'Soatlik qayd';
 
     protected static ?string $navigationIcon = 'heroicon-o-table-cells';
 
     protected static ?string $navigationLabel = 'Kunlik jadval';
 
-    protected static ?string $title = 'Shartnoma xodimlari — kunlik jadval';
+    protected static ?string $title = 'Soatlik qayd — kunlik jadval';
 
     protected static ?int $navigationSort = 1;
 
@@ -33,6 +33,10 @@ class CheckinBoard extends Page
 
     #[Url]
     public ?string $day = null;
+
+    /** Kimlar ko'rsatiladi: all — hammasi, contract — shartnoma xodimlari, employee — soatlik qaydga qo'shilgan oddiy xodimlar. */
+    #[Url]
+    public string $who = 'all';
 
     public static function canAccess(): bool
     {
@@ -50,12 +54,12 @@ class CheckinBoard extends Page
         return [
             Action::make('remind')->label(fn () => 'Eslatma yuborish ('.CheckinReminder::pending()->count().' ta javob kutilmoqda)')
                 ->icon('heroicon-o-bell-alert')->color('warning')
-                ->modalHeading('Shartnoma xodimlariga eslatma')->modalSubmitActionLabel('Yuborish')
+                ->modalHeading('Soatlik qayd xodimlariga eslatma')->modalSubmitActionLabel('Yuborish')
                 ->form([
                     Forms\Components\Radio::make('scope')->label('Kimlarga')->required()->live()
                         ->options(fn () => [
                             CheckinReminder::PENDING => 'Hozirgi so‘rovga javob bermaganlar ('.CheckinReminder::pending()->count().' ta)',
-                            CheckinReminder::ALL => 'Barcha shartnoma xodimlari ('.CheckinReminder::recipients(CheckinReminder::ALL)->count().' ta)',
+                            CheckinReminder::ALL => 'Soatlik qayd yuritiladigan barcha xodimlar ('.CheckinReminder::recipients(CheckinReminder::ALL)->count().' ta)',
                         ])
                         ->default(CheckinReminder::PENDING)
                         ->helperText(fn (Forms\Get $get) => 'Oluvchilar: '.(CheckinReminder::recipients($get('scope') ?? CheckinReminder::PENDING)->pluck('full_name')->join(', ') ?: 'yo‘q')),
@@ -78,7 +82,9 @@ class CheckinBoard extends Page
         } catch (\Throwable) {
             $day = today();
         }
-        $staff = Staff::where('role', Staff::ROLE_CONTRACT)->where('status', Staff::ACTIVE)->orderBy('full_name')->get();
+        $staff = Staff::hourlyCheckin()->where('status', Staff::ACTIVE)
+            ->when(in_array($this->who, Staff::WORK_ROLES, true), fn ($q) => $q->where('role', $this->who))
+            ->orderBy('full_name')->get();
         $checkins = Checkin::whereDate('date', $day)->whereIn('staff_id', $staff->pluck('id'))->get()->groupBy('staff_id');
         $attendance = Attendance::whereDate('date', $day)->whereIn('staff_id', $staff->pluck('id'))->get()->keyBy('staff_id');
 

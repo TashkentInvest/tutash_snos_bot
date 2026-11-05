@@ -4,6 +4,12 @@
         <label style="font-size:.875rem;font-weight:600;">Kun</label>
         <input type="date" wire:model.live="day" max="{{ today()->toDateString() }}"
                style="border:1px solid rgba(128,128,128,.4);border-radius:.5rem;padding:.35rem .6rem;background:transparent;color:inherit;">
+        <select wire:model.live="who"
+                style="border:1px solid rgba(128,128,128,.4);border-radius:.5rem;padding:.35rem 2rem .35rem .6rem;background:transparent;color:inherit;">
+            <option value="all">Hammasi</option>
+            <option value="contract">Shartnoma xodimlari</option>
+            <option value="employee">Xodimlar (soatlik qayd qo‘shilgan)</option>
+        </select>
         <span style="font-size:.8rem;opacity:.7;">
             Soatlik so‘rov: {{ implode(', ', $slots) }} · javob muddati — keyingi soatgacha · 13:00–14:00 tushlik
         </span>
@@ -11,7 +17,7 @@
 
     <x-filament::section>
         @if ($rows->isEmpty())
-            <div style="font-size:.875rem;">Shartnoma xodimlari belgilanmagan. Xodimlar sahifasida «Shartnoma xodimi» belgisini yoqing.</div>
+            <div style="font-size:.875rem;">Soatlik qayd yuritiladigan xodim yo‘q. Xodimlar sahifasida rolni «Shartnoma» qiling yoki xodimga «Soatlik qayd» belgisini yoqing.</div>
         @else
             <div style="overflow-x:auto;">
                 <table style="width:100%;border-collapse:collapse;font-size:.8rem;">
@@ -31,7 +37,7 @@
                             <tr>
                                 <td style="{{ $cell }}text-align:left;white-space:nowrap;">
                                     {{ $row['staff']->full_name }}
-                                    <div style="opacity:.6;">{{ $row['staff']->phone }}</div>
+                                    <div style="opacity:.6;">{{ $row['staff']->phone }} · {{ $row['staff']->isContract() ? 'Shartnoma' : 'Xodim' }}</div>
                                 </td>
                                 <td style="{{ $cell }}">
                                     @if (! $a)

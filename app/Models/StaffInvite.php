@@ -8,9 +8,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /** Admin oldindan qo'shgan xodim: shu telefon bilan botga kirgan odam avtomatik shu rolni (va tumanlarni) oladi. */
 class StaffInvite extends Model
 {
-    protected $fillable = ['phone', 'full_name', 'role', 'district_ids', 'created_by', 'staff_id', 'used_at'];
+    protected $fillable = ['phone', 'full_name', 'role', 'district_ids', 'hourly_checkin', 'created_by', 'staff_id', 'used_at'];
 
-    protected $casts = ['district_ids' => 'array', 'used_at' => 'datetime'];
+    protected $casts = ['district_ids' => 'array', 'hourly_checkin' => 'boolean', 'used_at' => 'datetime'];
 
     protected static function booted(): void
     {

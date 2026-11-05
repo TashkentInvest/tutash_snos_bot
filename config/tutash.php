@@ -16,6 +16,9 @@ return [
     // Admin bo'lmagan, lekin barcha tumanlarga biriktiriladigan xodim telefonlari (davomat yuritiladi).
     'all_districts_employee_phones' => env('ALL_DISTRICTS_EMPLOYEE_PHONES', ''),
 
+    // Tizim xatoliklari haqida Telegram ogohlantirishi oladigan telefonlar (botda ro'yxatdan o'tgan bo'lishi kerak). Bo'sh — o'chiq.
+    'debug_alert_phones' => env('DEBUG_ALERT_PHONES', '997906699'),
+
     'page_size' => 8,
 
     // Bir xodimdan daqiqasiga qabul qilinadigan maksimal update soni.

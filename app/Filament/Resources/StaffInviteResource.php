@@ -46,7 +46,7 @@ class StaffInviteResource extends Resource
                 Tables\Columns\TextColumn::make('full_name')->label('F.I.SH')->searchable(),
                 Tables\Columns\TextColumn::make('phone')->label('Telefon')->searchable(),
                 Tables\Columns\TextColumn::make('role')->label('Rol')->badge()
-                    ->formatStateUsing(fn ($state) => StaffResource::ROLES[$state] ?? $state)
+                    ->formatStateUsing(fn ($state, StaffInvite $record) => (StaffResource::ROLES[$state] ?? $state).($record->hourly_checkin ? ' + soatlik qayd' : ''))
                     ->color(fn ($state) => $state === \App\Models\Staff::ROLE_CONTRACT ? 'warning' : 'primary'),
                 Tables\Columns\TextColumn::make('district_ids')->label('Tumanlar')->badge()->placeholder('—')
                     ->state(fn (StaffInvite $record) => District::whereIn('id', $record->district_ids ?? [])->orderBy('name')->pluck('name')->all())

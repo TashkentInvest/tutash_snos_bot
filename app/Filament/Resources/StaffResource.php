@@ -50,13 +50,18 @@ class StaffResource extends Resource
     /** Xodim — obyektlar bilan ishlaydi; Shartnoma — faqat davomat va har soatlik qayd. */
     public const ROLE_HINT = 'Xodim — obyektlar bilan ishlaydi (tekshiruv). Shartnoma — faqat ertalabki davomat va ish kuni davomida har soatda joylashuv va video (10:00–12:00, 14:00–18:00), obyektlar bilan ishlamaydi.';
 
+    public const CHECKIN_HINT = 'Ikkinchi vazifa: xodim obyektlar bilan ishlashda davom etadi va qo‘shimcha ravishda har soatda joylashuv va video yuboradi («Soatlik qayd» jadvalida ko‘rinadi).';
+
     public static function form(Form $form): Form
     {
         return $form->schema([
             Forms\Components\TextInput::make('full_name')->label('F.I.SH')->required(),
             Forms\Components\TextInput::make('phone')->label('Telefon (9 raqam)')->disabled(),
             Forms\Components\Select::make('status')->label('Holat')->options(self::STATUSES)->required(),
-            Forms\Components\Select::make('role')->label('Rol')->options(self::ROLES)->helperText(self::ROLE_HINT),
+            Forms\Components\Select::make('role')->label('Rol')->options(self::ROLES)->helperText(self::ROLE_HINT)->live(),
+            Forms\Components\Toggle::make('hourly_checkin')->label('Soatlik qayd ham yuritiladi')
+                ->helperText(self::CHECKIN_HINT)
+                ->visible(fn (Forms\Get $get) => $get('role') === Staff::ROLE_EMPLOYEE),
             Forms\Components\TextInput::make('failed_attempts')->label('Noto‘g‘ri urinishlar (0 — qayta ochish)')->numeric()->minValue(0),
             Forms\Components\Toggle::make('attendance_required')->label('Kunlik davomat yuritiladi'),
             Forms\Components\Toggle::make('is_global')->label('Barcha tumanlarni ko‘radi (admin)'),
@@ -96,6 +101,14 @@ class StaffResource extends Resource
                         Staff::BLOCKED, Staff::REJECTED => 'danger',
                         default => 'warning',
                     }),
+                Tables\Columns\IconColumn::make('hourly_checkin')->label('Soatlik qayd')->boolean()
+                    ->state(fn (Staff $record) => $record->doesHourlyCheckin())
+                    ->tooltip(fn (Staff $record) => match (true) {
+                        $record->isContract() => 'Shartnoma xodimi — soatlik qayd doim yoqilgan',
+                        $record->role === Staff::ROLE_EMPLOYEE => 'Bosing: soatlik qaydni yoqish / o‘chirish',
+                        default => null,
+                    })
+                    ->action(fn (Staff $record) => $record->role === Staff::ROLE_EMPLOYEE && $record->update(['hourly_checkin' => ! $record->hourly_checkin])),
                 Tables\Columns\IconColumn::make('receives_reports')->label('Hisobot')->boolean()
                     ->tooltip('Bosing: hisobot yuborishni yoqish / o‘chirish')
                     ->action(fn (Staff $record) => $record->update(['receives_reports' => ! $record->receives_reports])),
@@ -105,6 +118,8 @@ class StaffResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('status')->label('Holat')->options(self::STATUSES),
                 Tables\Filters\SelectFilter::make('role')->label('Rol')->options(self::ROLES),
+                Tables\Filters\Filter::make('hourly')->label('Soatlik qayd yuritiladi')
+                    ->query(fn ($query) => $query->hourlyCheckin()),
                 Tables\Filters\Filter::make('reports')->label('Hisobot oladi')
                     ->query(fn ($query) => $query->where('receives_reports', true)),
                 // o'chirilganlar (arxiv): natijalari, davomati va videolari saqlangan

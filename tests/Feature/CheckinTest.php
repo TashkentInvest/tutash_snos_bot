@@ -108,6 +108,67 @@ class CheckinTest extends TestCase
         $this->get(route('admin.checkin-video', $row))->assertOk();
     }
 
+    /** Ikkinchi vazifa: oddiy xodim «Soatlik qayd» belgisi bilan so'rov oladi, obyektlar bilan ishlashda davom etadi. */
+    public function test_employee_with_hourly_checkin_flag_gets_requests_and_shows_on_board(): void
+    {
+        $both = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Ikki vazifali xodim', 'phone' => '950507174', 'status' => Staff::ACTIVE,
+            'role' => Staff::ROLE_EMPLOYEE, 'hourly_checkin' => true]);
+        Staff::create(['telegram_id' => 777002, 'full_name' => 'Oddiy xodim', 'phone' => '900000002', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE]);
+        $contract = Staff::create(['telegram_id' => 777003, 'full_name' => 'Shartnoma xodimi', 'phone' => '900000003', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
+        $citizen = Staff::create(['telegram_id' => 777004, 'full_name' => 'Aholi', 'phone' => '900000004', 'status' => Staff::CITIZEN, 'role' => Staff::ROLE_CITIZEN, 'hourly_checkin' => true]);
+
+        $this->assertTrue($both->doesHourlyCheckin());
+        $this->assertTrue($both->canBrowse()); // obyektlar bilan ishlash saqlanadi
+        $this->assertFalse($citizen->doesHourlyCheckin());
+        $this->assertEqualsCanonicalizing([$both->id, $contract->id], Staff::hourlyCheckin()->pluck('id')->all()); // aholi belgi bilan ham kirmaydi
+
+        $this->travelTo(today()->setTime(10, 0));
+        $this->artisan('checkins:run')->expectsOutputToContain('yuborildi 2')->assertSuccessful();
+        $this->assertEqualsCanonicalizing([self::UID, 777003], $this->sentTo());
+
+        $this->travelTo(today()->setTime(10, 15));
+        $this->tg('/tg/checkin-location', ['lat' => 41.3, 'lng' => 69.25, 'accuracy' => 8])->assertOk();
+
+        $admin = (new User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin)->get('/admin/checkin-board')->assertOk()->assertSee('Ikki vazifali xodim')->assertSee('Shartnoma xodimi')->assertDontSee('Oddiy xodim');
+        $this->get('/admin/checkin-board?who=employee')->assertOk()->assertSee('Ikki vazifali xodim')->assertDontSee('Shartnoma xodimi');
+        $this->get('/admin/checkin-board?who=contract')->assertOk()->assertSee('Shartnoma xodimi')->assertDontSee('Ikki vazifali xodim');
+
+        // admin xodimlar ro'yxatida belgini o'chiradi — so'rov to'xtaydi
+        $both->update(['hourly_checkin' => false]);
+        $this->travelTo(today()->setTime(11, 0));
+        $this->artisan('checkins:run')->expectsOutputToContain('yuborildi 1')->assertSuccessful();
+    }
+
+    public function test_invite_can_give_employee_hourly_checkin(): void
+    {
+        \App\Support\StaffInvites::add('950507174', 'Taklif xodim', Staff::ROLE_EMPLOYEE, [], null, true);
+        \App\Support\StaffInvites::add('900000009', 'Shartnoma', Staff::ROLE_CONTRACT, [], null, true);
+        $this->assertTrue(\App\Models\StaffInvite::where('phone', '950507174')->value('hourly_checkin'));
+        $this->assertFalse(\App\Models\StaffInvite::where('phone', '900000009')->value('hourly_checkin')); // shartnomada rol bo'yicha
+
+        $staff = Staff::create(['telegram_id' => self::UID, 'full_name' => 'X', 'status' => Staff::AWAITING_PHONE]);
+        $this->assertTrue(\App\Support\StaffInvites::applyOnRegistration($staff, '950507174'));
+        $this->assertTrue($staff->fresh()->doesHourlyCheckin());
+        $this->assertSame(Staff::ROLE_EMPLOYEE, $staff->fresh()->role);
+    }
+
+    /** Testlarda CSRF o'chiq — shuning uchun istisnolar ro'yxati alohida tekshiriladi (Mini App'da sessiya cookie'si yo'q). */
+    public function test_all_mini_app_post_endpoints_are_excluded_from_csrf(): void
+    {
+        $middleware = app(\App\Http\Middleware\VerifyCsrfToken::class);
+        $check = new \ReflectionMethod($middleware, 'inExceptArray');
+        $paths = collect(app('router')->getRoutes()->getRoutes())
+            ->filter(fn ($r) => in_array('POST', $r->methods(), true) && str_starts_with($r->uri(), 'tg/'))
+            ->map->uri()->values();
+        $this->assertNotEmpty($paths);
+        $this->assertContains('tg/checkin-location', $paths);
+        foreach ($paths as $path) {
+            $this->assertTrue($check->invoke($middleware, \Illuminate\Http\Request::create('/'.$path, 'POST')), "CSRF istisnosi yo'q: {$path}");
+        }
+    }
+
     public function test_board_reminds_staff_who_have_not_answered(): void
     {
         $late = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Javob bermagan', 'phone' => '950507174', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);

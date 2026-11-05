@@ -10,14 +10,15 @@ use App\Models\StaffInvite;
 class StaffInvites
 {
     /** @return string natija matni (bildirishnoma uchun) */
-    public static function add(string $phone, ?string $name, string $role, array $districtIds, ?int $userId): string
+    public static function add(string $phone, ?string $name, string $role, array $districtIds, ?int $userId, bool $hourlyCheckin = false): string
     {
         $phone = Staff::normalizePhone($phone);
+        $hourlyCheckin = $role === Staff::ROLE_EMPLOYEE && $hourlyCheckin; // shartnoma xodimida rol bo'yicha doim yoqilgan
         $districtIds = $role === Staff::ROLE_EMPLOYEE ? array_map('intval', $districtIds) : [];
 
         // botda allaqachon bor — roli va tumanlari darhol yangilanadi
         if ($staff = Staff::where('phone', $phone)->whereNotNull('telegram_id')->first()) {
-            $staff->update(['role' => $role, 'full_name' => $name ?: $staff->full_name] + ($staff->isActive() ? [] : ['status' => Staff::ACTIVE, 'registered_at' => now()]));
+            $staff->update(['role' => $role, 'hourly_checkin' => $hourlyCheckin, 'full_name' => $name ?: $staff->full_name] + ($staff->isActive() ? [] : ['status' => Staff::ACTIVE, 'registered_at' => now()]));
             $role === Staff::ROLE_EMPLOYEE && $staff->assignDistricts($districtIds);
             AuditLog::record('staff.role_set', null, ['by' => $userId, 'staff' => $staff->id, 'role' => $role]);
 
@@ -25,7 +26,7 @@ class StaffInvites
         }
 
         StaffInvite::updateOrCreate(['phone' => $phone], [
-            'full_name' => $name, 'role' => $role, 'district_ids' => $districtIds ?: null, 'created_by' => $userId, 'staff_id' => null, 'used_at' => null,
+            'full_name' => $name, 'role' => $role, 'hourly_checkin' => $hourlyCheckin, 'district_ids' => $districtIds ?: null, 'created_by' => $userId, 'staff_id' => null, 'used_at' => null,
         ]);
         AuditLog::record('staff.invited', null, ['by' => $userId, 'phone' => $phone, 'role' => $role]);
 
@@ -44,7 +45,7 @@ class StaffInvites
         }
 
         $staff->update([
-            'phone' => $phone, 'status' => Staff::ACTIVE, 'role' => $invite->role, 'registered_at' => now(),
+            'phone' => $phone, 'status' => Staff::ACTIVE, 'role' => $invite->role, 'hourly_checkin' => (bool) $invite->hourly_checkin, 'registered_at' => now(),
             'failed_attempts' => 0, 'is_global' => false, 'attendance_required' => true,
             'full_name' => $invite->full_name ?: $staff->full_name,
         ]);

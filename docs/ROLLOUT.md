@@ -37,6 +37,9 @@ Manba ma'lumot: `dataset.csv` (849 obyekt, 12 tuman). Production holati: [DEPLOY
 - **Aholi**: barcha tumanlar, MFY va obyektlar ro'yxati (`jami/buzilgan`), huquqbuzar, sud qarori, holat va tuman mas'uli telefoni. Pasport, maydon, tekshiruv va GPS yo'q.
 - **Xodim**: telefon bo'yicha tasdiqlanadi, pasport to'liq ko'rinadi, tekshiruv va "yaqinimdagilar" ishlaydi, kunlik davomat.
 - **Shartnoma xodimi** (faqat admin panel orqali, «Xodim qo'shish»): obyektlar bilan ishlamaydi — faqat kunlik davomat va **soatlik qayd**.
+- **Ikki vazifa**: oddiy xodimga ham soatlik qayd biriktiriladi — Xodimlar → tahrirlash yoki «Xodim qo'shish» da «Soatlik qayd ham yuritiladi»
+  (yoki jadvaldagi «Soatlik qayd» belgisini bosish). Xodim obyektlar bilan ishlashda davom etadi. Ro'yxat: Xodimlar → filtr «Soatlik qayd yuritiladi»
+  yoki «Soatlik qayd» → kunlik jadval (Hammasi / Shartnoma / Xodimlar).
 - **Davomat** (ish kunlari, du–sha):
   - `ATTENDANCE_SEND_AT` (08:00) da faol xodimlarga so'rov; yetmagan so'rovlar muddatgacha har daqiqa qayta yuboriladi (takror yubormaydi);
   - `ATTENDANCE_REMIND_AT` (08:45) da javob bermaganlarga eslatma;
@@ -100,7 +103,9 @@ Manba ma'lumot: `dataset.csv` (849 obyekt, 12 tuman). Production holati: [DEPLOY
 
 ### Amalga oshirilgan
 - **Autentifikatsiya**: ro'yxatdan o'tish faqat Telegram `contact` (egasining o'z raqami; `contact.user_id == from.id`, forward qilinmagan) + tuman telefonlari / taklif bilan mos kelish. 3 ta noto'g'ri urinishdan keyin bloklanadi, hammasi `audit_logs` ga yoziladi.
-- **Mini App**: har bir so'rov Telegram imzosi (`initData`) bilan tekshiriladi; endpointlarda tezlik chegarasi (`throttle:tg-*`).
+- **Mini App**: har bir so'rov Telegram imzosi (`initData`) bilan tekshiriladi (sessiya yo'q, shuning uchun `tg/*` CSRF'dan ozod); endpointlarda tezlik chegarasi (`throttle:tg-*`).
+- **Xatolik ogohlantirishi**: jurnalga yoziladigan har bir xato (va admin paneldan tashqaridagi 419) `DEBUG_ALERT_PHONES` (standart 997906699) egasiga botda
+  «🐞 Debug: tizimda xatolik mavjud» deb boradi — sinf, xabar, fayl:qator, manzil. Bir xil xato 10 daqiqada bir marta. Raqam botda ro'yxatdan o'tgan bo'lishi kerak.
 - **Avtorizatsiya**: har bir callback/xabarda xodimning tumani tekshiriladi (IDOR yo'q) — boshqa tuman obyektining `id`'sini qo'lda yuborish ishlamaydi (testda tekshirilgan). Shartnoma xodimi obyektlarni ko'rmaydi.
 - **Suiiste'mol va DDoS**:
   - foydalanuvchi bo'yicha tezlik chegarasi (daqiqasiga 40 update),

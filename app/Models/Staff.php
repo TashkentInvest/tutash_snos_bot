@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -28,9 +29,9 @@ class Staff extends Model
 
     protected $table = 'staff';
 
-    protected $fillable = ['telegram_id', 'username', 'full_name', 'phone', 'status', 'role', 'is_global', 'attendance_required', 'receives_reports', 'failed_attempts', 'registered_at', 'last_seen_at'];
+    protected $fillable = ['telegram_id', 'username', 'full_name', 'phone', 'status', 'role', 'is_global', 'attendance_required', 'receives_reports', 'hourly_checkin', 'failed_attempts', 'registered_at', 'last_seen_at'];
 
-    protected $casts = ['is_global' => 'boolean', 'attendance_required' => 'boolean', 'receives_reports' => 'boolean', 'registered_at' => 'datetime', 'last_seen_at' => 'datetime'];
+    protected $casts = ['is_global' => 'boolean', 'attendance_required' => 'boolean', 'receives_reports' => 'boolean', 'hourly_checkin' => 'boolean', 'registered_at' => 'datetime', 'last_seen_at' => 'datetime'];
 
     public function districts(): BelongsToMany
     {
@@ -152,6 +153,19 @@ class Staff extends Model
     public function isContract(): bool
     {
         return $this->role === self::ROLE_CONTRACT;
+    }
+
+    /** Har soatlik qayd: shartnoma xodimi — har doim; oddiy xodim — admin «Soatlik qayd» belgisini qo'ysa (ikkinchi vazifa). */
+    public function doesHourlyCheckin(): bool
+    {
+        return $this->isContract() || ($this->role === self::ROLE_EMPLOYEE && $this->hourly_checkin);
+    }
+
+    /** Soatlik qayd yuritiladigan xodimlar (faollik va telegram_id tekshirilmaydi — chaqiruvchi qo'shadi). */
+    public function scopeHourlyCheckin(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $q) => $q->where('role', self::ROLE_CONTRACT)
+            ->orWhere(fn (Builder $q) => $q->where('role', self::ROLE_EMPLOYEE)->where('hourly_checkin', true)));
     }
 
     /** Botda obyektlarni ko'rish huquqi: tasdiqlangan xodim yoki aholi (shartnoma xodimi obyektlar bilan ishlamaydi). */

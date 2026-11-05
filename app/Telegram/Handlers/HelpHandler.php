@@ -40,7 +40,11 @@ class HelpHandler
                 ."   • <b>Sud qarori bekor qilingan</b> — rasm, video va sud qarori hujjatlari;\n"
                 ."   • <b>Kelganda buzilgan</b> — rasm va video.\n"
                 ."   Har safar: joylashuv → rasm → video (ikkalasi majburiy).\n"
-                ."3. Har ish kuni soat ".config('tutash.attendance.send_at')." da kelgan davomat so‘roviga ".config('tutash.attendance.deadline')." gacha javob bering.\n\n"
+                ."3. Har ish kuni soat ".config('tutash.attendance.send_at')." da kelgan davomat so‘roviga ".config('tutash.attendance.deadline')." gacha javob bering.\n"
+                .($staff->doesHourlyCheckin()
+                    ? '4. Ish vaqtida har soatda ('.implode(', ', \App\Models\Checkin::slots()).") «Soatlik qayd» so‘rovi keladi: tugmani bosib, joylashuv va qisqa video yuboring. Javob muddati — keyingi soatgacha.\n"
+                    : '')
+                ."\n"
                 ."/davomat — bugungi davomat holati (so‘rov yo‘qolgan bo‘lsa, qayta chiqaradi)\n{$common}";
         } elseif ($staff->isCitizen()) {
             $text = "<b>Aholi uchun qo‘llanma</b>\n\n"

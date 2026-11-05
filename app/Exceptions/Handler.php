@@ -41,8 +41,9 @@ class Handler extends ExceptionHandler
      */
     public function register(): void
     {
+        // Har bir jurnalga yoziladigan xato — DEBUG_ALERT_PHONES ga Telegram orqali (bir xil xato 10 daqiqada bir marta).
         $this->reportable(function (Throwable $e) {
-            //
+            \App\Support\ErrorAlert::report($e);
         });
 
         // "Page expired" (419) odatda jurnalga yozilmaydi — sababini aniqlash uchun qisqa izoh yoziladi
@@ -61,6 +62,10 @@ class Handler extends ExceptionHandler
                     'session_token_matches' => $request->hasSession() && hash_equals((string) $request->session()->token(), (string) ($request->input('_token') ?? $request->header('X-CSRF-TOKEN'))),
                     'components' => $components,
                 ]);
+                // Admin panelda sessiya tugashi odatiy hol; boshqa joyda (bot, Mini App) 419 — tizim xatosi.
+                if (! $request->is('admin', 'admin/*', 'livewire/*')) {
+                    \App\Support\ErrorAlert::report($e, $request->method().' /'.$request->path());
+                }
             }
 
             return null;

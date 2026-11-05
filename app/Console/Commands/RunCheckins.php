@@ -54,7 +54,7 @@ class RunCheckins extends Command
 
         $absent = Attendance::whereDate('date', today())->where('status', Attendance::ABSENT)->pluck('staff_id')->all();
         $sent = $retry = 0;
-        Staff::where('status', Staff::ACTIVE)->where('role', Staff::ROLE_CONTRACT)->whereNotNull('telegram_id')
+        Staff::where('status', Staff::ACTIVE)->hourlyCheckin()->whereNotNull('telegram_id')
             ->whereNotIn('id', $absent)->get()
             ->each(function (Staff $staff) use ($bot, $slot, &$sent, &$retry) {
                 $row = Checkin::where('staff_id', $staff->id)->whereDate('date', today())->where('slot', $slot)->first()

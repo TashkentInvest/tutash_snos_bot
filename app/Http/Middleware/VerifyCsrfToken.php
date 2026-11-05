@@ -13,9 +13,8 @@ class VerifyCsrfToken extends Middleware
      */
     protected $except = [
         'telegram/webhook',
-        'tg/attendance-location',
-        'tg/attendance-state',
-        'tg/attendance-video',
-        'tg/inspection/*',
+        // Mini App'lar: sessiya cookie'si yo'q, har bir so'rov Telegram imzosi (initData) bilan tekshiriladi.
+        // Butun prefiks — yangi endpoint qo'shilganda "CSRF token mismatch" takrorlanmasligi uchun.
+        'tg/*',
     ];
 }

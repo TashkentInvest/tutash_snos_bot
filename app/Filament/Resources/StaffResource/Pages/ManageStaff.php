@@ -32,9 +32,12 @@ class ManageStaff extends ManageRecords
                         ->options(District::orderBy('name')->pluck('name', 'id'))
                         ->visible(fn (Forms\Get $get) => $get('role') === \App\Models\Staff::ROLE_EMPLOYEE)
                         ->requiredIf('role', \App\Models\Staff::ROLE_EMPLOYEE),
+                    Forms\Components\Toggle::make('hourly_checkin')->label('Soatlik qayd ham yuritiladi')
+                        ->helperText(StaffResource::CHECKIN_HINT)
+                        ->visible(fn (Forms\Get $get) => $get('role') === \App\Models\Staff::ROLE_EMPLOYEE),
                 ])
                 ->action(function (array $data) {
-                    $text = \App\Support\StaffInvites::add($data['phone'], $data['full_name'], $data['role'], $data['district_ids'] ?? [], auth()->id());
+                    $text = \App\Support\StaffInvites::add($data['phone'], $data['full_name'], $data['role'], $data['district_ids'] ?? [], auth()->id(), (bool) ($data['hourly_checkin'] ?? false));
                     Notification::make()->title($text)->success()->send();
                 }),
             Action::make('broadcast')->label('Xabar yuborish')->icon('heroicon-o-megaphone')

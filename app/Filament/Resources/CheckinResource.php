@@ -20,7 +20,7 @@ class CheckinResource extends Resource
         return User::currentIsAdmin();
     }
 
-    protected static ?string $navigationGroup = 'Shartnoma';
+    protected static ?string $navigationGroup = 'Soatlik qayd';
 
     protected static ?string $navigationIcon = 'heroicon-o-map-pin';
 
@@ -67,7 +67,7 @@ class CheckinResource extends Resource
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('staff_id')->label('Xodim')
-                    ->options(fn () => Staff::where('role', Staff::ROLE_CONTRACT)->orderBy('full_name')->pluck('full_name', 'id')),
+                    ->options(fn () => Staff::withTrashed()->hourlyCheckin()->orderBy('full_name')->pluck('full_name', 'id')),
                 Tables\Filters\SelectFilter::make('status')->label('Holat')->options(Checkin::STATUSES),
                 Tables\Filters\Filter::make('date')->label('Sana')
                     ->form([
