@@ -17,7 +17,7 @@ class InspectionsRelationManager extends RelationManager
     public function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->where('status', Inspection::SUBMITTED)->whereNull('archived_at')->with('staff'))
+            ->modifyQueryUsing(fn ($query) => $query->where('status', Inspection::SUBMITTED)->whereNull('archived_at')->whereNull('followup_of')->with('staff'))
             ->columns([
                 Tables\Columns\TextColumn::make('submitted_at')->label('Sana')->dateTime('d.m.Y H:i'),
                 Tables\Columns\TextColumn::make('staff.full_name')->label('Xodim'),

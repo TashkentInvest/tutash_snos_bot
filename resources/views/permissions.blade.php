@@ -31,7 +31,7 @@
 <button id="goCheck">✅ Ruxsatlarni tekshirish</button>
 <p id="msg"></p>
 
-<script src="/js/tg-location.js?v=2"></script>
+<script src="/js/tg-location.js?v=3"></script>
 <script>
 const tg = window.Telegram && window.Telegram.WebApp;
 tg && (tg.ready(), tg.expand());

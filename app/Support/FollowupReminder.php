@@ -25,6 +25,9 @@ class FollowupReminder
     {
         return Inspection::with(['site', 'staff'])->where('status', Inspection::SUBMITTED)->where('followup', Inspection::FOLLOWUP_OPEN)
             ->whereIn('review_status', [Inspection::REVIEW_APPROVED, Inspection::REVIEW_REJECTED])
+            // rad etilgan natija: obyekt boshqa yo'l bilan hal bo'lgan bo'lsa (buzilgan / sud qarori bekor) — eslatilmaydi
+            ->where(fn ($q) => $q->where('review_status', Inspection::REVIEW_APPROVED)
+                ->orWhereHas('site', fn ($s) => $s->whereNotIn('status', [\App\Models\Site::DEMOLISHED, \App\Models\Site::EXEMPT])))
             ->whereHas('staff', fn ($q) => $q->where('status', Staff::ACTIVE)->whereNotNull('telegram_id'));
     }
 

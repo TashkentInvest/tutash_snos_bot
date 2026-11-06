@@ -80,7 +80,7 @@ class InspectionHandler
      * Tur tanlandi ("gk:{id}:{kind}"). "Tekshirish" bosqichlari turli kunlarda: oldingi holat qayd etilmagan bo'lsa — u,
      * aks holda xodim tanlaydi: buzish jarayoni yoki buzib bo'lingan (keyingi holat).
      */
-    public function chooseKind(Nutgram $bot, string $siteId, string $kind): void
+    public function chooseKind(Nutgram $bot, string $siteId, string $kind, bool $force = false): void
     {
         if (! ($staff = BrowseHandler::guardEmployee($bot)) || ! ($site = $this->startableSite($bot, $staff, $siteId))) {
             return;
@@ -104,6 +104,9 @@ class InspectionHandler
         }
 
         $draft = self::draft($staff);
+        if (! $force && $this->keepsWork($bot, $draft, "gky:{$site->id}:{$kind}")) {
+            return;
+        }
         $draft?->delete(); // eski tugallanmagan qoralama bekor qilinadi
         try {
             $draft = Inspection::create(['site_id' => $site->id, 'staff_id' => $staff->id, 'step' => 'location', ...Inspection::kindAttributes($kind)]);
@@ -119,7 +122,7 @@ class InspectionHandler
      * Rad etilgan natijani tuzatish ("rw:{id}"): avvalgi natija, izoh va fayllar saqlanadi,
      * xodim Mini App'da faqat moderator ko'rsatgan qismini (rasm, video, izoh, hujjat) qayta oladi.
      */
-    public function rework(Nutgram $bot, string $id): void
+    public function rework(Nutgram $bot, string $id, bool $force = false): void
     {
         if (! $staff = BrowseHandler::guardEmployee($bot)) {
             return;
@@ -144,6 +147,9 @@ class InspectionHandler
 
         $draft = self::draft($staff);
         if ($draft && $draft->rework_of !== $old->id) {
+            if (! $force && $this->keepsWork($bot, $draft, "rwy:{$old->id}")) {
+                return;
+            }
             $draft->delete();
             $draft = null;
         }
@@ -201,7 +207,7 @@ class InspectionHandler
     }
 
     /** Tasdiqlangan natija bo'yicha moderator izohi bajarilganini rasm va video bilan tasdiqlash ("fu:{id}"). */
-    public function followup(Nutgram $bot, string $id): void
+    public function followup(Nutgram $bot, string $id, bool $force = false): void
     {
         if (! $staff = BrowseHandler::guardEmployee($bot)) {
             return;
@@ -217,6 +223,9 @@ class InspectionHandler
 
         $draft = self::draft($staff);
         if ($draft && $draft->followup_of !== $parent->id) {
+            if (! $force && $this->keepsWork($bot, $draft, "fuy:{$parent->id}")) {
+                return;
+            }
             $draft->delete();
             $draft = null;
         }
@@ -231,6 +240,42 @@ class InspectionHandler
 
         Ui::say($bot, '<b>'.Ui::e(Ui::cut($parent->site->address, 60)).'</b>'."\n\n💬 Moderator izohi: <i>".Ui::e((string) $parent->review_note)."</i>\n\n"
             .'Obyekt yoniga borib, oynani oching: joylashuv → bajarilgan ish rasmi → video → qisqa izoh.', self::webAppMarkup());
+    }
+
+    /**
+     * Boshqa obyekt bo'yicha tugallanmagan tekshiruvda rasm/video olingan bo'lsa — jimgina o'chirmaymiz, so'raymiz
+     * (masalan eski eslatma tugmasi bosilganda olingan ish yo'qolmasin). true — so'raldi, davom etilmaydi.
+     */
+    private function keepsWork(Nutgram $bot, ?Inspection $draft, string $discardCallback): bool
+    {
+        if (! $draft || ! $draft->media()->exists()) {
+            return false;
+        }
+        $bot->callbackQuery() && $bot->answerCallbackQuery();
+        Ui::say($bot, '⚠️ Sizda tugallanmagan tekshiruv bor: <b>'.Ui::e(Ui::cut((string) $draft->site?->address, 60))."</b> (rasm yoki video olingan).\n\n"
+            .'Avval uni yakunlang yoki bekor qilib, yangisini boshlang.',
+            InlineKeyboardMarkup::make()
+                ->addRow(InlineKeyboardButton::make(Ui::t('▶️ Avvalgisini davom ettirish'),
+                    web_app: new WebAppInfo(rtrim((string) config('app.url'), '/').'/tg/inspection')))
+                ->addRow(Ui::btn('🗑 Bekor qilib, yangisini boshlash', $discardCallback)));
+
+        return true;
+    }
+
+    /** "Bekor qilib, yangisini boshlash" tasdiqlangandan keyin (gky:/rwy:/fuy:). */
+    public function chooseKindForce(Nutgram $bot, string $siteId, string $kind): void
+    {
+        $this->chooseKind($bot, $siteId, $kind, true);
+    }
+
+    public function reworkForce(Nutgram $bot, string $id): void
+    {
+        $this->rework($bot, $id, true);
+    }
+
+    public function followupForce(Nutgram $bot, string $id): void
+    {
+        $this->followup($bot, $id, true);
     }
 
     /** Mini App'ni ochuvchi tugma (qoralama bo'yicha joriy bosqichdan davom etadi). */

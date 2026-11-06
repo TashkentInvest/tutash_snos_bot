@@ -81,7 +81,8 @@ class ImportSites extends Command
 
                 $site = $sourceNo !== null ? Site::where(['district_id' => $district->id, 'source_no' => $sourceNo])->first() : null;
                 if ($site) {
-                    $site->update($attrs); // holat (status) tekshiruvlar bilan boshqariladi, qayta import uni ustiga yozmaydi
+                    // holat (status) tekshiruvlar bilan boshqariladi; CSV'dagi bo'sh katak admin kiritgan qiymatni (masalan koordinata) o'chirmaydi
+                    $site->update(array_filter($attrs, fn ($v) => $v !== null && $v !== '' && $v !== '—'));
                     $updated++;
                 } else {
                     Site::create($attrs + [

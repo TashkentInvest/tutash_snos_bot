@@ -356,6 +356,41 @@ class RolesAttendanceTest extends TestCase
         $this->assertStringContainsString('Birinchi kocha', $this->sent());
     }
 
+    /** Boshqa obyektga o'tishda rasm/video olingan tekshiruv jimgina o'chmaydi — so'raladi. */
+    public function test_draft_with_media_is_not_deleted_without_confirmation(): void
+    {
+        $this->registerEmployee();
+        $other = Site::create(['district_id' => $this->district->id, 'mahalla_id' => $this->site->mahalla_id, 'source_no' => 9, 'address' => 'Uchinchi kocha 3', 'lat' => 41.3, 'lng' => 69.25]);
+        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
+        $this->bot()->hearCallbackQueryData("gk:{$this->site->id}:check")->reply();
+        $draft = Inspection::where('status', Inspection::DRAFT)->first();
+        \App\Models\InspectionMedia::create(['inspection_id' => $draft->id, 'kind' => \App\Models\InspectionMedia::BEFORE_PHOTO, 'telegram_file_id' => 'f1', 'file_unique_id' => 'u1', 'path' => 'x.jpg']);
+
+        $this->bot()->hearCallbackQueryData("gk:{$other->id}:found")->reply();
+        $this->assertStringContainsString('tugallanmagan tekshiruv bor', $this->sent());
+        $this->assertStringContainsString("gky:{$other->id}:found", $this->sent());
+        $this->assertNotNull($draft->fresh()); // o'chmadi
+
+        $this->bot()->hearCallbackQueryData("gky:{$other->id}:found")->reply();
+        $this->assertNull($draft->fresh()); // tasdiqlangandan keyin bekor qilindi
+        $this->assertSame($other->id, Inspection::where('status', Inspection::DRAFT)->value('site_id'));
+    }
+
+    /** Obyekt tasdiqlansa, shu obyekt bo'yicha rad etilgan natijalarning "tuzating" eslatmalari to'xtaydi. */
+    public function test_approval_closes_open_rework_reminders_of_the_same_site(): void
+    {
+        $staff = $this->registerEmployee();
+        $base = ['site_id' => $this->site->id, 'staff_id' => $staff->id, 'status' => Inspection::SUBMITTED, 'step' => 'done', 'submitted_at' => now()];
+        $rejected = Inspection::create($base + ['kind' => Inspection::KIND_AFTER, 'is_demolished' => true, 'review_status' => Inspection::REVIEW_REJECTED,
+            'followup' => Inspection::FOLLOWUP_OPEN, 'archived_at' => now(), 'review_note' => 'Rasm xira']);
+        $this->assertSame(1, \App\Support\FollowupReminder::open()->count());
+
+        $fresh = Inspection::create($base + ['kind' => Inspection::KIND_FOUND, 'is_demolished' => true, 'review_status' => Inspection::REVIEW_PENDING]);
+        $this->assertTrue(\App\Support\InspectionReview::approve($fresh, null));
+        $this->assertSame(Inspection::FOLLOWUP_CLOSED, $rejected->refresh()->followup);
+        $this->assertSame(0, \App\Support\FollowupReminder::open()->count());
+    }
+
     public function test_employee_without_districts_gets_explanation(): void
     {
         $staff = $this->registerEmployee();

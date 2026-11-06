@@ -153,7 +153,8 @@ class InspectionResource extends Resource
             Tables\Actions\Action::make('closeFollowup')->label('Izohni yopish')->icon('heroicon-o-check-badge')->color('success')
                 ->requiresConfirmation()->modalHeading('Izoh bajarildi deb yopilsinmi?')
                 ->modalDescription('Xodim yuborgan rasm va videolarni tekshirib chiqing.')
-                ->visible(fn (Inspection $record) => $record->followup === Inspection::FOLLOWUP_DONE && User::currentIsAdmin())
+                ->visible(fn (Inspection $record) => (($record->followup === Inspection::FOLLOWUP_DONE)
+                    || ($record->followup === Inspection::FOLLOWUP_OPEN && $record->review_status === Inspection::REVIEW_REJECTED)) && User::currentIsAdmin())
                 ->action(function (Inspection $record) {
                     $ok = \App\Support\InspectionReview::closeFollowup($record, auth()->id());
                     Notification::make()->title($ok ? 'Izoh yopildi' : 'Izoh allaqachon yopilgan')->{$ok ? 'success' : 'warning'}()->send();
@@ -267,7 +268,7 @@ class InspectionResource extends Resource
                         }
                         $p = \App\Support\ReportPeriod::for($data['day']);
 
-                        return $query->where('submitted_at', '>', $p->from)->where('submitted_at', '<=', $p->to);
+                        return $query->where('submitted_at', '>', $p->from)->where('submitted_at', '<=', $p->to)->whereNull('archived_at');
                     })
                     ->indicateUsing(fn (array $data) => ($data['day'] ?? null) ? 'Hisobot kuni: '.\App\Support\ReportPeriod::for($data['day'])->label() : null),
             ])

@@ -31,6 +31,10 @@ class InspectionReview
                 'review_note' => $note, 'followup' => $note ? Inspection::FOLLOWUP_OPEN : null, 'followup_at' => null,
                 'followup_ack_at' => null, 'followup_reminded_at' => null, 'followup_reminders' => 0]);
             self::closeParent($in);
+            // obyekt hal bo'ldi — shu obyekt bo'yicha boshqa rad etilgan natijalarning ochiq "tuzating" izohlari ham yopiladi
+            // (aks holda xodimga har kuni eslatma kelib, tugmasi "allaqachon tasdiqlangan" deb javob berardi)
+            Inspection::where('site_id', $in->site_id)->whereKeyNot($in->id)->where('review_status', Inspection::REVIEW_REJECTED)
+                ->where('followup', Inspection::FOLLOWUP_OPEN)->update(['followup' => Inspection::FOLLOWUP_CLOSED, 'followup_at' => now()]);
             // sud qarori bekor qilingan obyekt buzilmaydi va jami sondan chiqariladi
             $in->site->update($in->isCourtCancelled()
                 ? ['status' => Site::EXEMPT, 'demolished_at' => null]

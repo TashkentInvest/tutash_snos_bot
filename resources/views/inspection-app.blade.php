@@ -94,7 +94,7 @@
 <button id="cancelLink" class="hidden">❌ Tekshiruvni bekor qilish</button>
 
 <script src="/js/tg-camera.js?v=2"></script>
-<script src="/js/tg-location.js?v=2"></script>
+<script src="/js/tg-location.js?v=3"></script>
 <script>
 const MIN = {{ (int) $minSeconds }}, MAX = 15;
 const tg = window.Telegram && window.Telegram.WebApp;
@@ -126,7 +126,7 @@ async function post(path, body, ms) {
             body: isForm ? body : JSON.stringify({ initData: initData(), device: TgCam.info(), ...(body || {}) }),
         });
         const j = await r.json().catch(() => ({}));
-        return { ok: r.ok && j.ok, j };
+        return { ok: r.ok && j.ok, j, status: r.status };
     } finally { clearTimeout(timer); }
 }
 
@@ -141,6 +141,8 @@ async function api(path, body) {
         if (path === 'state') return lost;
         try {
             const s = await post('state', null, 15000);
+            // yuborish javobi yo'qolgan, lekin qoralama endi yo'q (409) — natija serverda saqlangan
+            if (path === 'submit' && s.status === 409) return { ok: true, j: { ok: true, done: true } };
             if (s.ok && state && s.j.step !== state.step) return s;
         } catch (_) {}
         return lost;
@@ -335,8 +337,12 @@ async function retryVideo(text) {
 
 // ---------------------------------------------------------------- izoh (moderator izohi bo'yicha), hujjatlar, tasdiq
 $('goReason').onclick = async () => {
-    const { ok, j } = await api('reason', { reason: $('reason').value });
-    ok ? render(j) : say(j.message || 'Xatolik yuz berdi.', 'err');
+    if (busy) return; // qo'sh bosish — ikki so'rov ketmasin
+    busy = true; $('goReason').disabled = true;
+    try {
+        const { ok, j } = await api('reason', { reason: $('reason').value });
+        ok ? render(j) : say(j.message || 'Xatolik yuz berdi.', 'err');
+    } finally { busy = false; $('goReason').disabled = false; }
 };
 
 function renderDocs(s) {
@@ -398,8 +404,12 @@ $('docFile').onchange = async () => {
 };
 
 $('goDocsDone').onclick = async () => {
-    const { ok, j } = await api('documents/done', { reason: $('docNote').value });
-    ok ? render(j) : say(j.message || 'Xatolik yuz berdi.', 'err');
+    if (busy) return;
+    busy = true; $('goDocsDone').disabled = true;
+    try {
+        const { ok, j } = await api('documents/done', { reason: $('docNote').value });
+        ok ? render(j) : say(j.message || 'Xatolik yuz berdi.', 'err');
+    } finally { busy = false; $('goDocsDone').disabled = false; }
 };
 
 $('goSubmit').onclick = async () => {

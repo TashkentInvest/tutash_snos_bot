@@ -54,9 +54,11 @@ class SiteResource extends Resource
     {
         return $form->schema([
             Forms\Components\Section::make('Joylashuv')->columns(2)->schema([
-                Forms\Components\Select::make('district_id')->label('Tuman')->relationship('district', 'name')->required()->live(),
+                Forms\Components\Select::make('district_id')->label('Tuman')->relationship('district', 'name')->required()->live()
+                    ->afterStateUpdated(fn (Forms\Set $set) => $set('mahalla_id', null)), // boshqa tumanning MFY'si saqlanib qolmasin
                 Forms\Components\Select::make('mahalla_id')->label('MFY')
                     ->options(fn (Forms\Get $get) => Mahalla::where('district_id', $get('district_id'))->orderBy('name')->pluck('name', 'id'))
+                    ->rule(fn (Forms\Get $get) => \Illuminate\Validation\Rule::exists('mahallas', 'id')->where('district_id', $get('district_id')))
                     ->searchable(),
                 Forms\Components\TextInput::make('address')->label('Manzil (ko\'cha)')->required()->columnSpanFull(),
                 Forms\Components\ViewField::make('map_picker')->hiddenLabel()->dehydrated(false)
@@ -86,11 +88,17 @@ class SiteResource extends Resource
             ]),
             Forms\Components\Section::make('Sud va holat')->columns(2)->schema([
                 Forms\Components\Toggle::make('is_tutash')->label('Tutash'),
-                Forms\Components\Select::make('status')->label('Holat')->options(self::STATUS)->required(),
+                Forms\Components\Select::make('status')->label('Holat')->required()->live()
+                    // ko'ruvchi (viewer) faqat buzilmagan/jarayonda obyekt qo'sha oladi — buzilgan holat moderator tasdig'i orqali
+                    ->options(fn () => User::currentIsAdmin() ? self::STATUS : array_intersect_key(self::STATUS, array_flip([Site::NOT_DEMOLISHED, Site::IN_PROGRESS])))
+                    ->default(Site::NOT_DEMOLISHED)
+                    ->afterStateUpdated(fn ($state, Forms\Get $get, Forms\Set $set) => $state === Site::DEMOLISHED && ! $get('demolished_at') && $set('demolished_at', today()->toDateString())),
                 Forms\Components\DatePicker::make('court_date')->label('Sud qarori sanasi'),
                 Forms\Components\TextInput::make('court_number')->label('Sud qarori raqami'),
                 Forms\Components\TextInput::make('court_status')->label('Sud holati'),
-                Forms\Components\DatePicker::make('demolished_at')->label('Buzilgan sana'),
+                // buzilgan obyektda sana shart: sanasiz bo'lsa o'tgan kunlar svodida har kuni "buzilgan" bo'lib ko'rinadi
+                Forms\Components\DatePicker::make('demolished_at')->label('Buzilgan sana')
+                    ->required(fn (Forms\Get $get) => $get('status') === Site::DEMOLISHED),
             ]),
         ]);
     }

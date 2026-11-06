@@ -19,10 +19,23 @@
             { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
     }
 
+    // LocationManager.init faqat BIR MARTA callback chaqiradi: ikkinchi marta (masalan «Qayta tekshirish») chaqirilsa,
+    // Telegram callbackni umuman chaqirmaydi va sahifa "Joylashuv aniqlanmoqda…" da qotib qoladi. Shuning uchun init bir marta.
+    let inited = null;
+    const ready = m => inited || (inited = new Promise(r => (m.isInited ? r() : m.init(() => r()))));
+
+    // Telegram ba'zan umuman javob bermaydi (eski Android klientlar) — 25 soniyadan keyin brauzer GPS'iga o'tamiz.
+    const LIMIT = 25000;
     T.get = () => new Promise((resolve, reject) => {
         const m = lm();
         if (!m) return viaBrowser(resolve, reject);
-        m.init(() => {
+        let done = false;
+        const ok = v => { if (!done) { done = true; resolve(v); } };
+        const no = e => { if (!done) { done = true; reject(e); } };
+        const timer = setTimeout(() => { if (!done) viaBrowser(ok, no); }, LIMIT);
+        const finish = fn => v => { clearTimeout(timer); fn(v); };
+        resolve = finish(ok); reject = finish(no);
+        ready(m).then(() => {
             if (!m.isLocationAvailable) return viaBrowser(resolve, reject);
             if (m.isAccessRequested && !m.isAccessGranted) return reject(fail(DENIED, true));
             m.getLocation(loc => {

@@ -72,7 +72,8 @@ class ViewInspection extends ViewRecord
             Action::make('closeFollowup')->label('Izohni yopish')->icon('heroicon-o-check-badge')->color('success')
                 ->requiresConfirmation()->modalHeading('Izoh bajarildi deb yopilsinmi?')
                 ->modalDescription('Xodim yuborgan rasm va videolarni tekshirib chiqing.')
-                ->visible(fn () => $this->record->followup === Inspection::FOLLOWUP_DONE && \App\Models\User::currentIsAdmin())
+                ->visible(fn () => ($this->record->followup === Inspection::FOLLOWUP_DONE
+                    || ($this->record->followup === Inspection::FOLLOWUP_OPEN && $this->record->review_status === Inspection::REVIEW_REJECTED)) && \App\Models\User::currentIsAdmin())
                 ->action(function () {
                     $ok = InspectionReview::closeFollowup($this->record, auth()->id());
                     Notification::make()->title($ok ? 'Izoh yopildi' : 'Izoh allaqachon yopilgan')->{$ok ? 'success' : 'warning'}()->send();
