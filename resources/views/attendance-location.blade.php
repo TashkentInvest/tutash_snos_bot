@@ -47,7 +47,7 @@
 </div>
 
 <div id="msg"></div>
-<script src="/js/tg-location.js?v=3"></script>
+<script src="/js/tg-location.js?v=4"></script>
 <script>
 const MIN = {{ (int) $minSeconds }}, MAX = 15;
 const API = @json($endpoints), TEXT = @json(['done' => $doneText, 'already' => $alreadyText, 'none' => $noneText]);

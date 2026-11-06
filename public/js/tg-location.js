@@ -26,15 +26,15 @@
 
     // Telegram ba'zan umuman javob bermaydi (eski Android klientlar) — 25 soniyadan keyin brauzer GPS'iga o'tamiz.
     const LIMIT = 25000;
-    T.get = () => new Promise((resolve, reject) => {
+    T.get = () => new Promise((settle, fault) => {
         const m = lm();
-        if (!m) return viaBrowser(resolve, reject);
+        if (!m) return viaBrowser(settle, fault);
+        // natija faqat bir marta: Telegram yoki (vaqt tugasa) brauzer — qaysi biri birinchi bo'lsa
         let done = false;
-        const ok = v => { if (!done) { done = true; resolve(v); } };
-        const no = e => { if (!done) { done = true; reject(e); } };
-        const timer = setTimeout(() => { if (!done) viaBrowser(ok, no); }, LIMIT);
-        const finish = fn => v => { clearTimeout(timer); fn(v); };
-        resolve = finish(ok); reject = finish(no);
+        let timer = null;
+        const resolve = v => { if (!done) { done = true; clearTimeout(timer); settle(v); } };
+        const reject = e => { if (!done) { done = true; clearTimeout(timer); fault(e); } };
+        timer = setTimeout(() => viaBrowser(resolve, reject), LIMIT);
         ready(m).then(() => {
             if (!m.isLocationAvailable) return viaBrowser(resolve, reject);
             if (m.isAccessRequested && !m.isAccessGranted) return reject(fail(DENIED, true));
@@ -44,7 +44,7 @@
                 if (m.isAccessRequested && !m.isAccessGranted) return reject(fail(DENIED, true));
                 viaBrowser(resolve, reject);
             });
-        });
+        }).catch(() => viaBrowser(resolve, reject)); // SDK xato tashlasa (masalan getLocation) — brauzer GPS'i, osilib qolmasin
     });
 
     // Faqat tugma bosilganda chaqiriladi (Telegram talabi).
