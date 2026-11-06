@@ -26,7 +26,9 @@ class AttendanceHandler
         $row = Attendance::where('staff_id', $staff->id)->whereDate('date', today())
             ->whereIn('status', [Attendance::LOCATING, Attendance::RECORDING, Attendance::REASONING])->first();
 
-        if ($row && self::expired()) {
+        // video yozilayotgan bo'lsa (joylashuv muddatgacha yuborilgan) — qo'shimcha daqiqalar ichida yopilmaydi
+        $graced = $row?->status === Attendance::RECORDING && now()->lessThanOrEqualTo(Attendance::closeAt());
+        if ($row && self::expired() && ! $graced) {
             $row->update(['status' => Attendance::MISSED]);
 
             return null;

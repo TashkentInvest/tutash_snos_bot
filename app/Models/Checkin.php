@@ -42,6 +42,12 @@ class Checkin extends Model
         return $this->belongsTo(Staff::class)->withTrashed(); // o'chirilgan (arxivdagi) xodimning tarixi ham ko'rinadi
     }
 
+    /** Joylashuv muddatgacha yuborilgan bo'lsa, video muddatdan keyin ham bir necha daqiqa qabul qilinadi. */
+    public function acceptsVideo(): bool
+    {
+        return now()->lessThanOrEqualTo($this->deadline_at->copy()->addMinutes(Attendance::GRACE_MINUTES));
+    }
+
     public function isOpen(): bool
     {
         return in_array($this->status, self::OPEN, true) && now()->lessThanOrEqualTo($this->deadline_at);
@@ -51,6 +57,14 @@ class Checkin extends Model
     public static function slots(): array
     {
         return array_values(array_filter(array_map('trim', explode(',', (string) config('tutash.checkins.slots')))));
+    }
+
+    /** checkins:run qachongacha ishlaydi: oxirgi soat muddati + 5 daqiqa (javobsizlarni yopish uchun), CHECKIN_SLOTS dan kelib chiqib. */
+    public static function scheduleUntil(): string
+    {
+        $last = collect(self::slots())->max() ?? '18:00';
+
+        return today()->setTimeFromTimeString($last)->addMinutes((int) config('tutash.checkins.window_minutes') + 5)->min(today()->setTime(23, 59))->format('H:i');
     }
 
     /** Soat bo'yicha javob muddati: keyingi soatgacha (masalan 10:00 -> 10:59:59). */

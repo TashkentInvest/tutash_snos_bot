@@ -48,9 +48,11 @@ class RouteServiceProvider extends ServiceProvider
         // Mini App: mobil operatorlarda ko'p xodim bitta umumiy IP (CGNAT) orqali chiqadi, shuning uchun limit
         // Telegram foydalanuvchisi bo'yicha. Imzo controllerda tekshiriladi; soxta id bilan aylanib o'tishga qarshi — umumiy IP limiti.
         foreach (['tg-app' => 60, 'tg-state' => 30, 'tg-location' => 20, 'tg-media' => 40, 'tg-video' => 10] as $name => $perUser) {
+            // 429 javobi o'zbekcha (Mini App xabarni to'g'ridan-to'g'ri ko'rsatadi; standart "Too Many Attempts." edi)
+            $busy = fn () => response()->json(['ok' => false, 'message' => 'Juda ko‘p urinish. Bir daqiqa kutib, qayta urinib ko‘ring.'], 429);
             RateLimiter::for($name, fn (Request $request) => [
-                Limit::perMinute($perUser)->by($name.':u:'.(self::telegramUserId($request) ?? 'ip:'.$request->ip())),
-                Limit::perMinute($perUser * 20)->by($name.':ip:'.$request->ip()),
+                Limit::perMinute($perUser)->by($name.':u:'.(self::telegramUserId($request) ?? 'ip:'.$request->ip()))->response($busy),
+                Limit::perMinute($perUser * 20)->by($name.':ip:'.$request->ip())->response($busy),
             ]);
         }
     }

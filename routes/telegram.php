@@ -63,7 +63,8 @@ $bot->onException(function (Nutgram $bot, Throwable $e) {
     report($e);
     try {
         $bot->callbackQuery() && $bot->answerCallbackQuery(['text' => Ui::t('Xatolik yuz berdi. Iltimos, qayta urinib ko‘ring.')]);
-        $bot->sendMessage(Ui::t('⚠️ Vaqtincha texnik xatolik yuz berdi. Iltimos, /start buyrug‘i orqali qayta urinib ko‘ring.'));
+        // ro'yxatdan o'tgan xodimni "/start" ga yubormaymiz — shunchaki qayta urinish
+        $bot->callbackQuery() || $bot->sendMessage(Ui::t('⚠️ Xatolik yuz berdi. Bir ozdan keyin qayta urinib ko‘ring.'));
     } catch (Throwable) {
     }
 });

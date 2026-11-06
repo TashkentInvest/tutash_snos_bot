@@ -51,12 +51,15 @@ class CheckinController extends Controller
     {
         $user = WebAppAuth::user((string) $request->input('initData'));
         if (! $user) {
-            return [null, null, $this->fail('Telegram imzosi tasdiqlanmadi. Botdan tugmani qayta bosing.', 403)];
+            return [null, null, $this->fail('Oyna eskirgan. Uni yopib, botdagi tugmani qayta bosing.', 403)];
         }
         $staff = Staff::where('telegram_id', $user['id'])->where('status', Staff::ACTIVE)->first();
         $rows = $staff ? Checkin::with('staff')->where('staff_id', $staff->id)->whereDate('date', today())->whereNotNull('sent_at')->orderByDesc('slot')->get() : collect();
 
-        return [$user, $rows->first(fn (Checkin $c) => $c->isOpen()) ?? $rows->first(), null];
+        // video yozilayotgan (muddat + qo'shimcha daqiqalar ichida) -> ochiq so'rov -> bugungi oxirgisi
+        $recording = $rows->first(fn (Checkin $c) => $c->status === Checkin::RECORDING && $c->acceptsVideo());
+
+        return [$user, $recording ?? $rows->first(fn (Checkin $c) => $c->isOpen()) ?? $rows->first(), null];
     }
 
     public function state(Request $request): JsonResponse
@@ -69,7 +72,7 @@ class CheckinController extends Controller
 
         return response()->json(['ok' => true, 'max' => self::MAX_SECONDS, 'step' => match (true) {
             $open && $row->status === Checkin::SENT => 'location',
-            $open && $row->status === Checkin::RECORDING => 'video',
+            $row?->status === Checkin::RECORDING && $row->acceptsVideo() => 'video',
             $row?->status === Checkin::PRESENT => 'done',
             default => 'none',
         }]);
@@ -87,6 +90,10 @@ class CheckinController extends Controller
         [$user, $row, $error] = $this->resolve($request);
         if ($error) {
             return $error;
+        }
+        if ($row?->status === Checkin::PRESENT || ($row?->status === Checkin::RECORDING && $row->acceptsVideo())) {
+            // joylashuv avval saqlangan (javob tarmoqda yo'qolgan) — xato emas
+            return response()->json(['ok' => true, 'already' => true, 'step' => $row->status === Checkin::PRESENT ? 'done' : 'video']);
         }
         if (! $row?->isOpen() || $row->status !== Checkin::SENT) {
             return $this->fail('Hozir soatlik so‘rov yo‘q yoki javob muddati tugagan.', 409);
@@ -122,7 +129,10 @@ class CheckinController extends Controller
         if ($error) {
             return $error;
         }
-        if (! $row?->isOpen() || $row->status !== Checkin::RECORDING) {
+        if ($row?->status === Checkin::PRESENT && $row->responded_at?->greaterThan(now()->subMinutes(10))) {
+            return response()->json(['ok' => true, 'already' => true]); // saqlangan, javob yo'qolgan edi
+        }
+        if ($row?->status !== Checkin::RECORDING || ! $row->acceptsVideo()) {
             return $this->fail('Hozir video qabul qilinmaydi. Avval joylashuvni yuboring (yoki javob muddati tugagan).', 409);
         }
 
@@ -166,9 +176,13 @@ class CheckinController extends Controller
         }
         AuditLog::record('checkin.present', $user['id'], ['checkin' => $row->id, 'slot' => $row->slot]);
 
-        $bot->sendMessage(Script::apply("✅ Soatlik qayd ({$row->slot}) qabul qilindi — ".now()->format('H:i')), [
-            'chat_id' => $user['id'], 'parse_mode' => ParseMode::HTML,
-        ]);
+        try { // saqlangan; Telegram sekin bo'lsa ham Mini App'ga xato qaytmasin
+            $bot->sendMessage(Script::apply("✅ Soatlik qayd ({$row->slot}) qabul qilindi — ".now()->format('H:i')), [
+                'chat_id' => $user['id'], 'parse_mode' => ParseMode::HTML,
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         return response()->json(['ok' => true]);
     }

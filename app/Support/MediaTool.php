@@ -59,7 +59,15 @@ class MediaTool
 
         $process = new Process($cmd);
         $process->setTimeout(150);
-        $process->run();
+        try {
+            $process->run();
+        } catch (\Symfony\Component\Process\Exception\ProcessTimedOutException) {
+            // juda uzoq — chala fayl qolmasin, job qayta urinadi yoki asl videolar saqlanib qoladi
+            @unlink($out);
+            Log::warning('Videolarni birlashtirish vaqti tugadi (150 s)');
+
+            return false;
+        }
 
         if (! $process->isSuccessful() || ! is_file($out) || filesize($out) < 5_000) {
             @unlink($out);
@@ -74,7 +82,7 @@ class MediaTool
     private function hasAudio(string $file): bool
     {
         $probe = new Process(['ffprobe', '-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', $file]);
-        $probe->setTimeout(30);
+        $probe->setTimeout(10);
         $probe->run();
 
         return $probe->isSuccessful() && str_contains($probe->getOutput(), 'audio');

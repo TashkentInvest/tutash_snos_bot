@@ -124,7 +124,7 @@ class RegistrationHandler
         Ui::say($bot, "<b>Xodim sifatida ro‘yxatdan o‘tish</b>\n\nIltimos, familiya, ism va otangizning ismini to‘liq yozing (masalan: <i>Aliyev Ali Aliyevich</i>):", Ui::removeKeyboard());
     }
 
-    private function askPhone(Nutgram $bot): void
+    public function askPhone(Nutgram $bot): void
     {
         $kb = ReplyKeyboardMarkup::make(resize_keyboard: true, one_time_keyboard: true)
             ->addRow(KeyboardButton::make(Ui::t('📱 Telefon raqamni yuborish'), request_contact: true));

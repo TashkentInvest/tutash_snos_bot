@@ -51,7 +51,9 @@ class InspectionReport
         $t = fn (string $s) => Script::apply($s);
         $files = [];
         foreach (['svod' => Svod::png($day, $t), 'bajarilish' => Svod::progressPng($day, $t)] as $name => $png) {
-            file_put_contents($files[$name] = tempnam(sys_get_temp_dir(), $name).'.png', $png);
+            $tmp = tempnam(sys_get_temp_dir(), $name);
+            @unlink($tmp); // tempnam bo'sh fayl yaratadi — biz .png nomini ishlatamiz, eski bo'sh fayl qolib ketmasin
+            file_put_contents($files[$name] = $tmp.'.png', $png);
         }
 
         $sent = 0;
@@ -72,7 +74,10 @@ class InspectionReport
                             report($e); // admin botni bloklagan bo'lishi mumkin
                             break;
                         }
-                        sleep(2);
+                        // 429 — Telegram aytgan vaqtcha kutamiz (ko'pi bilan 30 s)
+                        $wait = $e instanceof \SergiX44\Nutgram\Telegram\Exceptions\TelegramException && $e->getCode() === 429
+                            ? (int) $e->getParameter('retry_after', 5) : 2;
+                        sleep(min(max($wait, 1), 30));
                     }
                 }
             }

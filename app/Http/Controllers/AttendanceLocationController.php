@@ -43,7 +43,7 @@ class AttendanceLocationController extends Controller
     {
         $user = WebAppAuth::user((string) $request->input('initData'));
         if (! $user) {
-            return [null, null, response()->json(['ok' => false, 'message' => 'Telegram imzosi tasdiqlanmadi. Botdan tugmani qayta bosing.'], 403)];
+            return [null, null, response()->json(['ok' => false, 'message' => 'Oyna eskirgan. Uni yopib, botdagi tugmani qayta bosing.'], 403)];
         }
 
         $staff = Staff::where('telegram_id', $user['id'])->where('status', Staff::ACTIVE)->whereIn('role', Staff::WORK_ROLES)->first();
@@ -88,6 +88,10 @@ class AttendanceLocationController extends Controller
             return $error;
         }
 
+        if ($row && in_array($row->status, [Attendance::RECORDING, Attendance::PRESENT], true)) {
+            // joylashuv avval saqlangan (javob tarmoqda yo'qolgan) — keyingi qadamga o'tkazamiz
+            return response()->json(['ok' => true, 'already' => true, 'step' => $row->status === Attendance::PRESENT ? 'done' : 'video']);
+        }
         if (! $row || $row->status !== Attendance::LOCATING) {
             return response()->json(['ok' => false, 'message' => 'Hozir joylashuv qabul qilinmaydi. Botga qaytib, «Ha, ishni boshladim» tugmasini bosing.'], 409);
         }
@@ -118,10 +122,7 @@ class AttendanceLocationController extends Controller
         ]);
         AuditLog::record('attendance.location', $user['id'], ['attendance' => $row->id, 'accuracy' => $accuracy, 'nearest_site_m' => $distance, 'flags' => $flags]);
 
-        $bot->sendMessage(Script::apply("📍 Joylashuv qurilmadan qabul qilindi.\n\n<b>2/2.</b> Endi hududdagi holatingizni aks ettiruvchi videoni (".config('tutash.attendance.min_video_seconds').'–'.self::MAX_SECONDS." soniya) shu oynada kamera orqali yozing.\nOyna yopilgan bo‘lsa, pastdagi tugma orqali qayta oching.\n<i>Faqat shu oynada jonli yozilgan video qabul qilinadi.</i>"), [
-            'chat_id' => $user['id'], 'parse_mode' => ParseMode::HTML,
-            'reply_markup' => AttendanceHandler::webAppMarkup('🎥 Videoni yozish'),
-        ]);
+        $this->notify($bot, $user['id'], Script::apply("📍 Joylashuv qurilmadan qabul qilindi.\n\n<b>2/2.</b> Endi hududdagi holatingizni aks ettiruvchi videoni (".config('tutash.attendance.min_video_seconds').'–'.self::MAX_SECONDS." soniya) shu oynada kamera orqali yozing.\nOyna yopilgan bo‘lsa, pastdagi tugma orqali qayta oching.\n<i>Faqat shu oynada jonli yozilgan video qabul qilinadi.</i>"), AttendanceHandler::webAppMarkup('🎥 Videoni yozish'));
 
         return response()->json(['ok' => true]);
     }
@@ -141,10 +142,14 @@ class AttendanceLocationController extends Controller
             return $error;
         }
 
+        if ($row?->status === Attendance::PRESENT) {
+            // video saqlangan, lekin javob yetib kelmagan (tarmoq) — qayta yuborishda xato emas, tayyor deb qaytamiz
+            return response()->json(['ok' => true, 'already' => true]);
+        }
         if (! $row || $row->status !== Attendance::RECORDING) {
             return response()->json(['ok' => false, 'message' => 'Hozir video qabul qilinmaydi. Avval joylashuvni yuboring.'], 409);
         }
-        if (now()->greaterThan(Attendance::deadline())) {
+        if (now()->greaterThan(Attendance::closeAt())) { // joylashuv muddatgacha yuborilgan — video uchun qo'shimcha daqiqalar
             $row->update(['status' => Attendance::MISSED]);
 
             return response()->json(['ok' => false, 'message' => 'Davomatni qabul qilish muddati tugagan.'], 409);
@@ -214,10 +219,18 @@ class AttendanceLocationController extends Controller
         }
         AuditLog::record('attendance.present', $user['id'], ['attendance' => $row->id, 'duration' => $duration]);
 
-        $bot->sendMessage(Script::apply('✅ Davomatingiz qayd etildi ('.now()->format('H:i').'). Ishingizda muvaffaqiyat tilaymiz.'), [
-            'chat_id' => $user['id'], 'parse_mode' => ParseMode::HTML,
-        ]);
+        $this->notify($bot, $user['id'], Script::apply('✅ Davomatingiz qayd etildi ('.now()->format('H:i').'). Ishingizda muvaffaqiyat tilaymiz.'));
 
         return response()->json(['ok' => true]);
+    }
+
+    /** Ma'lumot saqlangandan keyingi bot xabari: Telegram sekin/yo'q bo'lsa ham Mini App'ga xato qaytmasin (saqlangan narsa yo'qolgandek ko'rinmasin). */
+    private function notify(Nutgram $bot, int $chatId, string $html, $markup = null): void
+    {
+        try {
+            $bot->sendMessage($html, array_filter(['chat_id' => $chatId, 'parse_mode' => ParseMode::HTML, 'reply_markup' => $markup]));
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 }

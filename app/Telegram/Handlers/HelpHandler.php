@@ -88,8 +88,19 @@ class HelpHandler
             return;
         }
 
-        // Hali javob berilmagan — so'rovni qayta ko'rsatamiz (jarayon boshidan boshlanadi).
-        // so'rov hali yetkazilmagan bo'lsa (qayta urinish kutilayotgan) — endi yetkazildi, scheduler takror yubormaydi
+        // boshlangan jarayon (joylashuv yuborilgan yoki sabab yozilmoqda) — boshidan emas, shu joyidan davom etadi
+        if (in_array($row->status, [Attendance::LOCATING, Attendance::RECORDING], true)) {
+            Ui::say($bot, 'Davomatni yakunlang: tugmani bosing.', AttendanceHandler::webAppMarkup('📍 Davomatni davom ettirish'));
+
+            return;
+        }
+        if ($row->status === Attendance::REASONING) {
+            Ui::say($bot, 'Ishda emasligingiz sababini shu yerga yozib yuboring.');
+
+            return;
+        }
+
+        // hali javob berilmagan — so'rov qayta ko'rsatiladi; yetkazilmagan bo'lsa endi yetkazildi (scheduler takror yubormaydi)
         $row->update(['status' => Attendance::SENT] + ($row->sent_at ? [] : ['sent_at' => now()]));
         Ui::say($bot, AttendanceHandler::promptText($staff), AttendanceHandler::promptMarkup());
     }

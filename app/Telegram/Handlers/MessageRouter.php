@@ -30,6 +30,12 @@ class MessageRouter
 
             return;
         }
+        // telefon bosqichi: raqamni qo'lda yozgan yoki tugmani yashirib qo'ygan — qayta ro'yxatdan o'tkazmaymiz, tugmani qaytaramiz
+        if ($staff->status === Staff::AWAITING_PHONE) {
+            (new RegistrationHandler)->askPhone($bot);
+
+            return;
+        }
         // davomat (sabab matni) — har qanday tasdiqlangan xodimda, shartnoma xodimida ham
         if ($staff->isActive() && ($attendance = AttendanceHandler::open($staff))) {
             $handler = new AttendanceHandler;
@@ -41,15 +47,16 @@ class MessageRouter
         }
 
         if ($staff->canBrowse()) {
-            if ($staff->isActive() && ($draft = InspectionHandler::draft($staff))) {
-                (new InspectionHandler)->reason($bot, $staff, $draft);
+            // 🔍 qidiruv bosilgan bo'lsa — matn qidiruv; eski tugallanmagan tekshiruv uni to'sib qo'ymasin
+            $await = Cache::get("tg-await:{$bot->userId()}");
+            if (($await['type'] ?? null) === 'search') {
+                (new BrowseHandler)->search($bot, $staff, $await);
 
                 return;
             }
 
-            $await = Cache::get("tg-await:{$bot->userId()}");
-            if (($await['type'] ?? null) === 'search') {
-                (new BrowseHandler)->search($bot, $staff, $await);
+            if ($staff->isActive() && ($draft = InspectionHandler::draft($staff))) {
+                (new InspectionHandler)->reason($bot, $staff, $draft);
 
                 return;
             }

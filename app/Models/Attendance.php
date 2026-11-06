@@ -49,6 +49,18 @@ class Attendance extends Model
         return ($day ?? now())->copy()->setTimeFromTimeString(config('tutash.attendance.deadline'));
     }
 
+    /**
+     * Joylashuvni muddatgacha yuborib, videoni yozayotgan xodim uchun qo'shimcha daqiqalar:
+     * 08:59 da joylashuv yuborgan odamning videosi 09:00:20 da yetib kelsa ham qabul qilinadi.
+     */
+    public const GRACE_MINUTES = 3;
+
+    /** Video qabul qilinadigan oxirgi payt va attendance:close vaqti (muddat + GRACE_MINUTES). */
+    public static function closeAt(?Carbon $day = null): Carbon
+    {
+        return self::deadline($day)->addMinutes(self::GRACE_MINUTES);
+    }
+
     public static function sendTime(?Carbon $day = null): Carbon
     {
         return ($day ?? now())->copy()->setTimeFromTimeString(config('tutash.attendance.send_at'));

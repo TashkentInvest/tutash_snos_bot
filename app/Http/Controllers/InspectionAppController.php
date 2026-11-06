@@ -54,7 +54,7 @@ class InspectionAppController extends Controller
     {
         $user = WebAppAuth::user((string) $request->input('initData'));
         if (! $user) {
-            return [null, null, null, $this->fail('Telegram imzosi tasdiqlanmadi. Botdan tugmani qayta bosing.', 403)];
+            return [null, null, null, $this->fail('Oyna eskirgan. Uni yopib, botdagi tugmani qayta bosing.', 403)];
         }
 
         $staff = Staff::where('telegram_id', $user['id'])->where('status', Staff::ACTIVE)->where('role', Staff::ROLE_EMPLOYEE)->first();
@@ -503,10 +503,14 @@ class InspectionAppController extends Controller
                 default => 'Obyekt «buzilgan» deb yuborildi. Natija <b>moderator tasdig‘idan keyin</b> hisobga olinadi.',
             };
 
-        $bot->sendMessage(Script::apply("✅ Tekshiruv natijasi saqlandi.\n".$text), [
-            'chat_id' => $user['id'], 'parse_mode' => ParseMode::HTML,
-            'reply_markup' => Ui::markup([[Ui::btn('🏠 Bosh sahifa', 'home')]]),
-        ]);
+        try { // natija saqlangan; Telegram sekin bo'lsa ham Mini App'ga xato qaytmasin
+            $bot->sendMessage(Script::apply("✅ Tekshiruv natijasi saqlandi.\n".$text), [
+                'chat_id' => $user['id'], 'parse_mode' => ParseMode::HTML,
+                'reply_markup' => Ui::markup([[Ui::btn('🏠 Bosh sahifa', 'home')]]),
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         return response()->json(['ok' => true, 'done' => true]);
     }

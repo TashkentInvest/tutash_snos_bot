@@ -23,6 +23,13 @@ class BrowseHandler
     {
         $staff = Staff::where('telegram_id', $bot->userId())->first();
 
+        if ($staff?->isActive() && $staff->isContract()) {
+            // shartnoma xodimi eski xabardagi obyekt/eslatma tugmasini bosdi — "/start" emas, o'z sahifasi
+            $bot->callbackQuery() && $bot->answerCallbackQuery(['text' => Ui::t('Bu bo‘lim sizning vazifangizga kirmaydi.')]);
+            (new self)->contractHome($bot, $staff, answered: true);
+
+            return null;
+        }
         if (! $staff || ! $staff->canBrowse()) {
             $bot->callbackQuery() && $bot->answerCallbackQuery(['text' => Ui::t('Avval /start buyrug‘i orqali tizimga kiring.'), 'show_alert' => true]);
 
@@ -88,9 +95,9 @@ class BrowseHandler
     }
 
     /** Shartnoma xodimi: obyektlar o'rniga vazifasi va bugungi qaydlari. */
-    private function contractHome(Nutgram $bot, Staff $staff): void
+    private function contractHome(Nutgram $bot, Staff $staff, bool $answered = false): void
     {
-        $bot->callbackQuery() && $bot->answerCallbackQuery();
+        $answered || ! $bot->callbackQuery() || $bot->answerCallbackQuery();
         $button = self::checkinButton($staff);
         $done = $staff->checkins()->whereDate('date', today())->where('status', \App\Models\Checkin::PRESENT)->pluck('slot')->sort()->join(', ');
         $att = $staff->attendances()->whereDate('date', today())->value('status');
@@ -128,6 +135,15 @@ class BrowseHandler
         // ikkinchi vazifa (soatlik qayd) bo'lsa — holati va javob tugmasi tumanlar ro'yxati ustida
         $hourly = $staff->isActive() && $staff->doesHourlyCheckin();
 
+        if ($districts->isEmpty() && ! $staff->isCitizen()) {
+            // masalan tuman telefoni o'zgartirilgan — bo'sh ro'yxat o'rniga tushuntirish
+            $bot->callbackQuery() && $bot->answerCallbackQuery();
+            Ui::show($bot, '👋 <b>'.Ui::e($staff->full_name)."</b>\n\nSizga hozircha hudud biriktirilmagan. Tuman mas’uli yoki administratorga murojaat qiling."
+                .($hourly ? "\n\n".self::checkinText($staff) : ''),
+                ($hourly && ($button = self::checkinButton($staff))) ? Ui::markup([[$button]]) : null);
+
+            return;
+        }
         if ($districts->count() === 1 && ! $hourly) {
             $this->district($bot, (string) $districts->first()->id);
 

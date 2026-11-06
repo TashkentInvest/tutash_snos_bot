@@ -43,7 +43,10 @@ class RunCheckins extends Command
 
     public function handle(Nutgram $bot): int
     {
-        $closed = Checkin::whereIn('status', Checkin::OPEN)->where('deadline_at', '<', now())->update(['status' => Checkin::MISSED]);
+        // muddati o'tganlar yopiladi; video yozilayotganlar — qo'shimcha daqiqalardan keyin
+        $closed = Checkin::where(fn ($q) => $q->where('status', Checkin::SENT)->where('deadline_at', '<', now())
+            ->orWhere(fn ($q) => $q->where('status', Checkin::RECORDING)->where('deadline_at', '<', now()->subMinutes(\App\Models\Attendance::GRACE_MINUTES))))
+            ->update(['status' => Checkin::MISSED]);
 
         $slot = collect(Checkin::slots())->first(fn ($s) => now()->betweenIncluded(today()->setTimeFromTimeString($s), Checkin::deadlineFor($s)));
         if (! $slot || ! in_array(now()->dayOfWeekIso, config('tutash.attendance.days'), true)) {

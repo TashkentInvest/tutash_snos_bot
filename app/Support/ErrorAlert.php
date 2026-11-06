@@ -26,14 +26,19 @@ class ErrorAlert
         if (self::$sending) {
             return; // ogohlantirish yuborishdagi xato qayta ogohlantirish chaqirmasin
         }
+        // xodim botni bloklagan (403) — odatiy hol, tizim xatosi emas
+        if ($e instanceof \SergiX44\Nutgram\Telegram\Exceptions\TelegramException && $e->getCode() === 403) {
+            return;
+        }
         self::$sending = true;
         try {
-            $chatIds = self::chatIds();
-            if (! $chatIds) {
-                return;
-            }
+            // avval takrorni tekshiramiz (arzon), keyin bazadan oluvchilar
             $key = 'error-alert:'.md5(get_class($e).'|'.$e->getFile().'|'.$e->getLine());
             if (! Cache::add($key, 1, now()->addMinutes(self::ALERT_EVERY_MINUTES))) {
+                return;
+            }
+            $chatIds = self::chatIds();
+            if (! $chatIds) {
                 return;
             }
             $text = self::text($e, $where);

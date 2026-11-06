@@ -87,6 +87,7 @@ $('goLoc').onclick = async () => {
     $('goLoc').disabled = true; $('goLocSettings').classList.add('hidden'); say('Joylashuv aniqlanmoqda…');
     try {
         const { ok, j } = await api(API.location, { initData: initData(), device: deviceInfo(), ...(await TgLoc.get()) });
+        if (ok && j.step === 'done') { say(TEXT.already, 'ok'); return; } // avval qayd etilgan (javob tarmoqda yo'qolgan edi)
         if (ok) { say(''); show('stepVideo'); startCamera(); return; }
         say(j.message || 'Xatolik yuz berdi. Qayta urinib ko‘ring.', 'err');
     } catch (e) {

@@ -246,6 +246,90 @@ class RolesAttendanceTest extends TestCase
         $this->assertStringContainsString('go:', $this->sent());
     }
 
+    /** Audit: muddat chegarasida video, telefon bosqichi, shartnoma xodimining eski tugmalari, qoralama + qidiruv. */
+    public function test_video_after_deadline_is_accepted_if_location_was_sent_in_time(): void
+    {
+        $staff = $this->registerEmployee();
+        $this->artisan('attendance:send')->assertSuccessful();
+        $row = Attendance::where('staff_id', $staff->id)->first();
+        $this->bot()->hearCallbackQueryData('at:1')->reply();
+
+        $this->travelTo(today()->setTime(8, 59, 30));
+        $this->postJson('/tg/attendance-location', ['initData' => $this->initData(self::UID), 'lat' => 41.3, 'lng' => 69.25, 'accuracy' => 10])->assertOk();
+
+        // 09:01 — muddat o'tdi, lekin video yozilayotgan edi: qabul qilinadi; boshqa xabar ham uni yopib qo'ymaydi
+        $this->travelTo(today()->setTime(9, 1));
+        $this->bot()->hearText('salom')->reply();
+        $this->assertSame(Attendance::RECORDING, $row->refresh()->status);
+        Storage::fake('local');
+        $webm = "\x1A\x45\xDF\xA3".str_repeat('g', 30000);
+        $this->post('/tg/attendance-video', ['initData' => $this->initData(self::UID), 'duration' => 6, 'video' => UploadedFile::fake()->createWithContent('v.webm', $webm)],
+            ['Accept' => 'application/json'])->assertOk();
+        $this->assertSame(Attendance::PRESENT, $row->refresh()->status);
+        // qayta yuborish (javob yo'qolgan) — xato emas
+        $this->post('/tg/attendance-video', ['initData' => $this->initData(self::UID), 'duration' => 6, 'video' => UploadedFile::fake()->createWithContent('v.webm', $webm.'x')],
+            ['Accept' => 'application/json'])->assertOk();
+    }
+
+    public function test_video_is_refused_after_grace_minutes(): void
+    {
+        $staff = $this->registerEmployee();
+        $this->artisan('attendance:send')->assertSuccessful();
+        $this->bot()->hearCallbackQueryData('at:1')->reply();
+        $this->postJson('/tg/attendance-location', ['initData' => $this->initData(self::UID), 'lat' => 41.3, 'lng' => 69.25, 'accuracy' => 10])->assertOk();
+
+        $this->travelTo(today()->setTime(9, 4));
+        Storage::fake('local');
+        $this->post('/tg/attendance-video', ['initData' => $this->initData(self::UID), 'duration' => 6,
+            'video' => UploadedFile::fake()->createWithContent('v.webm', "\x1A\x45\xDF\xA3".str_repeat('h', 30000))], ['Accept' => 'application/json'])->assertStatus(409);
+        $this->assertSame(Attendance::MISSED, Attendance::where('staff_id', $staff->id)->value('status'));
+    }
+
+    public function test_typed_phone_number_gets_contact_button_not_restart(): void
+    {
+        $this->bot()->hearText('/start')->reply();
+        $this->bot()->hearCallbackQueryData('role:employee')->reply();
+        $this->bot()->hearText('Aliyev Ali Aliyevich')->reply();
+        $staff = Staff::where('telegram_id', self::UID)->first();
+        $this->assertSame(Staff::AWAITING_PHONE, $staff->status);
+
+        $this->bot()->hearText('+998 99 907 53 00')->reply();
+        $this->assertStringContainsString('request_contact', $this->sent());
+        $this->assertStringNotContainsString('/start', $this->sent());
+        $this->assertSame(Staff::AWAITING_PHONE, $staff->refresh()->status);
+        $this->assertSame('Aliyev Ali Aliyevich', $staff->full_name);
+    }
+
+    public function test_contract_staff_old_site_button_shows_own_home(): void
+    {
+        Staff::create(['telegram_id' => self::UID, 'full_name' => 'Sobiq xodim', 'phone' => '950507174', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
+        $this->bot()->hearCallbackQueryData("d:{$this->district->id}")->reply();
+        $this->assertStringNotContainsString('/start', $this->sent());
+        $this->assertStringContainsString('shartnoma asosida', $this->sent());
+    }
+
+    public function test_search_works_with_an_abandoned_inspection_draft(): void
+    {
+        $this->registerEmployee();
+        $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
+        $this->bot()->hearCallbackQueryData("gk:{$this->site->id}:check")->reply();
+        $this->assertSame(1, Inspection::where('status', Inspection::DRAFT)->count());
+
+        $this->bot()->hearCallbackQueryData("q:{$this->district->id}")->reply();
+        $this->bot()->hearText('Birinchi')->reply();
+        $this->assertStringContainsString('Birinchi kocha', $this->sent());
+    }
+
+    public function test_employee_without_districts_gets_explanation(): void
+    {
+        $staff = $this->registerEmployee();
+        $this->district->update(['phone' => '900000099']); // tuman telefoni o'zgardi — xodim tumansiz qoldi
+        $this->assertSame(0, $staff->refresh()->districts()->count());
+
+        $this->bot()->hearText('/start')->reply();
+        $this->assertStringContainsString('hudud biriktirilmagan', $this->sent());
+    }
+
     public function test_citizen_cannot_become_employee_without_phone_check(): void
     {
         $this->bot()->hearText('/start')->reply();
@@ -302,8 +386,9 @@ class RolesAttendanceTest extends TestCase
         $this->assertSame(Attendance::LOCATING, $row->refresh()->status);
         $this->postJson('/tg/attendance-location', ['initData' => $this->initData(self::UID), 'lat' => 41.3, 'lng' => 69.2, 'accuracy' => 12.5])->assertOk();
         $this->assertSame(Attendance::RECORDING, $row->refresh()->status);
-        $this->postJson('/tg/attendance-location', ['initData' => $this->initData(self::UID), 'lat' => 41.4, 'lng' => 69.3])->assertStatus(409);
-        $this->assertEqualsWithDelta(41.3, $row->lat, 0.0001);
+        // qayta yuborish (javob tarmoqda yo'qolgan): xato emas, video bosqichiga o'tadi, birinchi joylashuv o'zgarmaydi
+        $this->postJson('/tg/attendance-location', ['initData' => $this->initData(self::UID), 'lat' => 41.4, 'lng' => 69.3])->assertOk()->assertJsonPath('step', 'video');
+        $this->assertEqualsWithDelta(41.3, $row->refresh()->lat, 0.0001);
 
         // chatga yuborilgan har qanday video (dumaloq, uzatilgan, oddiy) rad etiladi
         $this->hear(['video_note' => ['file_id' => 'a1', 'file_unique_id' => 'ua1', 'length' => 240, 'duration' => 8], 'forward_date' => time(), 'forward_sender_name' => 'X']);
@@ -558,13 +643,17 @@ class RolesAttendanceTest extends TestCase
         $this->bot()->hearText('/yordam')->reply();
         $this->assertStringContainsString('/davomat', $this->sent());
 
-        // so'rov yuborilmagan bo'lsa — tushuntirish; yuborilgan va javobsiz bo'lsa — tugmalar qayta chiqadi
+        // so'rov yuborilmagan bo'lsa — tushuntirish; boshlangan jarayon — shu joyidan davom etadi (boshidan emas)
         $this->bot()->hearText('/davomat')->reply();
         $this->assertStringContainsString('yuborilmagan', $this->sent());
-        Attendance::create(['staff_id' => $staff->id, 'date' => today(), 'status' => Attendance::LOCATING, 'sent_at' => now()]);
+        $row = Attendance::create(['staff_id' => $staff->id, 'date' => today(), 'status' => Attendance::LOCATING, 'sent_at' => now()]);
+        $this->bot()->hearText('/davomat')->reply();
+        $this->assertStringContainsString('attendance-location', $this->sent());
+        $this->assertSame(Attendance::LOCATING, $row->refresh()->status);
+        // javob berilmagan — tugmalar qayta chiqadi
+        $row->update(['status' => Attendance::SENT]);
         $this->bot()->hearText('/davomat')->reply();
         $this->assertStringContainsString('at:1', $this->sent());
-        $this->assertSame(Attendance::SENT, Attendance::first()->status);
 
         // /bekor tugallanmagan tekshiruvni o'chiradi
         $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();

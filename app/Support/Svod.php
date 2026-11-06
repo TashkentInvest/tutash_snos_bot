@@ -28,8 +28,23 @@ class Svod
         return [$r['start'], $r['start_area'], $r['today'], $r['today_area'], $r['demolished_area']];
     }
 
-    /** @return array{rows: array<int, array<string, int|float|string>>, total: array<string, int|float|string>} */
+    /**
+     * Dashboard bitta so'rovda svodni bir necha marta chizadi (jadval, bajarilish, ...) — HTTP so'rov ichida bir marta hisoblanadi.
+     *
+     * @return array{rows: array<int, array<string, int|float|string>>, total: array<string, int|float|string>}
+     */
     public static function data(?CarbonInterface $day = null): array
+    {
+        if (app()->runningInConsole()) {
+            return self::compute($day); // buyruqlar va testlar: har safar yangidan (ma'lumot o'zgarib turadi)
+        }
+        $key = 'svod:'.($day ? $day->toDateString() : 'current');
+
+        return request()->attributes->get($key) ?? tap(self::compute($day), fn ($d) => request()->attributes->set($key, $d));
+    }
+
+    /** @return array{rows: array<int, array<string, int|float|string>>, total: array<string, int|float|string>} */
+    private static function compute(?CarbonInterface $day = null): array
     {
         $period = ReportPeriod::for($day ?? ReportPeriod::current()->day);
         // qoldiq: jami hisobdagi (sud qarori bekor qilinganlarsiz) hali buzilmagan obyektlar — jarayondagilar ham qoldiqda

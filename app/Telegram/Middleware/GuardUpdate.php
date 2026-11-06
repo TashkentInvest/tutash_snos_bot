@@ -30,10 +30,20 @@ class GuardUpdate
         RateLimiter::hit($key, 60);
 
         $lock = Cache::lock('tg-lock:'.$userId, 15);
-        if (! $lock->get()) {
-            $bot->callbackQuery() && $bot->answerCallbackQuery();
+        if ($bot->callbackQuery()) {
+            // tugma: qo'sh bosish — ikkinchisi tashlab yuboriladi (poyga bo'lmasin)
+            if (! $lock->get()) {
+                $bot->answerCallbackQuery();
 
-            return;
+                return;
+            }
+        } else {
+            // matn/kontakt/joylashuv: yo'qolmasin — oldingi update tugashini 5 soniyagacha kutamiz
+            try {
+                $lock->block(5);
+            } catch (\Illuminate\Contracts\Cache\LockTimeoutException) {
+                return;
+            }
         }
 
         try {

@@ -62,7 +62,9 @@ class StaffResource extends Resource
             Forms\Components\Toggle::make('hourly_checkin')->label('Soatlik qayd ham yuritiladi')
                 ->helperText(self::CHECKIN_HINT)
                 ->visible(fn (Forms\Get $get) => $get('role') === Staff::ROLE_EMPLOYEE),
-            Forms\Components\TextInput::make('failed_attempts')->label('Noto‘g‘ri urinishlar (0 — qayta ochish)')->numeric()->minValue(0),
+            // bo'sh qoldirilsa 0 (productionda NOT NULL xatosi bo'lgan edi)
+            Forms\Components\TextInput::make('failed_attempts')->label('Noto‘g‘ri urinishlar (0 — qayta ochish)')->numeric()->minValue(0)
+                ->default(0)->dehydrateStateUsing(fn ($state) => (int) ($state ?? 0)),
             Forms\Components\Toggle::make('attendance_required')->label('Kunlik davomat yuritiladi'),
             Forms\Components\Toggle::make('is_global')->label('Barcha tumanlarni ko‘radi (admin)'),
             Forms\Components\Toggle::make('receives_reports')->label('Hisobot oladi')
@@ -132,6 +134,8 @@ class StaffResource extends Resource
                 Tables\Actions\EditAction::make()->hidden(fn (Staff $record) => $record->trashed())->using(function (Staff $record, array $data) {
                     $ids = $data['district_ids'] ?? null;
                     unset($data['district_ids']);
+                    // «soatlik qayd» belgisi faqat oddiy xodimda; rol o'zgarsa eski belgi yashirin qolib ketmasin
+                    ($data['role'] ?? $record->role) === Staff::ROLE_EMPLOYEE || $data['hourly_checkin'] = false;
                     $record->update($data);
                     $ids !== null && ! $record->is_global && $record->assignDistricts($ids);
 
