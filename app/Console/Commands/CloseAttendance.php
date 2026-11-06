@@ -10,7 +10,8 @@ use SergiX44\Nutgram\Telegram\Attributes\ParseMode;
 
 class CloseAttendance extends Command
 {
-    protected $signature = 'attendance:close';
+    // --reopened: faqat qayta ochilgan (o'z muddati bor) yozuvlar, muddati o'tganda; adminlarga hisobot yuborilmaydi
+    protected $signature = 'attendance:close {--reopened}';
 
     protected $description = 'Muddat (09:00) tugagach, javob bermagan yoki tugatmagan xodimlarni "javob bermadi" deb belgilaydi.';
 
@@ -18,7 +19,13 @@ class CloseAttendance extends Command
     {
         $closed = 0;
 
-        Attendance::with('staff')->whereDate('date', today())->whereIn('status', Attendance::OPEN)->each(function (Attendance $row) use ($bot, &$closed) {
+        $reopened = (bool) $this->option('reopened');
+        $graceAgo = now()->subMinutes(Attendance::GRACE_MINUTES);
+        Attendance::with('staff')->whereDate('date', today())->whereIn('status', Attendance::OPEN)
+            // qayta ochilgan yozuv o'z muddati (+ qo'shimcha daqiqalar) tugaguncha yopilmaydi
+            ->when($reopened, fn ($q) => $q->whereNotNull('deadline_at')->where('deadline_at', '<', $graceAgo),
+                fn ($q) => $q->where(fn ($q) => $q->whereNull('deadline_at')->orWhere('deadline_at', '<', $graceAgo)))
+            ->each(function (Attendance $row) use ($bot, &$closed) {
             // muddatgacha hech yetkazib bo'lmagan so'rov — xodim aybi emas, hisobotda ajratib ko'rsatiladi
             $row->update(['status' => Attendance::MISSED] + ($row->sent_at ? [] : ['flags' => ['undeliverable']]));
             $closed++;
@@ -31,7 +38,7 @@ class CloseAttendance extends Command
                 if ($row->message_id) {
                     $bot->editMessageReplyMarkup(['chat_id' => $row->staff->telegram_id, 'message_id' => $row->message_id]);
                 }
-                $bot->sendMessage(Script::apply('⏰ Davomatni qabul qilish muddati ('.config('tutash.attendance.deadline').') tugadi. Javobingiz qayd etilmadi.'), [
+                $bot->sendMessage(Script::apply('⏰ Davomatni qabul qilish muddati ('.$row->dueAt()->format('H:i').') tugadi. Javobingiz qayd etilmadi.'), [
                     'chat_id' => $row->staff->telegram_id,
                     'parse_mode' => ParseMode::HTML,
                     'reply_markup' => \SergiX44\Nutgram\Telegram\Types\Keyboard\ReplyKeyboardRemove::make(true),
@@ -41,6 +48,11 @@ class CloseAttendance extends Command
             }
         });
 
+        if ($reopened) {
+            $closed && $this->info("Qayta ochilganlardan yopildi: {$closed}");
+
+            return self::SUCCESS;
+        }
         $reported = \App\Telegram\Support\AttendanceReport::sendToAdmins($bot, today());
         $this->info("Yopildi: {$closed}, adminlarga xabar: {$reported}");
 

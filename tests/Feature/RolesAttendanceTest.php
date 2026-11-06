@@ -178,6 +178,42 @@ class RolesAttendanceTest extends TestCase
         $this->assertStringContainsString('shartnoma asosida', $this->sent());
     }
 
+    /** Bot xatosi tufayli "javob bermadi" bo'lganlarga davomat qayta ochiladi: o'z muddati bilan, uzr matni bilan. */
+    public function test_reopened_attendance_accepts_answers_until_its_own_deadline(): void
+    {
+        $staff = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Xayit Test', 'phone' => '950507174', 'status' => Staff::ACTIVE,
+            'role' => Staff::ROLE_CONTRACT, 'attendance_required' => true]);
+        $other = Staff::create(['telegram_id' => 777100, 'full_name' => 'Javob bergan', 'phone' => '900000100', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
+        $this->artisan('attendance:send')->assertSuccessful();
+        Attendance::where('staff_id', $other->id)->update(['status' => Attendance::PRESENT]);
+        $this->travelTo(today()->setTime(9, 3));
+        $this->artisan('attendance:close')->assertSuccessful();
+        $row = Attendance::where('staff_id', $staff->id)->first();
+        $this->assertSame(Attendance::MISSED, $row->status);
+
+        // 09:40 — qayta ochiladi (faqat javob bermagan shartnoma xodimi), 60 daqiqa
+        $this->travelTo(today()->setTime(9, 40));
+        $this->artisan('attendance:reopen --missed-contract --minutes=60')->expectsOutputToContain('yuborildi: 1')->assertSuccessful();
+        $this->assertStringContainsString('texnik kamchilik', $this->sent());
+        $this->assertSame(Attendance::SENT, $row->refresh()->status);
+        $this->assertSame('10:40', $row->deadline_at->format('H:i'));
+        $this->assertSame(Attendance::PRESENT, Attendance::where('staff_id', $other->id)->value('status'));
+
+        // 09:45 — "Ha" qabul qilinadi (umumiy 09:00 muddati o'tgan bo'lsa ham), joylashuv ham
+        $this->travelTo(today()->setTime(9, 45));
+        $this->bot()->hearCallbackQueryData('at:1')->reply();
+        $this->assertSame(Attendance::LOCATING, $row->refresh()->status);
+        $this->postJson('/tg/attendance-location', ['initData' => $this->initData(self::UID), 'lat' => 41.3, 'lng' => 69.25, 'accuracy' => 10])->assertOk();
+        $this->assertSame(Attendance::RECORDING, $row->refresh()->status);
+        $this->artisan('attendance:close --reopened')->assertSuccessful();
+        $this->assertSame(Attendance::RECORDING, $row->refresh()->status); // hali muddati bor
+
+        // 10:44 — o'z muddati (+3 daqiqa) o'tdi: yopiladi
+        $this->travelTo(today()->setTime(10, 44));
+        $this->artisan('attendance:close --reopened')->assertSuccessful();
+        $this->assertSame(Attendance::MISSED, $row->refresh()->status);
+    }
+
     /** Mini App yig'ib qo'yilib, keyin qaytilganda (initData 1 soat oldin imzolangan) — qayta "tugmani bosing" demasligi kerak. */
     public function test_mini_app_accepts_initdata_signed_hours_ago_but_not_days(): void
     {

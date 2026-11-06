@@ -59,7 +59,8 @@ class AttendanceLocationController extends Controller
             return $error;
         }
 
-        if ($row && $row->isOpen() && now()->greaterThan(Attendance::deadline())) {
+        // video yozilayotgan bo'lsa — qo'shimcha daqiqalar tugagach yopiladi
+        if ($row && $row->isOpen() && ($row->status === Attendance::RECORDING ? now()->greaterThan($row->videoUntil()) : $row->isLate())) {
             $row->update(['status' => Attendance::MISSED]);
         }
 
@@ -95,7 +96,7 @@ class AttendanceLocationController extends Controller
         if (! $row || $row->status !== Attendance::LOCATING) {
             return response()->json(['ok' => false, 'message' => 'Hozir joylashuv qabul qilinmaydi. Botga qaytib, «Ha, ishni boshladim» tugmasini bosing.'], 409);
         }
-        if (now()->greaterThan(Attendance::deadline())) {
+        if ($row->isLate()) {
             $row->update(['status' => Attendance::MISSED]);
 
             return response()->json(['ok' => false, 'message' => 'Davomatni qabul qilish muddati tugagan.'], 409);
@@ -149,7 +150,7 @@ class AttendanceLocationController extends Controller
         if (! $row || $row->status !== Attendance::RECORDING) {
             return response()->json(['ok' => false, 'message' => 'Hozir video qabul qilinmaydi. Avval joylashuvni yuboring.'], 409);
         }
-        if (now()->greaterThan(Attendance::closeAt())) { // joylashuv muddatgacha yuborilgan — video uchun qo'shimcha daqiqalar
+        if (now()->greaterThan($row->videoUntil())) { // joylashuv muddatgacha yuborilgan — video uchun qo'shimcha daqiqalar
             $row->update(['status' => Attendance::MISSED]);
 
             return response()->json(['ok' => false, 'message' => 'Davomatni qabul qilish muddati tugagan.'], 409);

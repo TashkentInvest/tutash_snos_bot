@@ -27,8 +27,8 @@ class AttendanceHandler
             ->whereIn('status', [Attendance::LOCATING, Attendance::RECORDING, Attendance::REASONING])->first();
 
         // video yozilayotgan bo'lsa (joylashuv muddatgacha yuborilgan) — qo'shimcha daqiqalar ichida yopilmaydi
-        $graced = $row?->status === Attendance::RECORDING && now()->lessThanOrEqualTo(Attendance::closeAt());
-        if ($row && self::expired() && ! $graced) {
+        $graced = $row?->status === Attendance::RECORDING && now()->lessThanOrEqualTo($row->videoUntil());
+        if ($row && $row->isLate() && ! $graced) {
             $row->update(['status' => Attendance::MISSED]);
 
             return null;
@@ -103,7 +103,7 @@ class AttendanceHandler
             return;
         }
 
-        if ($row->status === Attendance::MISSED || self::expired()) {
+        if ($row->status === Attendance::MISSED || $row->isLate()) {
             $row->isOpen() && $row->update(['status' => Attendance::MISSED]);
             $bot->answerCallbackQuery(['text' => Ui::t('Davomatni qabul qilish muddati ('.config('tutash.attendance.deadline').') tugagan.'), 'show_alert' => true]);
 

@@ -21,7 +21,7 @@ class Attendance extends Model
 
     protected $fillable = [
         'staff_id', 'date', 'status', 'sent_at', 'responded_at', 'message_id', 'lat', 'lng', 'reason',
-        'video_file_id', 'video_unique_id', 'video_duration', 'video_path', 'face_video_path', 'video_downloaded_at', 'flags', 'device',
+        'video_file_id', 'video_unique_id', 'video_duration', 'video_path', 'face_video_path', 'video_downloaded_at', 'flags', 'device', 'deadline_at',
     ];
 
     protected $casts = [
@@ -29,6 +29,7 @@ class Attendance extends Model
         'sent_at' => 'datetime',
         'responded_at' => 'datetime',
         'video_downloaded_at' => 'datetime',
+        'deadline_at' => 'datetime',
         'flags' => 'array',
         'lat' => 'float',
         'lng' => 'float',
@@ -59,6 +60,24 @@ class Attendance extends Model
     public static function closeAt(?Carbon $day = null): Carbon
     {
         return self::deadline($day)->addMinutes(self::GRACE_MINUTES);
+    }
+
+    /** Shu yozuvning javob muddati: qayta ochilgan bo'lsa — o'zining (deadline_at), aks holda umumiy (09:00). */
+    public function dueAt(): Carbon
+    {
+        return $this->deadline_at?->copy() ?? self::deadline();
+    }
+
+    /** Muddat o'tdimi (joylashuv va javob tugmalari uchun). */
+    public function isLate(): bool
+    {
+        return now()->greaterThan($this->dueAt());
+    }
+
+    /** Video qabul qilinadigan oxirgi payt: muddat + GRACE_MINUTES. */
+    public function videoUntil(): Carbon
+    {
+        return $this->dueAt()->addMinutes(self::GRACE_MINUTES);
     }
 
     public static function sendTime(?Carbon $day = null): Carbon

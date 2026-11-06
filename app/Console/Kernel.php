@@ -24,6 +24,8 @@ class Kernel extends ConsoleKernel
         // Kunlik buzilish (tekshiruvlar) hisoboti — har kuni kechqurun (dam olish kuni natija bo'lmasa yuborilmaydi).
         $schedule->command('inspections:report')->dailyAt(config('tutash.daily_report_at'))->withoutOverlapping(60)->runInBackground();
         $schedule->command('attendance:remind')->days(config('tutash.attendance.days'))->dailyAt(config('tutash.attendance.remind_at'))->withoutOverlapping(30);
+        // qayta ochilgan davomatlar (attendance:reopen) — o'z muddati o'tgach yopiladi
+        $schedule->command('attendance:close --reopened')->everyFiveMinutes()->between('09:05', '23:55')->withoutOverlapping(10);
         // muddat + 3 daqiqa: video yuklanayotganlar ulgursin (Attendance::GRACE_MINUTES)
         $schedule->command('attendance:close')->days(config('tutash.attendance.days'))->dailyAt(\App\Models\Attendance::closeAt()->format('H:i'))->withoutOverlapping(30)->runInBackground();
         // Shartnoma xodimlari: soatlik qayd (10:00–18:59, 13:00–14:00 tushlik — CHECKIN_SLOTS); har daqiqa — yetmaganlar qayta yuboriladi.

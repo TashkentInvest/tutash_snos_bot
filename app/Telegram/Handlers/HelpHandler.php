@@ -81,7 +81,7 @@ class HelpHandler
             return;
         }
 
-        if (AttendanceHandler::expired()) {
+        if ($row->isLate()) {
             $row->update(['status' => Attendance::MISSED]);
             Ui::say($bot, '❌ Davomatni qabul qilish muddati ('.config('tutash.attendance.deadline').') tugagan.');
 
