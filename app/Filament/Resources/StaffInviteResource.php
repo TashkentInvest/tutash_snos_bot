@@ -20,6 +20,9 @@ class StaffInviteResource extends Resource
         return User::currentIsAdmin();
     }
 
+    // menyuda yo'q: Xodimlar sahifasidagi «Kutilayotganlar» tugmasi orqali ochiladi
+    protected static bool $shouldRegisterNavigation = false;
+
     protected static ?string $navigationGroup = 'Sozlamalar';
 
     protected static ?string $navigationIcon = 'heroicon-o-user-plus';

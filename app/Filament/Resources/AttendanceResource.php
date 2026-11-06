@@ -20,13 +20,17 @@ class AttendanceResource extends Resource
         return User::currentIsAdmin();
     }
 
+    protected static ?string $navigationGroup = 'Davomat';
+
+    protected static ?string $navigationLabel = 'Ertalabki davomat';
+
     protected static ?string $navigationIcon = 'heroicon-o-clock';
 
     protected static ?string $modelLabel = 'davomat';
 
     protected static ?string $pluralModelLabel = 'Davomat';
 
-    protected static ?int $navigationSort = 3;
+    protected static ?int $navigationSort = 1;
 
     public const STATUSES = [
         Attendance::SENT => 'Javob kutilmoqda',

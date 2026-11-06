@@ -18,6 +18,10 @@ class ManageStaff extends ManageRecords
     {
         return [
             // xodimni oldindan qo'shish: shu telefon bilan botga kirganda rol (va tumanlar) avtomatik beriladi
+            // oldindan qo'shilib, botga hali kirmaganlar (avval menyuda alohida bo'lim edi)
+            Action::make('invites')->color('gray')->icon('heroicon-o-clock')
+                ->label(fn () => 'Kutilayotganlar ('.\App\Models\StaffInvite::whereNull('used_at')->count().')')
+                ->url(fn () => \App\Filament\Resources\StaffInviteResource::getUrl()),
             Action::make('invite')->label('Xodim qo‘shish')->icon('heroicon-o-user-plus')
                 ->modalHeading('Xodim qo‘shish')->modalSubmitActionLabel('Qo‘shish')
                 ->modalDescription('Xodim botda /start bosib, shu telefon bilan kirganda avtomatik tasdiqlanadi va rol beriladi. Botda allaqachon bo‘lsa — roli darhol yangilanadi.')

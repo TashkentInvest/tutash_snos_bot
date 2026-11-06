@@ -19,15 +19,15 @@ use Livewire\Attributes\Url;
  */
 class CheckinBoard extends Page
 {
-    protected static ?string $navigationGroup = 'Soatlik qayd';
+    protected static ?string $navigationGroup = 'Davomat';
 
     protected static ?string $navigationIcon = 'heroicon-o-table-cells';
 
-    protected static ?string $navigationLabel = 'Kunlik jadval';
+    protected static ?string $navigationLabel = 'Soatlik qayd';
 
     protected static ?string $title = 'Soatlik qayd — kunlik jadval';
 
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 2;
 
     protected static string $view = 'filament.pages.checkin-board';
 
@@ -52,6 +52,8 @@ class CheckinBoard extends Page
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('list')->label('Barcha qaydlar')->icon('heroicon-o-list-bullet')->color('gray')
+                ->url(fn () => \App\Filament\Resources\CheckinResource::getUrl()),
             Action::make('remind')->label(fn () => 'Eslatma yuborish ('.CheckinReminder::pending()->count().' ta javob kutilmoqda)')
                 ->icon('heroicon-o-bell-alert')->color('warning')
                 ->modalHeading('Soatlik qayd xodimlariga eslatma')->modalSubmitActionLabel('Yuborish')

@@ -118,8 +118,18 @@ class AdminPagesTest extends TestCase
         $site->update(['violator_name' => 'BRABUS-PLUS MCHJ', 'violator_passport' => 'AD1707130', 'org_inn' => '300649544',
             'court_number' => '4-1001-2203/59958', 'court_status' => 'Qanoatlantirildi']);
         $this->get("/admin/sites/{$site->id}")->assertOk()
-            ->assertSee('Huquqbuzar (subyekt)')->assertSee('BRABUS-PLUS MCHJ')->assertSee('AD1707130')->assertSee('300649544')
+            ->assertSee('Huquqbuzar')->assertSee('Pasport')->assertSee('BRABUS-PLUS MCHJ')->assertSee('AD1707130')->assertSee('300649544')
             ->assertSee('Qanoatlantirildi')->assertSee('Mas’ul Testov')->assertSee('+998 93 806 87 58');
+
+        // tekshiruv sahifasida ham o'sha ixcham obyekt bloki (alohida sahifaga o'tmasdan) va obyekt sahifasiga havola
+        $this->get("/admin/inspections/{$in->id}")->assertOk()
+            ->assertSee('BRABUS-PLUS MCHJ')->assertSee('AD1707130')->assertSee('4-1001-2203/59958')->assertSee('Obyekt sahifasi');
+
+        // sodda menyu: takroriy ro'yxatlar menyudan olingan, sahifa ichidagi tugma orqali ochiladi
+        $this->get('/admin')->assertOk()->assertSee('Ertalabki davomat')->assertSee('Soatlik qayd')
+            ->assertDontSee('Qo‘shilgan xodimlar')->assertDontSee('Tekshiruvlar arxivi');
+        $this->get('/admin/staff')->assertOk()->assertSee('Kutilayotganlar');
+        $this->get('/admin/staff-invites')->assertOk();
 
         $lw = fn ($c, $p = []) => \Livewire\Livewire::actingAs($user)->test($c, $p)->assertSuccessful();
         $lw(\App\Filament\Resources\SiteResource\RelationManagers\InspectionsRelationManager::class, ['ownerRecord' => $site, 'pageClass' => \App\Filament\Resources\SiteResource\Pages\ViewSite::class]);

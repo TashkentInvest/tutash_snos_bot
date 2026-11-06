@@ -20,7 +20,10 @@ class CheckinResource extends Resource
         return User::currentIsAdmin();
     }
 
-    protected static ?string $navigationGroup = 'Soatlik qayd';
+    // menyuda yo'q: «Soatlik qayd» jadvalidagi «Barcha qaydlar» tugmasi orqali ochiladi
+    protected static bool $shouldRegisterNavigation = false;
+
+    protected static ?string $navigationGroup = 'Davomat';
 
     protected static ?string $navigationIcon = 'heroicon-o-map-pin';
 

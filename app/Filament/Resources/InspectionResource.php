@@ -33,7 +33,7 @@ class InspectionResource extends Resource
 
     protected static ?string $modelLabel = 'tekshiruv';
 
-    protected static ?string $pluralModelLabel = 'Tekshiruvlar arxivi';
+    protected static ?string $pluralModelLabel = 'Tekshiruvlar';
 
     protected static ?int $navigationSort = 2;
 
@@ -280,14 +280,15 @@ class InspectionResource extends Resource
     public static function infolist(Infolist $infolist): Infolist
     {
         return $infolist->schema([
-            Infolists\Components\Section::make('Tekshiruv')->columns(3)->schema([
-                Infolists\Components\TextEntry::make('site.district.name')->label('Tuman'),
-                Infolists\Components\TextEntry::make('site.address')->label('Obyekt'),
+            // obyekt ma'lumotlari — obyekt sahifasidagi bilan bir xil ixcham blok
+            SiteResource::summary(fn (Inspection $record) => $record->site, withLink: true),
+            Infolists\Components\Section::make('Tekshiruv')->columns(4)->compact()->schema([
                 Infolists\Components\TextEntry::make('staff.full_name')->label('Xodim'),
                 Infolists\Components\TextEntry::make('result')->label('Natija')->badge()
                     ->state(fn (Inspection $record) => self::result($record))
                     ->color(fn (Inspection $record) => self::resultColor($record)),
                 Infolists\Components\TextEntry::make('review_status')->label('Tasdiq holati')->badge()
+                    ->hidden(fn (Inspection $record) => ! $record->review_status) // oldingi holat/jarayon — tasdiq talab etilmaydi
                     ->formatStateUsing(fn ($state) => self::REVIEW[$state] ?? 'Talab etilmaydi')
                     ->color(fn ($state) => $state === Inspection::REVIEW_PENDING ? 'danger' : ($state === Inspection::REVIEW_APPROVED ? 'success' : 'gray')),
                 Infolists\Components\TextEntry::make('review_note')->label(fn (Inspection $record) => $record->review_status === Inspection::REVIEW_REJECTED ? 'Rad etish sababi' : 'Moderator izohi')
@@ -310,8 +311,10 @@ class InspectionResource extends Resource
                     ->visible(fn (Inspection $record) => $record->reworks->isNotEmpty()),
                 Infolists\Components\TextEntry::make('submitted_at')->label('Yuborilgan')->dateTime('d.m.Y H:i'),
                 Infolists\Components\TextEntry::make('distance_m')->label('Obyektdan masofa (m)')->placeholder('—'),
-                Infolists\Components\TextEntry::make('device')->label('Qurilma')->formatStateUsing(fn ($state) => \App\Support\Device::label($state))->columnSpanFull(),
-                Infolists\Components\TextEntry::make('reason')->label(fn (Inspection $record) => $record->exempt_type ? 'Izoh' : ($record->in_progress ? 'Buzish jarayoni haqida izoh' : 'Buzilmaganlik sababi'))->columnSpanFull()->visible(fn (Inspection $record) => ! $record->is_demolished),
+                Infolists\Components\TextEntry::make('device')->label('Qurilma')->formatStateUsing(fn ($state) => \App\Support\Device::label($state))->columnSpan(2)
+                    ->hidden(fn (Inspection $record) => blank($record->device)),
+                Infolists\Components\TextEntry::make('reason')->label(fn (Inspection $record) => $record->exempt_type ? 'Izoh' : ($record->in_progress ? 'Buzish jarayoni haqida izoh' : 'Xodim izohi'))->columnSpanFull()
+                    ->visible(fn (Inspection $record) => ! $record->is_demolished && filled($record->reason)),
                 Infolists\Components\TextEntry::make('flags')->label('Ogohlantirishlar')->badge()->color('danger')
                     ->formatStateUsing(fn ($state) => \App\Support\Gps::flagLabel($state))->visible(fn (Inspection $record) => $record->suspicious),
             ]),
