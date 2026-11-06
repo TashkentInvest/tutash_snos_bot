@@ -23,7 +23,7 @@ class Checkin extends Model
     ];
 
     protected $fillable = [
-        'staff_id', 'date', 'slot', 'status', 'sent_at', 'deadline_at', 'responded_at', 'message_id',
+        'staff_id', 'date', 'slot', 'status', 'sent_at', 'deadline_at', 'responded_at', 'message_id', 'comment',
         'lat', 'lng', 'nearest_site_m', 'flags', 'video_path', 'face_video_path', 'video_unique_id', 'video_duration', 'device',
     ];
 

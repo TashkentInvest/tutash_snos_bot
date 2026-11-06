@@ -21,7 +21,7 @@ class Attendance extends Model
 
     protected $fillable = [
         'staff_id', 'date', 'status', 'sent_at', 'responded_at', 'message_id', 'lat', 'lng', 'reason',
-        'video_file_id', 'video_unique_id', 'video_duration', 'video_path', 'face_video_path', 'video_downloaded_at', 'flags', 'device', 'deadline_at',
+        'video_file_id', 'video_unique_id', 'video_duration', 'video_path', 'face_video_path', 'video_downloaded_at', 'flags', 'device', 'deadline_at', 'comment',
     ];
 
     protected $casts = [

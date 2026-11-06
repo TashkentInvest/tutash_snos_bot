@@ -58,6 +58,7 @@ class CheckinResource extends Resource
                     ->formatStateUsing(fn ($state) => $state ? 'Xaritada ochish' : '—')
                     ->url(fn (Checkin $record) => $record->lat ? \App\Support\Maps::url($record->lat, $record->lng) : null, true),
                 Tables\Columns\TextColumn::make('nearest_site_m')->label('Eng yaqin obyekt (m)')->placeholder('—')->toggleable(),
+                Tables\Columns\TextColumn::make('comment')->label('Izoh')->limit(60)->tooltip(fn (Checkin $record) => $record->comment)->placeholder('—')->wrap(),
                 Tables\Columns\TextColumn::make('video_path')->label('Video')
                     ->formatStateUsing(fn ($state) => $state ? 'Ko‘rish' : '—')
                     ->url(fn (Checkin $record) => $record->video_path ? route('admin.checkin-video', ['checkin' => $record, 'v' => $record->updated_at?->timestamp]) : null, true),

@@ -358,13 +358,24 @@ class BotFlowTest extends TestCase
         return Inspection::where('status', Inspection::DRAFT)->first();
     }
 
-    /** Joylashuv -> rasm -> video (ixtiyoriy: sud qarori hujjati) -> yuborish. */
-    private function capture(bool $submit = true): void
+    /**
+     * Joylashuv -> rasm -> video -> izoh (majburiy) -> yuborish. $comment = false — izohni test o'zi yozadi
+     * (moderator izohiga javob); sud qarorida video'dan keyin avval hujjatlar bosqichi keladi.
+     */
+    private function capture(bool $submit = true, bool $comment = true): void
     {
         $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501, 'accuracy' => 6])->assertOk()->assertJsonPath('step', 'photo');
         $this->app('photo', ['clip' => $this->webm()])->assertOk()->assertJsonPath('step', 'video');
         $this->app('video', ['video' => $this->webm(), 'duration' => 8])->assertOk();
+        $comment && $this->app('state')->json('step') === 'reason' && $this->comment();
         $submit && $this->app('submit')->assertOk();
+    }
+
+    /** Video uchun izoh (majburiy bosqich). */
+    private function comment(string $text = 'Obyekt videoda ko‘rinib turibdi'): void
+    {
+        $this->app('state')->assertJsonPath('step', 'reason');
+        $this->app('reason', ['reason' => $text])->assertOk()->assertJsonPath('step', 'confirm');
     }
 
     public function test_start_offers_three_ways_and_creates_nothing_until_chosen(): void
@@ -443,7 +454,8 @@ class BotFlowTest extends TestCase
         $this->app('photo', ['clip' => $this->webm()])->assertOk()->assertJsonPath('step', 'video');
         $this->app('video', ['video' => $this->webm(), 'duration' => 1.2])->assertStatus(422); // juda qisqa
         $this->app('video', ['video' => UploadedFile::fake()->createWithContent('v.webm', 'not a video'), 'duration' => 8])->assertStatus(422);
-        $this->app('video', ['video' => $this->webm(), 'face' => $this->webm(8000), 'duration' => 8])->assertOk()->assertJsonPath('step', 'confirm');
+        $this->app('video', ['video' => $this->webm(), 'face' => $this->webm(8000), 'duration' => 8])->assertOk()->assertJsonPath('step', 'reason');
+        $this->comment();
         $this->app('submit')->assertOk();
 
         $after->refresh();
@@ -549,6 +561,26 @@ class BotFlowTest extends TestCase
         $this->assertSame($totalBefore - 1, Site::countable()->count());
         $this->assertFalse(Site::pending()->whereKey($this->site->id)->exists());
         $this->assertStringContainsString('Sud qarori bekor: <b>1</b>', \App\Telegram\Support\InspectionReport::caption(\App\Support\ReportPeriod::current()->day));
+    }
+
+    /** Joylashuv -> rasm -> video -> izoh: izohsiz natija yuborilmaydi, qisqa izoh qabul qilinmaydi, izoh saqlanadi. */
+    public function test_inspection_requires_a_comment_before_submit(): void
+    {
+        $this->register();
+        $in = $this->start();
+        $this->capture(submit: false, comment: false);
+        $this->app('state')->assertJsonPath('step', 'reason');
+
+        // izohsiz yuborishga urinish (masalan eski qoralama) — izoh bosqichiga qaytariladi
+        $this->app('submit')->assertStatus(422)->assertJsonPath('message', 'Avval qisqa izoh yozing.')->assertJsonPath('state.step', 'reason');
+        $this->assertSame(Inspection::DRAFT, $in->refresh()->status);
+
+        $this->app('reason', ['reason' => 'ok'])->assertStatus(422);
+        $this->app('reason', ['reason' => 'Obyekt hali turibdi, ustida ish yo‘q'])->assertOk()->assertJsonPath('step', 'confirm');
+        $this->app('submit')->assertOk();
+        $this->assertSame(Inspection::SUBMITTED, $in->refresh()->status);
+        $this->assertSame('Obyekt hali turibdi, ustida ish yo‘q', $in->reason);
+        $this->get('/tg/inspection')->assertOk()->assertSee('qisqa izoh', false);
     }
 
     public function test_found_demolished_needs_photo_and_video_and_goes_to_review(): void
@@ -766,7 +798,7 @@ class BotFlowTest extends TestCase
         $this->bot()->hearCallbackQueryData("fn:{$in->id}")->reply();
         $this->assertSame(Inspection::FOLLOWUP_OPEN, $in->refresh()->followup);
         $this->bot()->hearCallbackQueryData("fu:{$in->id}")->reply();
-        $this->capture(submit: false);
+        $this->capture(submit: false, comment: false);
         $this->app('reason', ['reason' => 'Tegi tozalandi, chiqindi olib ketildi'])->assertOk();
         $this->app('submit')->assertOk();
         $this->assertSame(Inspection::FOLLOWUP_DONE, $in->refresh()->followup);
@@ -815,6 +847,7 @@ class BotFlowTest extends TestCase
         $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501, 'accuracy' => 6])->assertOk();
         $this->app('photo', ['clip' => $this->webm()])->assertOk();
         $this->app('video', ['video' => $this->webm(), 'duration' => 8])->assertOk();
+        $this->comment();
         $this->app('submit')->assertOk();
         $first = $in->refresh()->load('media')->mediaOf(\App\Models\InspectionMedia::BEFORE_PHOTO);
 
@@ -840,7 +873,7 @@ class BotFlowTest extends TestCase
 
         $raw = "\x1A\x45\xDF\xA3".random_bytes(30000);
         $clip = fn () => UploadedFile::fake()->createWithContent('v.webm', $raw);
-        $this->app('video', ['video' => $clip(), 'face' => $this->webm(8000), 'duration' => 8])->assertOk()->assertJsonPath('step', 'confirm');
+        $this->app('video', ['video' => $clip(), 'face' => $this->webm(8000), 'duration' => 8])->assertOk()->assertJsonPath('step', 'reason');
 
         // birlashtirish so'rov ichida emas, navbatda
         $media = $in->refresh()->load('media')->mediaOf(\App\Models\InspectionMedia::BEFORE_VIDEO);
@@ -854,6 +887,7 @@ class BotFlowTest extends TestCase
         Storage::disk('local')->assertExists($facePath);
 
         // xuddi shu xom lavha keyingi bosqich videosi sifatida yuborilsa — rad (hash qayta kodlanmagan fayldan)
+        $this->comment();
         $this->app('submit')->assertOk();
         $next = $this->start(kind: 'process');
         $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501, 'accuracy' => 6])->assertOk();

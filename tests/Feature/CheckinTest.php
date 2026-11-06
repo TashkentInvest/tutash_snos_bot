@@ -83,9 +83,16 @@ class CheckinTest extends TestCase
         $this->tg('/tg/checkin-video')->assertStatus(422); // video maydoni yo'q
         $this->tg('/tg/checkin-location', ['lat' => 41.3, 'lng' => 69.25, 'accuracy' => 8])->assertOk();
         $this->tg('/tg/checkin-state')->assertJsonPath('step', 'video');
-        $this->tg('/tg/checkin-video', ['video' => UploadedFile::fake()->createWithContent('v.webm', "\x1A\x45\xDF\xA3".random_bytes(30000)), 'duration' => 6])->assertOk();
+        $clip = fn () => UploadedFile::fake()->createWithContent('v.webm', "\x1A\x45\xDF\xA3".random_bytes(30000));
+        // izoh majburiy: yo'q yoki juda qisqa bo'lsa — qabul qilinmaydi, qayd ochiq qoladi
+        $this->tg('/tg/checkin-video', ['video' => $clip(), 'duration' => 6])->assertStatus(422)->assertJsonValidationErrors('comment');
+        $this->tg('/tg/checkin-video', ['video' => $clip(), 'duration' => 6, 'comment' => 'ok'])->assertStatus(422)->assertJsonValidationErrors('comment');
+        $this->assertSame(Checkin::RECORDING, $row->refresh()->status);
+        $this->tg('/tg/checkin-video', ['video' => $clip(), 'duration' => 6, 'comment' => '  Obyektdaman, buzish ishlarini kuzatyapman  '])->assertOk();
         $row->refresh();
         $this->assertSame(Checkin::PRESENT, $row->status);
+        $this->assertSame('Obyektdaman, buzish ishlarini kuzatyapman', $row->comment);
+        $this->get('/tg/checkin')->assertOk()->assertSee('3/3. Izoh');
         $this->assertSame(41.3, $row->lat);
         Storage::disk('local')->assertExists($row->video_path);
         $this->tg('/tg/checkin-state')->assertJsonPath('step', 'done');
@@ -150,7 +157,7 @@ class CheckinTest extends TestCase
         $this->artisan('checkins:run')->assertSuccessful();
         $this->tg('/tg/checkin-location', ['lat' => 41.3, 'lng' => 69.25, 'accuracy' => 8])->assertOk();
         $webm = "\x1A\x45\xDF\xA3".random_bytes(30000);
-        $this->tg('/tg/checkin-video', ['duration' => 6, 'video' => UploadedFile::fake()->createWithContent('v.webm', $webm),
+        $this->tg('/tg/checkin-video', ['comment' => 'Ofisdaman, yig‘ilishdaman', 'duration' => 6, 'video' => UploadedFile::fake()->createWithContent('v.webm', $webm),
             'face' => UploadedFile::fake()->createWithContent('f.webm', "\x1A\x45\xDF\xA3".random_bytes(8000))])->assertOk();
 
         $row = Checkin::first();

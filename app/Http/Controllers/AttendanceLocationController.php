@@ -29,6 +29,9 @@ class AttendanceLocationController extends Controller
 
     private const MAX_SECONDS = 15;
 
+    /** Izoh kamida shuncha belgi (masalan "ofisdaman"). */
+    public const MIN_COMMENT = 5;
+
     private const EXT = ['video/webm' => 'webm', 'video/mp4' => 'mp4', 'video/quicktime' => 'mov', 'video/x-matroska' => 'webm'];
 
     public function page()
@@ -123,7 +126,7 @@ class AttendanceLocationController extends Controller
         ]);
         AuditLog::record('attendance.location', $user['id'], ['attendance' => $row->id, 'accuracy' => $accuracy, 'nearest_site_m' => $distance, 'flags' => $flags]);
 
-        $this->notify($bot, $user['id'], Script::apply("📍 Joylashuv qurilmadan qabul qilindi.\n\n<b>2/2.</b> Endi hududdagi holatingizni aks ettiruvchi videoni (".config('tutash.attendance.min_video_seconds').'–'.self::MAX_SECONDS." soniya) shu oynada kamera orqali yozing.\nOyna yopilgan bo‘lsa, pastdagi tugma orqali qayta oching.\n<i>Faqat shu oynada jonli yozilgan video qabul qilinadi.</i>"), AttendanceHandler::webAppMarkup('🎥 Videoni yozish'));
+        $this->notify($bot, $user['id'], Script::apply("📍 Joylashuv qabul qilindi.\n\n<b>2/3.</b> Shu oynada qisqa video yozing (".config('tutash.attendance.min_video_seconds').'–'.self::MAX_SECONDS." soniya), <b>3/3</b> — qisqa izoh.\nOyna yopilgan bo‘lsa, pastdagi tugma orqali qayta oching."), AttendanceHandler::webAppMarkup('🎥 Videoni yozish'));
 
         return response()->json(['ok' => true]);
     }
@@ -133,6 +136,7 @@ class AttendanceLocationController extends Controller
         $request->validate([
             'initData' => 'required|string|max:4096',
             'video' => 'required|file|max:'.self::MAX_VIDEO_KB,
+            'comment' => 'required|string|min:'.self::MIN_COMMENT.'|max:500',
             'face' => 'nullable|file|max:'.self::MAX_VIDEO_KB,
             'duration' => 'required|numeric|min:0|max:'.(self::MAX_SECONDS + 2),
             'device' => 'nullable|string|max:1500',
@@ -204,6 +208,7 @@ class AttendanceLocationController extends Controller
                 'video_unique_id' => $hash, 'video_duration' => (int) round($duration),
                 'status' => Attendance::PRESENT, 'responded_at' => now(),
                 'video_path' => $relative, 'face_video_path' => $faceRelative, 'video_downloaded_at' => now(), 'device' => $device,
+                'comment' => trim((string) $request->input('comment')),
             ]);
         } catch (UniqueConstraintViolationException) {
             $discard();

@@ -314,7 +314,7 @@ class InspectionResource extends Resource
                 Infolists\Components\TextEntry::make('device')->label('Qurilma')->formatStateUsing(fn ($state) => \App\Support\Device::label($state))->columnSpan(2)
                     ->hidden(fn (Inspection $record) => blank($record->device)),
                 Infolists\Components\TextEntry::make('reason')->label(fn (Inspection $record) => $record->exempt_type ? 'Izoh' : ($record->in_progress ? 'Buzish jarayoni haqida izoh' : 'Xodim izohi'))->columnSpanFull()
-                    ->visible(fn (Inspection $record) => ! $record->is_demolished && filled($record->reason)),
+                    ->visible(fn (Inspection $record) => filled($record->reason)),
                 Infolists\Components\TextEntry::make('flags')->label('Ogohlantirishlar')->badge()->color('danger')
                     ->formatStateUsing(fn ($state) => \App\Support\Gps::flagLabel($state))->visible(fn (Inspection $record) => $record->suspicious),
             ]),

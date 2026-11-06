@@ -294,7 +294,7 @@ class InspectionHandler
     {
         $addr = '<b>'.Ui::e(Ui::cut($in->site->address, 60)).'</b>';
         $kind = $in->isFollowup() ? 'Izoh bo‘yicha bajarilgan ish' : Inspection::KINDS[$in->kindValue()];
-        $steps = 'joylashuv → rasm → video'.($in->kindValue() === Inspection::KIND_COURT && ! $in->isFollowup() ? ' → sud qarori hujjatlari' : '');
+        $steps = 'joylashuv → rasm → video'.($in->kindValue() === Inspection::KIND_COURT && ! $in->isFollowup() ? ' → sud qarori hujjatlari' : '').' → izoh';
 
         Ui::say($bot, "{$addr}\nTekshiruv: <b>".Ui::e($kind)."</b>\n\nPastdagi tugma orqali oynani oching: {$steps}.\n<i>Joylashuv, rasm va video faqat shu oynada, telefon GPS’i va jonli kamerasidan olinadi; chatga yuborilgan fayllar qabul qilinmaydi.</i>", self::webAppMarkup());
     }

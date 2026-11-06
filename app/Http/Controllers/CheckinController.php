@@ -121,6 +121,7 @@ class CheckinController extends Controller
         $request->validate([
             'initData' => 'required|string|max:4096',
             'video' => 'required|file|max:'.self::MAX_VIDEO_KB,
+            'comment' => 'required|string|min:'.AttendanceLocationController::MIN_COMMENT.'|max:500',
             'face' => 'nullable|file|max:'.self::MAX_VIDEO_KB,
             'duration' => 'required|numeric|min:0|max:'.(self::MAX_SECONDS + 2),
             'device' => 'nullable|string|max:1500',
@@ -168,6 +169,7 @@ class CheckinController extends Controller
         }
         try {
             $row->update(['video_unique_id' => $hash, 'video_duration' => (int) round($duration), 'video_path' => $relative, 'face_video_path' => $faceRelative,
+                'comment' => trim((string) $request->input('comment')),
                 'status' => Checkin::PRESENT, 'responded_at' => now(), 'device' => Device::clean($request->input('device')) ?? $row->device]);
         } catch (UniqueConstraintViolationException) {
             $discard();

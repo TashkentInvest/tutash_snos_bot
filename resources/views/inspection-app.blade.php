@@ -104,7 +104,12 @@ const say = (t, c) => { msg.textContent = t; msg.className = c || ''; };
 const initData = () => (tg ? tg.initData : '');
 const SECTIONS = ['sEdit', 'sLocation', 'sPhoto', 'sVideo', 'sReason', 'sDocs', 'sConfirm'];
 const show = id => SECTIONS.forEach(s => $(s).classList.toggle('hidden', s !== id));
-const STEPS = { location: '1. Joylashuv', photo: '2. Rasm', video: '3. Video', documents: '4. Sud qarori hujjatlari', reason: '4. Izoh', confirm: 'Tasdiqlash', edit: 'Tuzatish' };
+const STEPS = { location: '1. Joylashuv', photo: '2. Rasm', video: '3. Video', documents: '4. Sud qarori hujjatlari', reason: 'Izoh', confirm: 'Tasdiqlash', edit: 'Tuzatish' };
+// izoh bosqichi: moderator izohiga javob yoki video uchun qisqa tavsif (majburiy)
+const REASON_HINT = {
+    followup: 'Izoh bo‘yicha <b>nima qilindi</b>? Qisqa yozing (kamida 10 ta belgi).',
+    other: 'Video va rasm uchun <b>qisqa izoh</b>: obyekt hozir qanday holatda, nima ko‘rinyapti? (kamida 5 ta belgi)',
+};
 // tekshiruv turi bo'yicha rasmga olish ko'rsatmasi
 const PHOTO_HINT = {
     before: 'Obyektning <b>hozirgi (buzishdan oldingi) holatini</b> kameraga oling.',
@@ -181,7 +186,11 @@ async function render(s) {
             $('goRec').classList.remove('hidden'); $('stopRec').classList.add('hidden'); $('timer').textContent = '0.0 s';
             await openVideoCam();
             break;
-        case 'reason': show('sReason'); break;
+        case 'reason':
+            show('sReason');
+            $('reasonHint').innerHTML = s.kind === 'followup' ? REASON_HINT.followup : REASON_HINT.other;
+            $('reason').value = $('reason').value || s.reason || '';
+            break;
         case 'documents':
             show('sDocs'); renderDocs(s);
             $('docNote').value = $('docNote').value || s.reason || '';
@@ -417,6 +426,7 @@ $('goSubmit').onclick = async () => {
     try {
         const { ok, j } = await api('submit');
         if (ok) { say('✅ Tekshiruv natijasi saqlandi. Oynani yopishingiz mumkin.', 'ok-t'); closeSoon(); return; }
+        if (j.state) { await render(j.state); say(j.message, 'err'); return; } // izoh yozilmagan — izoh bosqichiga
         say(j.message || 'Yuborilmadi. Qayta urinib ko‘ring.', 'err');
     } catch (e) { say('Aloqa xatosi. Qayta urinib ko‘ring.', 'err'); }
     $('goSubmit').disabled = false;

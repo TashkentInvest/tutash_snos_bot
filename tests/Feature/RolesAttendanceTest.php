@@ -299,11 +299,11 @@ class RolesAttendanceTest extends TestCase
         $this->assertSame(Attendance::RECORDING, $row->refresh()->status);
         Storage::fake('local');
         $webm = "\x1A\x45\xDF\xA3".str_repeat('g', 30000);
-        $this->post('/tg/attendance-video', ['initData' => $this->initData(self::UID), 'duration' => 6, 'video' => UploadedFile::fake()->createWithContent('v.webm', $webm)],
+        $this->post('/tg/attendance-video', ['initData' => $this->initData(self::UID), 'comment' => 'Ofisdaman, yig‘ilishdaman', 'duration' => 6, 'video' => UploadedFile::fake()->createWithContent('v.webm', $webm)],
             ['Accept' => 'application/json'])->assertOk();
         $this->assertSame(Attendance::PRESENT, $row->refresh()->status);
         // qayta yuborish (javob yo'qolgan) — xato emas
-        $this->post('/tg/attendance-video', ['initData' => $this->initData(self::UID), 'duration' => 6, 'video' => UploadedFile::fake()->createWithContent('v.webm', $webm.'x')],
+        $this->post('/tg/attendance-video', ['initData' => $this->initData(self::UID), 'comment' => 'Ofisdaman, yig‘ilishdaman', 'duration' => 6, 'video' => UploadedFile::fake()->createWithContent('v.webm', $webm.'x')],
             ['Accept' => 'application/json'])->assertOk();
     }
 
@@ -316,7 +316,7 @@ class RolesAttendanceTest extends TestCase
 
         $this->travelTo(today()->setTime(9, 4));
         Storage::fake('local');
-        $this->post('/tg/attendance-video', ['initData' => $this->initData(self::UID), 'duration' => 6,
+        $this->post('/tg/attendance-video', ['initData' => $this->initData(self::UID), 'comment' => 'Ofisdaman, yig‘ilishdaman', 'duration' => 6,
             'video' => UploadedFile::fake()->createWithContent('v.webm', "\x1A\x45\xDF\xA3".str_repeat('h', 30000))], ['Accept' => 'application/json'])->assertStatus(409);
         $this->assertSame(Attendance::MISSED, Attendance::where('staff_id', $staff->id)->value('status'));
     }
@@ -471,11 +471,16 @@ class RolesAttendanceTest extends TestCase
         Storage::fake('local');
         $init = $this->initData(self::UID);
         $webm = "\x1A\x45\xDF\xA3".str_repeat('a', 30000);
-        $this->post('/tg/attendance-video', ['initData' => $init, 'duration' => 1.2, 'video' => UploadedFile::fake()->createWithContent('v.webm', $webm)], ['Accept' => 'application/json'])->assertStatus(422);
-        $this->post('/tg/attendance-video', ['initData' => $init, 'duration' => 8, 'video' => UploadedFile::fake()->createWithContent('v.webm', 'not a video')], ['Accept' => 'application/json'])->assertStatus(422);
+        $this->post('/tg/attendance-video', ['initData' => $init, 'comment' => 'Ofisdaman, yig‘ilishdaman', 'duration' => 1.2, 'video' => UploadedFile::fake()->createWithContent('v.webm', $webm)], ['Accept' => 'application/json'])->assertStatus(422);
+        $this->post('/tg/attendance-video', ['initData' => $init, 'comment' => 'Ofisdaman, yig‘ilishdaman', 'duration' => 8, 'video' => UploadedFile::fake()->createWithContent('v.webm', 'not a video')], ['Accept' => 'application/json'])->assertStatus(422);
         $this->assertSame(Attendance::RECORDING, $row->refresh()->status);
-        $this->post('/tg/attendance-video', ['initData' => $init, 'duration' => 8, 'video' => UploadedFile::fake()->createWithContent('v.webm', $webm), 'face' => UploadedFile::fake()->createWithContent('f.webm', substr($webm, 0, 5000))], ['Accept' => 'application/json'])->assertOk();
+        // izoh majburiy (qayerdasiz, nima qilyapsiz): yo'q bo'lsa — o'zbekcha xato, davomat ochiq qoladi
+        $this->post('/tg/attendance-video', ['initData' => $init, 'duration' => 8, 'video' => UploadedFile::fake()->createWithContent('v.webm', $webm)], ['Accept' => 'application/json'])
+            ->assertStatus(422)->assertJsonValidationErrors('comment')->assertJsonPath('message', 'Izoh kiritilishi shart.');
+        $this->assertSame(Attendance::RECORDING, $row->refresh()->status);
+        $this->post('/tg/attendance-video', ['initData' => $init, 'comment' => 'Ofisdaman, yig‘ilishdaman', 'duration' => 8, 'video' => UploadedFile::fake()->createWithContent('v.webm', $webm), 'face' => UploadedFile::fake()->createWithContent('f.webm', substr($webm, 0, 5000))], ['Accept' => 'application/json'])->assertOk();
         $this->assertSame(Attendance::PRESENT, $row->refresh()->status);
+        $this->assertSame('Ofisdaman, yig‘ilishdaman', $row->comment);
         $this->assertNotNull($row->responded_at);
         $this->assertNotNull($row->video_path);
         Storage::disk('local')->assertExists($row->video_path);
@@ -542,7 +547,7 @@ class RolesAttendanceTest extends TestCase
         $init = $this->initData(self::UID);
         $this->postJson('/tg/attendance-location', ['initData' => $init, 'lat' => 41.3, 'lng' => 69.25, 'accuracy' => 10])->assertOk();
 
-        $this->post('/tg/attendance-video', ['initData' => $init, 'duration' => 8, 'video' => UploadedFile::fake()->createWithContent('v.webm', $webm)], ['Accept' => 'application/json'])->assertStatus(422);
+        $this->post('/tg/attendance-video', ['initData' => $init, 'comment' => 'Ofisdaman, yig‘ilishdaman', 'duration' => 8, 'video' => UploadedFile::fake()->createWithContent('v.webm', $webm)], ['Accept' => 'application/json'])->assertStatus(422);
         $this->assertSame(Attendance::RECORDING, $row->refresh()->status);
         $this->assertNull($row->video_path);
         $this->assertSame([], Storage::disk('local')->allFiles('attendance'));
@@ -688,7 +693,7 @@ class RolesAttendanceTest extends TestCase
         $this->postJson('/tg/attendance-location', ['initData' => $init, 'lat' => 41.3, 'lng' => 69.25, 'accuracy' => 10])->assertOk();
 
         $big = UploadedFile::fake()->create('v.webm', 2500, 'video/webm');
-        $this->post('/tg/attendance-video', ['initData' => $init, 'duration' => 8, 'video' => $big], ['Accept' => 'application/json'])
+        $this->post('/tg/attendance-video', ['initData' => $init, 'comment' => 'Ofisdaman, yig‘ilishdaman', 'duration' => 8, 'video' => $big], ['Accept' => 'application/json'])
             ->assertStatus(422)->assertJsonPath('message', 'Video hajmi juda katta (1900 KB dan oshmasligi kerak). Videoni qisqaroq yozib, qayta yuboring.');
 
         $this->postJson('/tg/attendance-location', ['initData' => $init, 'lat' => 'x', 'lng' => 'y'])

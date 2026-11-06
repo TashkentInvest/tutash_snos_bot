@@ -71,6 +71,7 @@ class AttendanceResource extends Resource
                 Tables\Columns\TextColumn::make('device')->label('Qurilma')->formatStateUsing(fn ($state) => \App\Support\Device::label($state))->wrap()->toggleable(),
                 Tables\Columns\TextColumn::make('flags')->label('Belgi')->badge()->color('warning')
                     ->formatStateUsing(fn ($state) => \App\Support\Gps::flagLabel($state))->placeholder('—'),
+                Tables\Columns\TextColumn::make('comment')->label('Izoh')->limit(60)->tooltip(fn (Attendance $record) => $record->comment)->placeholder('—')->wrap(),
                 Tables\Columns\TextColumn::make('reason')->label('Sabab')->limit(60)->tooltip(fn (Attendance $record) => $record->reason)->placeholder('—'),
             ])
             ->filters([

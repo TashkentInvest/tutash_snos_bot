@@ -43,7 +43,8 @@
                                     @if (! $a)
                                         <span style="opacity:.5;">—</span>
                                     @elseif ($a->status === \App\Models\Attendance::PRESENT)
-                                        <span style="color:rgb(22,163,74);font-weight:600;">{{ $a->responded_at?->format('H:i') }}</span>
+                                        <span style="color:rgb(22,163,74);font-weight:600;" title="{{ $a->comment }}">{{ $a->responded_at?->format('H:i') }}</span>
+                                        @if ($a->comment)<div style="font-size:.75rem;opacity:.75;max-width:12rem;margin:auto;" title="{{ $a->comment }}">{{ \Illuminate\Support\Str::limit($a->comment, 40) }}</div>@endif
                                         <div style="white-space:nowrap;">
                                             @if ($a->lat)<a href="{{ \App\Support\Maps::url($a->lat, $a->lng) }}" target="_blank" style="color:rgb(37,99,235);">xarita</a>@endif
                                             @if ($a->video_path) · <a href="{{ route('admin.attendance-video', ['attendance' => $a, 'v' => $a->updated_at?->timestamp]) }}" target="_blank" style="color:rgb(37,99,235);">video</a>@endif
@@ -63,7 +64,8 @@
                                         @if (! $c)
                                             <span style="opacity:.35;">·</span>
                                         @elseif ($c->status === \App\Models\Checkin::PRESENT)
-                                            <span style="color:rgb(22,163,74);font-weight:600;">{{ $c->responded_at?->format('H:i') }}</span>
+                                            <span style="color:rgb(22,163,74);font-weight:600;" title="{{ $c->comment }}">{{ $c->responded_at?->format('H:i') }}</span>
+                                            @if ($c->comment)<div style="font-size:.75rem;opacity:.75;max-width:9rem;margin:auto;" title="{{ $c->comment }}">{{ \Illuminate\Support\Str::limit($c->comment, 30) }}</div>@endif
                                             <div style="white-space:nowrap;">
                                                 @if ($c->lat)<a href="{{ \App\Support\Maps::url($c->lat, $c->lng) }}" target="_blank" style="color:rgb(37,99,235);">xarita</a>@endif
                                                 @if ($c->video_path) · <a href="{{ route('admin.checkin-video', ['checkin' => $c, 'v' => $c->updated_at?->timestamp]) }}" target="_blank" style="color:rgb(37,99,235);">video</a>@endif

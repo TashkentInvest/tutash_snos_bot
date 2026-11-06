@@ -116,7 +116,7 @@ class AttendanceHandler
             $row->update(['status' => Attendance::LOCATING]);
             Ui::show($bot, '✅ Tanlovingiz: <b>ishni boshladim</b>.');
             $kb = self::webAppMarkup('📍 Joylashuvni yuborish');
-            Ui::say($bot, "<b>1/2.</b> Pastdagi tugmani bosib, <b>joylashuvingizni</b> telefon GPS’idan aniqlang.\n<i>Joylashuv faqat shu tugma orqali qabul qilinadi; xabar sifatida yuborilgan, uzatilgan yoki xaritadan tanlangan joylashuv qabul qilinmaydi.</i>", $kb);
+            Ui::say($bot, "Pastdagi tugmani bosing: <b>joylashuv → video → izoh</b> (qayerdasiz va nima qilyapsiz).", $kb);
 
             return;
         }

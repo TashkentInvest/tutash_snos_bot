@@ -65,6 +65,7 @@ return [
         'clip' => 'Rasm lavhasi',
         'duration' => 'Video davomiyligi',
         'reason' => 'Sabab',
+        'comment' => 'Izoh',
         'value' => 'Javob',
         'device' => 'Qurilma ma’lumoti',
         'email' => 'Elektron pochta',

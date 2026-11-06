@@ -83,8 +83,10 @@ class InspectionAppController extends Controller
     {
         $normal = match ($finished) {
             'photo' => 'video',
-            'video' => $in->isFollowup() ? 'reason' : ($in->kindValue() === Inspection::KIND_COURT ? 'documents' : 'confirm'),
-            default => 'confirm', // documents, reason
+            // video uchun izoh har doim majburiy (sud qarorida — hujjatlardan keyin; hujjat izohi yozilgan bo'lsa, u yetarli)
+            'video' => $in->kindValue() === Inspection::KIND_COURT && ! $in->isFollowup() ? 'documents' : 'reason',
+            'documents' => filled($in->reason) ? 'confirm' : 'reason',
+            default => 'confirm', // reason
         };
         if ($in->isRework() && ($normal === 'confirm' || $in->edit_target === $finished)) {
             return ['step' => 'edit', 'edit_target' => null];
@@ -453,7 +455,8 @@ class InspectionAppController extends Controller
             return $this->fail('Sud qarori nusxasini (rasm yoki PDF) yuklang.');
         }
         $text = trim(preg_replace('/\s+/u', ' ', (string) $request->input('reason')));
-        $in->update([...$this->next($in, 'documents'), ...($text !== '' ? ['reason' => mb_substr($text, 0, 1000)] : [])]);
+        $text !== '' && $in->reason = mb_substr($text, 0, 1000);
+        $in->update(['reason' => $in->reason, ...$this->next($in, 'documents')]);
 
         return response()->json($this->snapshot($in->refresh()));
     }
@@ -472,8 +475,10 @@ class InspectionAppController extends Controller
         }
 
         $text = trim(preg_replace('/\s+/u', ' ', (string) $request->input('reason')));
-        if (mb_strlen($text) < 10 || mb_strlen($text) > 1000) {
-            return $this->fail('Izoh 10 tadan 1000 tagacha belgidan iborat bo‘lishi kerak.');
+        // moderator izohiga javob — batafsilroq (10), oddiy video izohi — qisqa (5) bo'lishi mumkin
+        $min = $in->isFollowup() ? 10 : AttendanceLocationController::MIN_COMMENT;
+        if (mb_strlen($text) < $min || mb_strlen($text) > 1000) {
+            return $this->fail("Izoh {$min} tadan 1000 tagacha belgidan iborat bo‘lishi kerak.");
         }
 
         $in->update(['reason' => $text, ...$this->next($in, 'reason')]);
@@ -486,6 +491,12 @@ class InspectionAppController extends Controller
         [$user, $staff, $in, $error] = $this->context($request);
         if ($error) {
             return $error;
+        }
+        // izohsiz natija yuborilmaydi (deploydan oldin boshlangan qoralamalar ham) — izoh bosqichiga qaytariladi
+        if (blank($in->reason)) {
+            $in->update(['step' => 'reason']);
+
+            return response()->json(['ok' => false, 'message' => 'Avval qisqa izoh yozing.', 'state' => $this->snapshot($in->refresh())], 422);
         }
 
         $done = InspectionHandler::finalize($staff);

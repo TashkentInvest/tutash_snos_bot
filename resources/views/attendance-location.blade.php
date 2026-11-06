@@ -7,6 +7,8 @@
     $doneText ??= '✅ Davomatingiz qayd etildi. Oynani yopishingiz mumkin.';
     $alreadyText ??= '✅ Davomatingiz allaqachon qayd etilgan.';
     $noneText ??= 'Hozir davomat so‘rovi yo‘q yoki muddat tugagan. Botga qaytib, «Ha, ishni boshladim» tugmasini bosing.';
+    $commentHint ??= 'Qayerdasiz va nima qilyapsiz? Masalan: «Ofisdaman, yig‘ilishdaman» yoki «Obyektda, buzish ishlarini kuzatyapman».';
+    $minComment = \App\Http\Controllers\AttendanceLocationController::MIN_COMMENT;
 @endphp
 <head>
     <meta charset="utf-8">
@@ -27,23 +29,35 @@
         #circle video { width: 100%; height: 100%; object-fit: cover; }
         #circle video.front { transform: scaleX(-1); }
         #timer { font-size: 22px; font-weight: 600; }
+        textarea { width: 100%; box-sizing: border-box; min-height: 110px; margin-top: 12px; padding: 12px; border-radius: 10px; font-size: 16px; font-family: inherit;
+            border: 1px solid var(--tg-theme-hint-color, #ccc); background: var(--tg-theme-secondary-bg-color, #f5f5f5); color: inherit; }
+        #commentCount { font-size: 13px; color: var(--tg-theme-hint-color, #888); text-align: right; margin-top: 4px; }
     </style>
 </head>
 <body>
 <div id="stepLocation" class="hidden">
-    <h1>📍 1/2. Joylashuvni aniqlash</h1>
+    <h1>📍 1/3. Joylashuvni aniqlash</h1>
     <p>Pastdagi tugmani bosing. Telefoningiz GPS’idan joriy joylashuvingiz olinadi va qayd etiladi.</p>
     <button id="goLoc">Joylashuvni yuborish</button>
     <button id="goLocSettings" class="secondary hidden">⚙️ Ruxsatni yoqish</button>
 </div>
 
 <div id="stepVideo" class="hidden">
-    <h1>🎥 2/2. Video yozish</h1>
+    <h1>🎥 2/3. Video yozish</h1>
     <p>Hududdagi holatingizni ko‘rsating. Video <b>faqat shu oynada, jonli</b> yoziladi ({{ $minSeconds }}–15 soniya).</p>
     <div id="circle"><video id="preview" autoplay playsinline muted></video></div>
     <div id="timer">0.0 s</div>
     <button id="goRec">Yozishni boshlash</button>
-    <button id="stopRec" class="hidden">Yozishni tugatish va yuborish</button>
+    <button id="stopRec" class="hidden">Yozishni tugatish</button>
+</div>
+
+<div id="stepComment" class="hidden">
+    <h1>💬 3/3. Izoh</h1>
+    <p>{{ $commentHint }}</p>
+    <textarea id="comment" maxlength="500" placeholder="Izohingizni yozing…"></textarea>
+    <div id="commentCount"></div>
+    <button id="goSend" disabled>Yuborish</button>
+    <button id="goReRec" class="secondary">Videoni qayta yozish</button>
 </div>
 
 <div id="msg"></div>
@@ -55,7 +69,8 @@ const tg = window.Telegram && window.Telegram.WebApp;
 tg && (tg.ready(), tg.expand());
 const $ = id => document.getElementById(id), msg = $('msg');
 const say = (t, c) => { msg.textContent = t; msg.className = c || ''; };
-const show = id => ['stepLocation', 'stepVideo'].forEach(s => $(s).classList.toggle('hidden', s !== id));
+const show = id => ['stepLocation', 'stepVideo', 'stepComment'].forEach(s => $(s).classList.toggle('hidden', s !== id));
+const MIN_COMMENT = {{ (int) $minComment }};
 const initData = () => (tg ? tg.initData : '');
 
 // Sust mobil internetda so'rov cheksiz osilib qolmasin: vaqt chegarasi o'tsa — xato (qayta urinish tugmasi chiqadi).
@@ -184,8 +199,9 @@ async function switchSegment() {
 async function failRecording(text) {
     clearInterval(tick); clearTimeout(autoStop); clearTimeout(switchTimer);
     await Promise.all([stopRecorder(recFace), stopRecorder(recMain)]);
-    recFace = recMain = null; busy = false;
+    recFace = recMain = null; busy = false; pending = null;
     $('stopRec').classList.add('hidden');
+    show('stepVideo');
     await startCamera();
     say(text, 'err');
     $('timer').textContent = '0.0 s'; $('goRec').classList.remove('hidden');
@@ -210,15 +226,34 @@ $('goRec').onclick = () => {
 
 $('stopRec').onclick = finish;
 
+// video yozildi — izoh bosqichi; yuborish faqat izoh yozilgach (joylashuv -> video -> izoh)
+let pending = null;
 async function finish() {
     if (!busy || !recMain || recMain.state !== 'recording') return;
     busy = false;
     clearInterval(tick); clearTimeout(autoStop);
-    const duration = (Date.now() - startedAt) / 1000;
+    pending = (Date.now() - startedAt) / 1000;
     $('stopRec').classList.add('hidden');
     await stopRecorder(recMain);
-    await upload(duration);
+    releaseCamera();
+    say('');
+    show('stepComment');
+    countComment();
+    $('comment').focus();
 }
+
+const countComment = () => {
+    const n = $('comment').value.trim().length;
+    $('commentCount').textContent = n < MIN_COMMENT ? `kamida ${MIN_COMMENT} ta belgi (${n})` : `${n}/500`;
+    $('goSend').disabled = n < MIN_COMMENT;
+};
+$('comment').oninput = countComment;
+$('goReRec').onclick = () => failRecording('');
+$('goSend').onclick = async () => {
+    if (pending === null || $('goSend').disabled) return;
+    $('goSend').disabled = true; $('goReRec').disabled = true;
+    try { await upload(pending); } finally { $('goReRec').disabled = false; countComment(); }
+};
 
 async function upload(duration) {
     say('Video yuborilmoqda…');
@@ -229,6 +264,7 @@ async function upload(duration) {
     fd.append('initData', initData());
     fd.append('device', deviceInfo());
     fd.append('duration', duration.toFixed(2));
+    fd.append('comment', $('comment').value.trim());
     fd.append('video', mainBlob, 'video.' + ext(mainBlob));
     if (faceBlob.size > 3000) fd.append('face', faceBlob, 'face.' + ext(faceBlob));
     try {
@@ -239,8 +275,10 @@ async function upload(duration) {
             setTimeout(() => tg && tg.close(), 1200);
             return;
         }
+        // faqat izohda xato bo'lsa — video saqlanib qoladi, izohni tuzatib qayta yuboriladi
+        if (j.errors && j.errors.comment && Object.keys(j.errors).length === 1) return say(j.errors.comment[0], 'err');
         await failRecording(j.message || 'Video yuborilmadi. Qayta yozing.');
-    } catch (e) { await failRecording('Aloqa xatosi. Qayta yozib ko‘ring.'); }
+    } catch (e) { say('Aloqa xatosi. «Yuborish» ni qayta bosing.', 'err'); }
 }
 
 // ---------------------------------------------------------------- boshlanish
