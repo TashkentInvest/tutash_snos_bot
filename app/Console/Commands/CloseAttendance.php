@@ -53,7 +53,8 @@ class CloseAttendance extends Command
 
             return self::SUCCESS;
         }
-        $reported = \App\Telegram\Support\AttendanceReport::sendToAdmins($bot, today());
+        $reported = \App\Models\ReportSetting::enabled(\App\Models\ReportSetting::ATTENDANCE)
+            ? \App\Telegram\Support\AttendanceReport::sendToAdmins($bot, today()) : 0;
         $this->info("Yopildi: {$closed}, adminlarga xabar: {$reported}");
 
         return self::SUCCESS;

@@ -31,6 +31,12 @@ class Kernel extends ConsoleKernel
         // Shartnoma xodimlari: soatlik qayd (10:00–18:59, 13:00–14:00 tushlik — CHECKIN_SLOTS); har daqiqa — yetmaganlar qayta yuboriladi.
         $schedule->command('checkins:run')->days(config('tutash.attendance.days'))->everyMinute()
             ->between(\App\Models\Checkin::slots()[0] ?? '10:00', \App\Models\Checkin::scheduleUntil())->withoutOverlapping(10);
+        // Soatlik qayd hisobotlari (oluvchilar — Sozlamalar → Hisobotlar): har soat H:59:59 va kun yakuni 17:59:59.
+        // Buyruq H:59 da boshlanib 59-soniyani kutadi — boshqa vazifalarni to'smasligi uchun fonda.
+        $schedule->command('checkins:report')->days(config('tutash.attendance.days'))->hourlyAt(59)
+            ->between(\App\Models\Checkin::slots()[0] ?? '10:00', \App\Models\Checkin::scheduleUntil())->runInBackground()->withoutOverlapping(5);
+        $schedule->command('checkins:report --daily')->days(config('tutash.attendance.days'))
+            ->dailyAt(config('tutash.checkins.daily_report_at'))->runInBackground()->withoutOverlapping(5);
         // Bajarilmagan moderator izohlari bo'yicha eslatma — ish kunlari ertalab.
         $schedule->command('followups:remind')->days(config('tutash.attendance.days'))->dailyAt(config('tutash.followup_remind_at'))->withoutOverlapping(30);
     }

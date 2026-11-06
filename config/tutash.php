@@ -50,6 +50,8 @@ return [
     'checkins' => [
         'slots' => env('CHECKIN_SLOTS', '10:00,11:00,12:00,14:00,15:00,16:00,17:00,18:00'),
         'window_minutes' => (int) env('CHECKIN_WINDOW_MINUTES', 60), // javob muddati: keyingi soatgacha
+        // kun yakuni hisoboti: shu daqiqaning 59-soniyasida (17:59 -> 17:59:59), shu paytgacha tugagan barcha soatlar
+        'daily_report_at' => env('CHECKIN_DAILY_REPORT_AT', '17:59'),
     ],
 
     // Kunlik buzilish (tekshiruvlar) hisoboti yuboriladigan vaqt.

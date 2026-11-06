@@ -111,9 +111,9 @@ class AttendanceReport
         return $sent;
     }
 
-    /** Hisobot oluvchilar: admin panelda «Hisobot oladi» belgilangan faol foydalanuvchilar (admin bo'lishi shart ham emas, yetarli ham emas). */
-    public static function recipients(): \Illuminate\Support\Collection
+    /** Hisobot oluvchilar: Sozlamalar → Hisobotlar sahifasida shu hisobot uchun belgilanganlar. */
+    public static function recipients(string $report = \App\Models\ReportSetting::ATTENDANCE): \Illuminate\Support\Collection
     {
-        return Staff::where('status', Staff::ACTIVE)->whereNotNull('telegram_id')->where('receives_reports', true)->get();
+        return \App\Models\ReportSetting::recipients($report);
     }
 }

@@ -187,7 +187,7 @@ class Svod
      *
      * @param  array<int, array{cells: string[], sum: bool, colors: array<int, string>}>  $rows
      */
-    private static function table(string $title, array $heads, array $widths, array $rows, ?callable $t): string
+    public static function table(string $title, array $heads, array $widths, array $rows, ?callable $t): string
     {
         $t ??= fn (string $s) => $s;
         $font = self::font(false);

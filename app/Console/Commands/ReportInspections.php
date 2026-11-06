@@ -27,6 +27,11 @@ class ReportInspections extends Command
             return self::SUCCESS;
         }
 
+        if (! \App\Models\ReportSetting::enabled(\App\Models\ReportSetting::SVOD)) {
+            $this->info('Hisobot sozlamada o‘chirilgan — yuborilmadi.');
+
+            return self::SUCCESS;
+        }
         $sent = InspectionReport::send($bot, $day);
         $this->info("Yuborilgan xabarlar: {$sent}");
 

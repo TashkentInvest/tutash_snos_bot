@@ -59,7 +59,7 @@ class InspectionReport
         $sent = 0;
         $ids = null; // birinchi yuborishdan keyin Telegram file_id'lari qayta ishlatiladi
         try {
-            foreach (AttendanceReport::recipients() as $admin) {
+            foreach (\App\Models\ReportSetting::recipients(\App\Models\ReportSetting::SVOD) as $admin) {
                 // tarmoq uzilishi/timeout bo'lsa — bir marta qayta urinish; bloklangan bot kabi doimiy xatoda qayta urinilmaydi
                 for ($try = 1; $try <= 2; $try++) {
                     try {

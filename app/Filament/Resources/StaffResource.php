@@ -81,8 +81,9 @@ class StaffResource extends Resource
                     ->formatStateUsing(fn ($state, ?Staff $record) => $record?->isContract() ? true : (bool) $state)
                     ->disabled(fn (Forms\Get $get) => $get('role') === Staff::ROLE_CONTRACT)
                     ->visible($isWorker),
-                Forms\Components\Toggle::make('receives_reports')->label('Hisobot oladi')
-                    ->helperText('Har kuni '.config('tutash.daily_report_at').' dagi svod va davomat hisoboti'),
+                // hisobot oluvchilar endi bitta joyda: Sozlamalar → Hisobotlar (har hisobot alohida)
+                Forms\Components\Placeholder::make('reports_hint')->label('Hisobotlar')
+                    ->content(new \Illuminate\Support\HtmlString('Kimga qaysi hisobot borishi — <a href="'.\App\Filament\Pages\ReportSettings::getUrl().'" style="color:rgb(37,99,235);">Sozlamalar → Hisobotlar</a>')),
             ]),
 
             Forms\Components\Section::make('Hududlar')->schema([
@@ -131,9 +132,6 @@ class StaffResource extends Resource
                         default => null,
                     })
                     ->action(fn (Staff $record) => $record->role === Staff::ROLE_EMPLOYEE && $record->update(['hourly_checkin' => ! $record->hourly_checkin])),
-                Tables\Columns\IconColumn::make('receives_reports')->label('Hisobot')->boolean()
-                    ->tooltip('Bosing: hisobot yuborishni yoqish / o‘chirish')
-                    ->action(fn (Staff $record) => $record->update(['receives_reports' => ! $record->receives_reports])),
                 Tables\Columns\TextColumn::make('inspections_count')->label('Tekshiruvlar')->counts('inspections'),
                 Tables\Columns\TextColumn::make('last_seen_at')->label('Oxirgi faollik')->since()->sortable(),
             ])
@@ -142,8 +140,6 @@ class StaffResource extends Resource
                 Tables\Filters\SelectFilter::make('role')->label('Rol')->options(self::ROLES),
                 Tables\Filters\Filter::make('hourly')->label('Soatlik qayd yuritiladi')
                     ->query(fn ($query) => $query->hourlyCheckin()),
-                Tables\Filters\Filter::make('reports')->label('Hisobot oladi')
-                    ->query(fn ($query) => $query->where('receives_reports', true)),
                 // o'chirilganlar (arxiv): natijalari, davomati va videolari saqlangan
                 Tables\Filters\TrashedFilter::make()->label('O‘chirilganlar')
                     ->placeholder('O‘chirilmaganlar')->trueLabel('Hammasi')->falseLabel('Faqat o‘chirilganlar'),

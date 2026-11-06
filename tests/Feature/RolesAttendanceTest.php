@@ -499,7 +499,7 @@ class RolesAttendanceTest extends TestCase
         $this->assertStringContainsString('ishda: <b>1</b>', $report);
 
         // adminga yuboriladi
-        Staff::create(['telegram_id' => 888, 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true, 'receives_reports' => true, 'full_name' => 'Admin Test Adminov', 'phone' => '901756545']);
+        $this->receivesReports([Staff::create(['telegram_id' => 888, 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true, 'full_name' => 'Admin Test Adminov', 'phone' => '901756545'])]);
         $this->artisan('attendance:report')->expectsOutputToContain('Yuborilgan xabarlar: 1')->assertSuccessful();
     }
 
@@ -557,22 +557,38 @@ class RolesAttendanceTest extends TestCase
     {
         $staff = $this->registerEmployee();
         Attendance::create(['staff_id' => $staff->id, 'date' => today(), 'status' => Attendance::PRESENT, 'responded_at' => now()]);
-        Staff::create(['telegram_id' => 801, 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true, 'receives_reports' => true, 'full_name' => 'Global Admin', 'phone' => '900000101']);
-        // admin, lekin «Hisobot oladi» belgisi yo'q — hisobot bormaydi
+        $global = Staff::create(['telegram_id' => 801, 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true, 'full_name' => 'Global Admin', 'phone' => '900000101']);
+        // admin, lekin sozlamada belgilanmagan — hisobot bormaydi
         Staff::create(['telegram_id' => 804, 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true, 'full_name' => 'Kuzatuvchi Admin', 'phone' => '949220555']);
         $marked = Staff::create(['telegram_id' => 802, 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'full_name' => 'Nazoratchi Bir', 'phone' => '900000102', 'attendance_required' => true]);
-        Staff::create(['telegram_id' => 803, 'status' => Staff::BLOCKED, 'role' => Staff::ROLE_EMPLOYEE, 'full_name' => 'Bloklangan', 'phone' => '900000103', 'receives_reports' => true]);
+        $blocked = Staff::create(['telegram_id' => 803, 'status' => Staff::BLOCKED, 'role' => Staff::ROLE_EMPLOYEE, 'full_name' => 'Bloklangan', 'phone' => '900000103']);
 
-        $this->assertSame([801], \App\Telegram\Support\AttendanceReport::recipients()->pluck('telegram_id')->all());
-
-        $marked->update(['receives_reports' => true]); // admin panel: «Hisobot oladi»
-        $this->assertEqualsCanonicalizing([801, 802], \App\Telegram\Support\AttendanceReport::recipients()->pluck('telegram_id')->all());
-        $this->artisan('attendance:report')->expectsOutputToContain('Yuborilgan xabarlar: 2')->assertSuccessful();
-
-        // bosh sahifadagi tugmalar: istalgan payt qo'lda yuborish
         $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
         $admin->save();
         $this->actingAs($admin);
+
+        // Sozlamalar → Hisobotlar: davomat hisoboti — global admin (bloklangan belgilansa ham yuborilmaydi)
+        $this->get('/admin/report-settings')->assertOk()->assertSee('Soatlik qayd — har soat yakuni')->assertSee('Ertalabki davomat xulosasi');
+        \Livewire\Livewire::test(\App\Filament\Pages\ReportSettings::class)
+            ->set('data.attendance.recipients', [(string) $global->id, (string) $blocked->id])
+            ->set('data.svod.recipients', [(string) $global->id])
+            ->call('save')->assertNotified('Saqlandi');
+        $this->assertSame([801], \App\Telegram\Support\AttendanceReport::recipients()->pluck('telegram_id')->all());
+
+        \Livewire\Livewire::test(\App\Filament\Pages\ReportSettings::class)
+            ->set('data.attendance.recipients', [(string) $global->id, (string) $marked->id])
+            ->set('data.svod.recipients', [(string) $global->id, (string) $marked->id])
+            ->call('save');
+        $this->assertEqualsCanonicalizing([801, 802], \App\Telegram\Support\AttendanceReport::recipients()->pluck('telegram_id')->all());
+        $this->artisan('attendance:report')->expectsOutputToContain('Yuborilgan xabarlar: 2')->assertSuccessful();
+
+        // hisobot o'chirilsa — davomat yopilganda avtomatik yuborilmaydi (qo'lda tugma baribir ishlaydi)
+        \Livewire\Livewire::test(\App\Filament\Pages\ReportSettings::class)->set('data.attendance.enabled', false)->call('save');
+        $this->assertFalse(\App\Models\ReportSetting::enabled(\App\Models\ReportSetting::ATTENDANCE));
+        $this->travelTo(today()->setTime(9, 3));
+        $this->artisan('attendance:close')->expectsOutputToContain('adminlarga xabar: 0')->assertSuccessful();
+
+        // bosh sahifadagi tugmalar: istalgan payt qo'lda yuborish
         \Livewire\Livewire::test(\App\Filament\Pages\Dashboard::class)
             ->assertActionVisible('sendInspectionReport')
             ->callAction('sendAttendanceReport')->assertNotified('Yuborildi: 2 ta xabar')
@@ -587,7 +603,7 @@ class RolesAttendanceTest extends TestCase
     public function test_daily_demolition_report(): void
     {
         $staff = $this->registerEmployee();
-        Staff::create(['telegram_id' => 801, 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true, 'receives_reports' => true, 'full_name' => 'Global Admin', 'phone' => '900000101']);
+        $this->receivesReports([Staff::create(['telegram_id' => 801, 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true, 'full_name' => 'Global Admin', 'phone' => '900000101'])]);
         $other = Site::create(['district_id' => $this->district->id, 'source_no' => 3, 'address' => 'Uchinchi kocha 3']);
         $make = fn (Site $s, array $a) => Inspection::create($a + ['site_id' => $s->id, 'staff_id' => $staff->id, 'status' => Inspection::SUBMITTED, 'step' => 'done', 'submitted_at' => now()]);
 

@@ -171,6 +171,57 @@ class CheckinTest extends TestCase
         $this->get(route('admin.checkin-video', ['checkin' => $row, 'face' => 1]))->assertOk();
     }
 
+    /** Soatlik hisobot H:59:59 da va kun yakuni 17:59:59 da — rasm, sozlamadagi oluvchilarga. */
+    public function test_hourly_and_day_end_checkin_reports_go_to_configured_recipients(): void
+    {
+        $a = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Aslanov Sanjar', 'phone' => '950507174', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
+        $b = Staff::create(['telegram_id' => 777011, 'full_name' => 'Boboyev Bobur', 'phone' => '900000011', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
+        $boss = Staff::create(['telegram_id' => 777099, 'full_name' => 'Rahbar', 'phone' => '900000099', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true]);
+        $this->receivesReports([$boss], [\App\Models\ReportSetting::CHECKIN_HOURLY, \App\Models\ReportSetting::CHECKIN_DAILY]);
+
+        foreach (['10:00', '11:00', '15:00'] as $slot) {
+            $this->travelTo(today()->setTimeFromTimeString($slot));
+            $this->artisan('checkins:run')->assertSuccessful();
+        }
+        // A — 10:00 va 15:00 da qayd etdi, B — hech qachon
+        Checkin::where('staff_id', $a->id)->whereIn('slot', ['10:00', '15:00'])->update(['status' => Checkin::PRESENT, 'responded_at' => now(), 'comment' => 'Obyektdaman']);
+
+        // 15:59:59 — 15:00 soat hisoboti faqat rahbarga
+        $this->travelTo(today()->setTime(15, 59, 59));
+        $before = count(app(Nutgram::class)->getRequestHistory());
+        $this->artisan('checkins:report')->expectsOutputToContain('Yuborildi: 1')->assertSuccessful();
+        $sent = collect(app(Nutgram::class)->getRequestHistory())->slice($before)->map(fn ($r) => (string) array_values($r)[0]->getBody())->implode("\n");
+        $this->assertStringContainsString('sendPhoto', collect(app(Nutgram::class)->getRequestHistory())->slice($before)->map(fn ($r) => (string) array_values($r)[0]->getUri())->implode(' '));
+        $this->assertStringContainsString('777099', $sent);
+        $this->assertStringContainsString('Soatlik qayd — 15:00', $sent);
+        $this->assertStringContainsString('Qayd etdi: <b>1</b> / 2', $sent);
+        $this->assertStringContainsString('Javob bermadi: <b>1</b>', $sent);
+
+        // 13:59 — tushlik, so'rov yo'q
+        $this->travelTo(today()->setTime(13, 59, 59));
+        $this->artisan('checkins:report')->expectsOutputToContain('so‘rov yo‘q')->assertSuccessful();
+
+        // kun yakuni 17:59:59: 10:00..17:00 gacha tugagan soatlar
+        $this->travelTo(today()->setTime(17, 59, 59));
+        $day = \App\Telegram\Support\CheckinReport::daily(today(), now());
+        $this->assertStringStartsWith("\x89PNG", $day['png']);
+        $this->assertStringContainsString('Qayd etildi: <b>2</b> / 14', $day['caption']); // 2 kishi × 7 soat (10,11,12,14,15,16,17)
+        $this->artisan('checkins:report --daily')->expectsOutputToContain('Yuborildi: 1')->assertSuccessful();
+        ($out = getenv('CHECKIN_PNG_OUT')) && file_put_contents($out, $day['png'])
+            && file_put_contents(str_replace('.png', '-hourly.png', $out), \App\Telegram\Support\CheckinReport::hourly(today(), '15:00')['png']);
+
+        // o'chirilgan hisobot yuborilmaydi
+        \App\Models\ReportSetting::for(\App\Models\ReportSetting::CHECKIN_HOURLY)->update(['enabled' => false]);
+        $this->travelTo(today()->setTime(16, 59, 59));
+        $this->artisan('checkins:report')->expectsOutputToContain('o‘chirilgan')->assertSuccessful();
+
+        // admin: namuna rasm
+        $admin = (new User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin)->get('/admin-checkin-report.png?type=daily')->assertOk()->assertHeader('Content-Type', 'image/png');
+        $this->get('/admin-checkin-report.png?type=hourly&slot=15:00')->assertOk()->assertHeader('Content-Type', 'image/png');
+    }
+
     public function test_staff_edit_form_turns_hourly_checkin_on_and_shows_it_for_contract(): void
     {
         $emp = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Oddiy Xodim', 'phone' => '950507174', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE]);

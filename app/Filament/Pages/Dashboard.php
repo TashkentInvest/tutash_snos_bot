@@ -64,7 +64,7 @@ class Dashboard extends BaseDashboard
             Action::make('sendInspectionReport')->label('Buzilish hisobotini yuborish')->icon('heroicon-o-paper-airplane')
                 ->modalHeading(fn () => 'Buzilish hisoboti — '.$this->period()->day->format('d.m.Y'))->modalWidth('2xl')->modalSubmitActionLabel('Yuborish')
                 ->modalContent(fn () => view('filament.pages.report-preview', [
-                    'recipients' => AttendanceReport::recipients(),
+                    'recipients' => AttendanceReport::recipients(\App\Models\ReportSetting::SVOD),
                     'texts' => [Script::apply(InspectionReport::caption($this->period()->day))],
                     'images' => [
                         route('admin.svod.png', ['day' => $this->period()->day->toDateString(), 't' => now()->timestamp]),
