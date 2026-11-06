@@ -141,6 +141,29 @@ class CheckinTest extends TestCase
         $this->artisan('checkins:run')->expectsOutputToContain('yuborildi 1')->assertSuccessful();
     }
 
+    /** Old kamera (yuz) lavhasi ham saqlanadi va asosiy video bilan birlashtirishga navbatga qo'yiladi; jadvalda ikkalasi ko'rinadi. */
+    public function test_checkin_face_video_is_kept_merged_and_linked_on_board(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake();
+        Staff::create(['telegram_id' => self::UID, 'full_name' => 'Yuzli Xodim', 'phone' => '950507174', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
+        $this->travelTo(today()->setTime(10, 0));
+        $this->artisan('checkins:run')->assertSuccessful();
+        $this->tg('/tg/checkin-location', ['lat' => 41.3, 'lng' => 69.25, 'accuracy' => 8])->assertOk();
+        $webm = "\x1A\x45\xDF\xA3".random_bytes(30000);
+        $this->tg('/tg/checkin-video', ['duration' => 6, 'video' => UploadedFile::fake()->createWithContent('v.webm', $webm),
+            'face' => UploadedFile::fake()->createWithContent('f.webm', "\x1A\x45\xDF\xA3".random_bytes(8000))])->assertOk();
+
+        $row = Checkin::first();
+        $this->assertNotNull($row->face_video_path);
+        Storage::disk('local')->assertExists($row->face_video_path);
+        \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\MergeCheckinVideo::class, fn ($job) => $job->checkinId === $row->id);
+
+        $admin = (new User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin)->get('/admin/checkin-board')->assertOk()->assertSee('face=1', false);
+        $this->get(route('admin.checkin-video', ['checkin' => $row, 'face' => 1]))->assertOk();
+    }
+
     public function test_staff_edit_form_turns_hourly_checkin_on_and_shows_it_for_contract(): void
     {
         $emp = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Oddiy Xodim', 'phone' => '950507174', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE]);

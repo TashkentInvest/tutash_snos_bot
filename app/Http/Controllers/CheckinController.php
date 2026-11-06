@@ -174,6 +174,9 @@ class CheckinController extends Controller
 
             return $this->fail('Bu video avval yuborilgan. Yangi video yozing.');
         }
+        if ($faceRelative) {
+            \App\Jobs\MergeCheckinVideo::dispatch($row->id); // old va orqa kamera lavhalari bitta videoga (davomatdagidek)
+        }
         AuditLog::record('checkin.present', $user['id'], ['checkin' => $row->id, 'slot' => $row->slot]);
 
         try { // saqlangan; Telegram sekin bo'lsa ham Mini App'ga xato qaytmasin

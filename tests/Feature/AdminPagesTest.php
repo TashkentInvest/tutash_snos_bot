@@ -113,6 +113,14 @@ class AdminPagesTest extends TestCase
             $this->actingAs($user)->get($url)->assertOk();
         }
 
+        // obyekt sahifasi: subyekt (F.I.SH, pasport, STIR), sud holati va tuman mas'uli telefoni ko'rinadi
+        $d->update(['responsible_name' => 'Mas’ul Testov', 'phone' => '938068758']);
+        $site->update(['violator_name' => 'BRABUS-PLUS MCHJ', 'violator_passport' => 'AD1707130', 'org_inn' => '300649544',
+            'court_number' => '4-1001-2203/59958', 'court_status' => 'Qanoatlantirildi']);
+        $this->get("/admin/sites/{$site->id}")->assertOk()
+            ->assertSee('Huquqbuzar (subyekt)')->assertSee('BRABUS-PLUS MCHJ')->assertSee('AD1707130')->assertSee('300649544')
+            ->assertSee('Qanoatlantirildi')->assertSee('Mas’ul Testov')->assertSee('+998 93 806 87 58');
+
         $lw = fn ($c, $p = []) => \Livewire\Livewire::actingAs($user)->test($c, $p)->assertSuccessful();
         $lw(\App\Filament\Resources\SiteResource\RelationManagers\InspectionsRelationManager::class, ['ownerRecord' => $site, 'pageClass' => \App\Filament\Resources\SiteResource\Pages\ViewSite::class]);
         $lw(\App\Filament\Widgets\DistrictProgress::class);

@@ -97,22 +97,48 @@ class SiteResource extends Resource
 
     public static function infolist(Infolist $infolist): Infolist
     {
+        $dash = '—';
+
         return $infolist->schema([
-            Infolists\Components\Section::make()->columns(3)->schema([
+            Infolists\Components\Section::make('Obyekt')->columns(3)->schema([
                 Infolists\Components\TextEntry::make('district.name')->label('Tuman'),
-                Infolists\Components\TextEntry::make('mahalla.name')->label('MFY'),
+                Infolists\Components\TextEntry::make('mahalla.name')->label('MFY')->placeholder($dash),
                 Infolists\Components\TextEntry::make('address')->label('Manzil'),
-                Infolists\Components\TextEntry::make('violator_name')->label('Huquqbuzar'),
-                Infolists\Components\TextEntry::make('area_m2')->label('Maydon (m²)'),
+                Infolists\Components\TextEntry::make('area_m2')->label('Maydon (m²)')->placeholder($dash)
+                    ->formatStateUsing(fn ($state) => number_format((float) $state, 0, ',', ' ')),
+                Infolists\Components\TextEntry::make('is_tutash')->label('Turi')
+                    ->formatStateUsing(fn ($state) => $state ? 'Tutash' : 'Tutash emas'),
                 Infolists\Components\TextEntry::make('status')->label('Holat')->badge()
                     ->formatStateUsing(fn ($state, Site $record) => $state !== Site::DEMOLISHED && $record->pendingReview ? 'Ko‘rib chiqilmoqda' : (self::STATUS[$state] ?? $state))
                     ->color(fn ($state, Site $record) => $state === Site::DEMOLISHED ? 'success' : ($record->pendingReview ? 'info' : ($state === Site::IN_PROGRESS ? 'primary' : 'warning'))),
-                Infolists\Components\TextEntry::make('court_number')->label('Sud qarori'),
-                Infolists\Components\TextEntry::make('court_date')->label('Sud sanasi')->date('d.m.Y'),
-                Infolists\Components\TextEntry::make('last_inspected_at')->label('Oxirgi tekshiruv')->dateTime('d.m.Y H:i'),
+                Infolists\Components\TextEntry::make('demolished_at')->label('Buzilgan sana')->date('d.m.Y')->placeholder($dash),
+                Infolists\Components\TextEntry::make('last_inspected_at')->label('Oxirgi tekshiruv')->dateTime('d.m.Y H:i')->placeholder($dash),
                 Infolists\Components\TextEntry::make('map')->label('Xarita')
                     ->state(fn (Site $record) => $record->lat ? 'Yandex Xaritada ochish' : '—')
                     ->url(fn (Site $record) => $record->lat ? \App\Support\Maps::url($record->lat, $record->lng) : null, true),
+            ]),
+
+            // subyekt (huquqbuzar) ma'lumotlari: pasport va STIR bazada shifrlangan, bu yerda ochiq ko'rinadi
+            Infolists\Components\Section::make('Huquqbuzar (subyekt)')->columns(3)->schema([
+                Infolists\Components\TextEntry::make('violator_name')->label('F.I.SH / tashkilot')->placeholder($dash),
+                Infolists\Components\TextEntry::make('violator_passport')->label('Pasport')->placeholder($dash)->copyable(),
+                Infolists\Components\TextEntry::make('org_inn')->label('STIR')->placeholder($dash)->copyable(),
+            ]),
+
+            Infolists\Components\Section::make('Sud')->columns(3)->schema([
+                Infolists\Components\TextEntry::make('court_number')->label('Sud qarori raqami')->placeholder($dash),
+                Infolists\Components\TextEntry::make('court_date')->label('Sud qarori sanasi')->date('d.m.Y')->placeholder($dash),
+                Infolists\Components\TextEntry::make('court_status')->label('Sud holati')->placeholder($dash),
+            ]),
+
+            Infolists\Components\Section::make('Tuman mas’uli')->columns(3)->schema([
+                Infolists\Components\TextEntry::make('district.responsible_name')->label('Mas’ul')->placeholder($dash),
+                Infolists\Components\TextEntry::make('district_phone')->label('Telefon')
+                    ->state(fn (Site $record) => $record->district?->phoneFormatted() ?? '—')
+                    ->url(fn (Site $record) => $record->district?->phone ? 'tel:+998'.$record->district->phone : null),
+                Infolists\Components\TextEntry::make('district_staff')->label('Qo‘shimcha xodimlar')
+                    ->state(fn (Site $record) => $record->district?->phones->map(fn ($p) => trim(($p->name ? $p->name.', ' : '').$p->phone))->all() ?: null)
+                    ->listWithLineBreaks()->placeholder($dash),
             ]),
             Infolists\Components\Section::make('Avvalgi holat rasmlari')->visible(fn (Site $record) => ! empty($record->photos))->schema([
                 Infolists\Components\ViewEntry::make('photos')->hiddenLabel()->view('filament.infolists.site-photos'),
