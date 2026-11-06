@@ -62,8 +62,9 @@ class Handler extends ExceptionHandler
                     'session_token_matches' => $request->hasSession() && hash_equals((string) $request->session()->token(), (string) ($request->input('_token') ?? $request->header('X-CSRF-TOKEN'))),
                     'components' => $components,
                 ]);
-                // Admin panelda sessiya tugashi odatiy hol; boshqa joyda (bot, Mini App) 419 — tizim xatosi.
-                if (! $request->is('admin', 'admin/*', 'livewire/*')) {
+                // Faqat bot va Mini App manzillaridagi 419 — tizim xatosi. Admin panelda sessiya tugashi odatiy hol,
+                // boshqa manzillarga (masalan "POST /") esa internetdagi skaner-botlar yuboradi — ogohlantirish shart emas.
+                if ($request->is('tg/*', 'telegram/*')) {
                     \App\Support\ErrorAlert::report($e, $request->method().' /'.$request->path());
                 }
             }

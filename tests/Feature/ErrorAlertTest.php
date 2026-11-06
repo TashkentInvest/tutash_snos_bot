@@ -67,6 +67,8 @@ class ErrorAlertTest extends TestCase
 
         $handler->render(\Illuminate\Http\Request::create('/admin/staff', 'POST'), new \Illuminate\Session\TokenMismatchException('CSRF token mismatch.'));
         $this->assertCount(0, $this->sent()); // admin panelda sessiya tugashi — odatiy hol
+        $handler->render(\Illuminate\Http\Request::create('/', 'POST'), new \Illuminate\Session\TokenMismatchException('CSRF token mismatch.'));
+        $this->assertCount(0, $this->sent()); // "POST //" — internet skanerlari, tizim xatosi emas
 
         $handler->render(\Illuminate\Http\Request::create('/tg/something', 'POST'), new \Illuminate\Session\TokenMismatchException('CSRF token mismatch.'));
         $this->assertCount(1, $this->sent());
