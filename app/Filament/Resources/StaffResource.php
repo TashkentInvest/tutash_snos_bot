@@ -48,38 +48,58 @@ class StaffResource extends Resource
     ];
 
     /** Xodim — obyektlar bilan ishlaydi; Shartnoma — faqat davomat va har soatlik qayd. */
-    public const ROLE_HINT = 'Xodim — obyektlar bilan ishlaydi (tekshiruv). Shartnoma — faqat ertalabki davomat va ish kuni davomida har soatda joylashuv va video (10:00–12:00, 14:00–18:00), obyektlar bilan ishlamaydi.';
+    public const ROLE_HINT = 'Xodim — obyektlarni tekshiradi. Shartnoma — faqat davomat va soatlik qayd.';
 
-    public const CHECKIN_HINT = 'Ikkinchi vazifa: xodim obyektlar bilan ishlashda davom etadi va qo‘shimcha ravishda har soatda joylashuv va video yuboradi («Soatlik qayd» jadvalida ko‘rinadi).';
+    public const CHECKIN_HINT = 'Har soatda joylashuv va qisqa video yuboradi.';
 
     public static function form(Form $form): Form
     {
+        $isEmployee = fn (Forms\Get $get) => $get('role') === Staff::ROLE_EMPLOYEE;
+        $isWorker = fn (Forms\Get $get) => in_array($get('role'), Staff::WORK_ROLES, true);
+
         return $form->schema([
-            Forms\Components\TextInput::make('full_name')->label('F.I.SH')->required(),
-            Forms\Components\TextInput::make('phone')->label('Telefon (9 raqam)')->disabled(),
-            Forms\Components\Select::make('status')->label('Holat')->options(self::STATUSES)->required(),
-            Forms\Components\Select::make('role')->label('Rol')->options(self::ROLES)->helperText(self::ROLE_HINT)->live(),
-            Forms\Components\Toggle::make('hourly_checkin')->label('Soatlik qayd ham yuritiladi')
-                ->helperText(self::CHECKIN_HINT)
-                ->visible(fn (Forms\Get $get) => $get('role') === Staff::ROLE_EMPLOYEE),
-            // bo'sh qoldirilsa 0 (productionda NOT NULL xatosi bo'lgan edi)
+            Forms\Components\Section::make('Xodim')->columns(3)->schema([
+                Forms\Components\TextInput::make('full_name')->label('F.I.SH')->required(),
+                Forms\Components\TextInput::make('phone')->label('Telefon')->disabled(),
+                Forms\Components\Select::make('status')->label('Holat')->options(self::STATUSES)->required()->native(false),
+            ]),
+
+            Forms\Components\Section::make('Vazifasi')->columns(2)->schema([
+                Forms\Components\Radio::make('role')->label('Kim')->live()->columnSpanFull()->inline()->inlineLabel(false)
+                    ->options(self::ROLES)
+                    ->descriptions([
+                        Staff::ROLE_EMPLOYEE => 'Obyektlarni tekshiradi',
+                        Staff::ROLE_CONTRACT => 'Faqat davomat va soatlik qayd',
+                        Staff::ROLE_CITIZEN => 'Faqat ko‘radi',
+                    ]),
+                Forms\Components\Toggle::make('attendance_required')->label('Ertalabki davomat')
+                    ->helperText(config('tutash.attendance.send_at').'–'.config('tutash.attendance.deadline').', ish kunlari')
+                    ->visible($isWorker),
+                // shartnoma xodimida soatlik qayd doim bor (rol bo'yicha) — belgi yoqilgan va o'zgarmas ko'rinadi
+                Forms\Components\Toggle::make('hourly_checkin')->label('Soatlik qayd')
+                    ->helperText(fn (Forms\Get $get) => $get('role') === Staff::ROLE_CONTRACT ? 'Shartnoma xodimida doim yoqilgan' : self::CHECKIN_HINT)
+                    ->formatStateUsing(fn ($state, ?Staff $record) => $record?->isContract() ? true : (bool) $state)
+                    ->disabled(fn (Forms\Get $get) => $get('role') === Staff::ROLE_CONTRACT)
+                    ->visible($isWorker),
+                Forms\Components\Toggle::make('receives_reports')->label('Hisobot oladi')
+                    ->helperText('Har kuni '.config('tutash.daily_report_at').' dagi svod va davomat hisoboti'),
+            ]),
+
+            Forms\Components\Section::make('Hududlar')->schema([
+                Forms\Components\Toggle::make('is_global')->label('Barcha tumanlar (admin)')->live()->visible($isEmployee),
+                // telefon orqali biriktiriladi (Staff::assignDistricts): tanlov tumanlarning «Qo'shimcha xodimlar» ro'yxatiga yoziladi
+                Forms\Components\Select::make('district_ids')->label('Tumanlar')->multiple()
+                    ->options(fn () => \App\Models\District::orderBy('name')->pluck('name', 'id'))
+                    ->afterStateHydrated(fn ($component, ?Staff $record) => $component->state($record?->districts()->pluck('districts.id')->all() ?? []))
+                    ->visible(fn (Forms\Get $get) => $get('role') === Staff::ROLE_EMPLOYEE && ! $get('is_global'))
+                    ->disabled(fn (?Staff $record) => ! $record?->phone)
+                    ->helperText(fn (?Staff $record) => $record?->phone ? null : 'Avval botda ro‘yxatdan o‘tishi kerak.'),
+            ])->visible($isEmployee),
+
+            // faqat bloklangan bo'lsa ko'rinadi: 0 qilinsa xodim qayta urina oladi
             Forms\Components\TextInput::make('failed_attempts')->label('Noto‘g‘ri urinishlar (0 — qayta ochish)')->numeric()->minValue(0)
-                ->default(0)->dehydrateStateUsing(fn ($state) => (int) ($state ?? 0)),
-            Forms\Components\Toggle::make('attendance_required')->label('Kunlik davomat yuritiladi'),
-            Forms\Components\Toggle::make('is_global')->label('Barcha tumanlarni ko‘radi (admin)'),
-            Forms\Components\Toggle::make('receives_reports')->label('Hisobot oladi')
-                ->helperText('Kunlik buzilish (svod) va davomat hisobotlari botda yuboriladi. Faqat shu belgi qo‘yilganlarga boradi (admin bo‘lsa ham).'),
-            // telefon orqali biriktiriladi (Staff::assignDistricts): tanlov tumanlarning «Qo'shimcha xodimlar» ro'yxatiga yoziladi
-            Forms\Components\Select::make('district_ids')->label('Biriktirilgan tumanlar')->multiple()
-                ->options(fn () => \App\Models\District::orderBy('name')->pluck('name', 'id'))
-                ->afterStateHydrated(fn ($component, ?Staff $record) => $component->state($record?->districts()->pluck('districts.id')->all() ?? []))
-                ->disabled(fn (?Staff $record) => ! $record?->phone || $record->is_global)
-                ->helperText(fn (?Staff $record) => match (true) {
-                    ! $record?->phone => 'Xodim telefoni yo‘q — avval botda ro‘yxatdan o‘tishi kerak.',
-                    (bool) $record->is_global => 'Admin barcha tumanlarni ko‘radi.',
-                    default => 'Xodim telefoni tanlangan tumanlarning «Qo‘shimcha xodimlar» ro‘yxatiga qo‘shiladi (Tumanlar sahifasida ham ko‘rinadi). '
-                        .'Mas’ul xodim sifatida biriktirilgan tuman faqat Tumanlar sahifasida o‘zgartiriladi.',
-                }),
+                ->default(0)->dehydrateStateUsing(fn ($state) => (int) ($state ?? 0))
+                ->visible(fn (?Staff $record) => (int) $record?->failed_attempts > 0),
         ]);
     }
 

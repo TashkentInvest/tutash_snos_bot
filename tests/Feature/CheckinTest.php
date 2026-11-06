@@ -141,6 +141,28 @@ class CheckinTest extends TestCase
         $this->artisan('checkins:run')->expectsOutputToContain('yuborildi 1')->assertSuccessful();
     }
 
+    public function test_staff_edit_form_turns_hourly_checkin_on_and_shows_it_for_contract(): void
+    {
+        $emp = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Oddiy Xodim', 'phone' => '950507174', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE]);
+        $contract = Staff::create(['telegram_id' => 777009, 'full_name' => 'Shartnoma', 'phone' => '900000009', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
+        $admin = (new User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin);
+
+        \Livewire\Livewire::test(\App\Filament\Resources\StaffResource\Pages\ManageStaff::class)
+            ->mountTableAction('edit', $emp)
+            ->assertTableActionDataSet(['role' => Staff::ROLE_EMPLOYEE, 'hourly_checkin' => false])
+            ->setTableActionData(['hourly_checkin' => true])
+            ->callMountedTableAction()->assertHasNoTableActionErrors();
+        $this->assertTrue($emp->refresh()->doesHourlyCheckin());
+
+        \Livewire\Livewire::test(\App\Filament\Resources\StaffResource\Pages\ManageStaff::class)
+            ->mountTableAction('edit', $contract)
+            ->assertTableActionDataSet(['hourly_checkin' => true]) // rol bo'yicha doim yoqilgan
+            ->callMountedTableAction()->assertHasNoTableActionErrors();
+        $this->assertTrue($contract->refresh()->doesHourlyCheckin());
+    }
+
     public function test_invite_can_give_employee_hourly_checkin(): void
     {
         \App\Support\StaffInvites::add('950507174', 'Taklif xodim', Staff::ROLE_EMPLOYEE, [], null, true);
