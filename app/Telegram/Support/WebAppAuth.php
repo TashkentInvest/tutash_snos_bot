@@ -5,9 +5,15 @@ namespace App\Telegram\Support;
 /** Telegram Mini App initData imzosini tekshiradi (https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app). */
 class WebAppAuth
 {
-    /** @return array{id:int}|null  imzo to'g'ri va yangi bo'lsa — foydalanuvchi, aks holda null */
-    public static function user(string $initData, int $maxAgeSeconds = 900): ?array
+    /**
+     * initData oyna ochilgan paytda imzolanadi. Telegram Mini App'ni yig'ib qo'yib (minimize) keyin qaytganda ham eski initData
+     * qoladi — 15 daqiqalik chegara xodimni "tugmani qayta bosing" ga qaytarardi. Shuning uchun 24 soat (TELEGRAM_WEBAPP_MAX_AGE).
+     *
+     * @return array{id:int}|null  imzo to'g'ri va muddati o'tmagan bo'lsa — foydalanuvchi, aks holda null
+     */
+    public static function user(string $initData, ?int $maxAgeSeconds = null): ?array
     {
+        $maxAgeSeconds ??= (int) config('tutash.webapp_max_age', 86400);
         parse_str($initData, $data);
         $hash = $data['hash'] ?? null;
         if (! is_string($hash) || empty($data['auth_date']) || empty($data['user'])) {

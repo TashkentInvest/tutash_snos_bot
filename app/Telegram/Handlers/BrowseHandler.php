@@ -32,6 +32,23 @@ class BrowseHandler
         return $staff;
     }
 
+    /**
+     * Davomat va soatlik qayd uchun: har qanday tasdiqlangan xodim (oddiy yoki shartnoma).
+     * guard() dan farqli — shartnoma xodimi obyektlarni ko'rmasa ham shu yerdan o'tadi.
+     */
+    public static function guardActive(Nutgram $bot): ?Staff
+    {
+        $staff = Staff::where('telegram_id', $bot->userId())->first();
+        if ($staff?->isActive()) {
+            return $staff;
+        }
+        $bot->callbackQuery() && $bot->answerCallbackQuery([
+            'text' => Ui::t($staff?->isCitizen() ? 'Bu amal faqat xodimlar uchun.' : 'Avval /start buyrug‘i orqali tizimga kiring.'), 'show_alert' => true,
+        ]);
+
+        return null;
+    }
+
     /** Faqat tasdiqlangan xodim uchun (tekshiruv, yaqin obyektlar). */
     public static function guardEmployee(Nutgram $bot): ?Staff
     {
@@ -118,6 +135,8 @@ class BrowseHandler
         }
 
         $rows = $districts->map(fn ($d) => [Ui::btn("{$d->name} · {$d->sites_count}/{$d->demolished_count}", "d:{$d->id}")])->all();
+        // aholi sifatida kirgan xodim buyruq bilmasa ham xodim sifatida qayta kira olsin (/rol o'rniga)
+        $staff->isCitizen() && $rows[] = [Ui::btn('👷 Men xodimman', 'role:employee')];
         $bot->callbackQuery() && $bot->answerCallbackQuery();
 
         $head = $staff->isCitizen()

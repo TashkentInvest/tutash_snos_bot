@@ -13,12 +13,14 @@ use SergiX44\Nutgram\Nutgram;
 
 $bot->middleware(GuardUpdate::class);
 
-$bot->onCommand('start', [RegistrationHandler::class, 'start'])->description('Boshlash');
-$bot->onCommand('menu', [HelpHandler::class, 'menu'])->description('Bosh sahifa');
-$bot->onCommand('davomat', [HelpHandler::class, 'attendance'])->description('Bugungi davomat (xodimlar uchun)');
-$bot->onCommand('bekor', [HelpHandler::class, 'cancel'])->description('Joriy amalni bekor qilish');
-$bot->onCommand('yordam', [HelpHandler::class, 'help'])->description('Foydalanish qo‘llanmasi');
-$bot->onCommand('rol', [RegistrationHandler::class, 'resetRole'])->description('Kirish turini o‘zgartirish');
+// Menyuda faqat uchta buyruq (description bo'lganlari `nutgram:register-commands` bilan Telegram menyusiga yoziladi).
+$bot->onCommand('start', [RegistrationHandler::class, 'start'])->description('Bosh sahifa');
+$bot->onCommand('davomat', [HelpHandler::class, 'attendance'])->description('Bugungi davomat');
+$bot->onCommand('yordam', [HelpHandler::class, 'help'])->description('Qisqacha yo‘riqnoma');
+// Menyuda yo'q, lekin eski odat bilan yozilsa ishlaydi.
+$bot->onCommand('menu', [HelpHandler::class, 'menu']);
+$bot->onCommand('bekor', [HelpHandler::class, 'cancel']);
+$bot->onCommand('rol', [RegistrationHandler::class, 'resetRole']);
 
 // Kirish turi (xodim / aholi) va ro'yxatdan o'tish
 $bot->onCallbackQueryData('role:{role}', [RegistrationHandler::class, 'chooseRole']);

@@ -9,7 +9,7 @@ use App\Telegram\Support\Ui;
 use Illuminate\Support\Facades\Cache;
 use SergiX44\Nutgram\Nutgram;
 
-/** Qulaylik buyruqlari: /menu, /yordam, /davomat, /bekor. */
+/** Menyudagi buyruqlar: /start, /davomat, /yordam. /menu va /bekor eski odat uchun yashirin ishlaydi. */
 class HelpHandler
 {
     /** /menu — bosh sahifaga qaytish. */
@@ -17,42 +17,32 @@ class HelpHandler
     {
         $staff = RegistrationHandler::staff($bot);
 
-        $staff->canBrowse() ? (new BrowseHandler)->home($bot) : (new RegistrationHandler)->start($bot);
+        $staff->isActive() || $staff->isCitizen() ? (new BrowseHandler)->home($bot) : (new RegistrationHandler)->start($bot);
     }
 
     public function help(Nutgram $bot): void
     {
         $staff = RegistrationHandler::staff($bot);
-
-        $common = "/menu — bosh sahifa (tuman → MFY → obyekt)\n/yordam — shu qo‘llanma\n/bekor — joriy amalni bekor qilish";
+        $send = config('tutash.attendance.send_at');
+        $deadline = config('tutash.attendance.deadline');
+        $hourly = 'Ish vaqtida har soatda xabar keladi — tugmani bosing, joylashuv va qisqa video yuboring (keyingi soatgacha). 13:00–14:00 tushlik.';
 
         if ($staff->isActive() && $staff->isContract()) {
-            $text = "<b>Shartnoma xodimi uchun qo‘llanma</b>\n\n"
-                .'1. Har ish kuni soat '.config('tutash.attendance.send_at').' da davomat so‘raladi — '.config('tutash.attendance.deadline')." gacha javob bering.\n"
-                .'2. Ish vaqtida har soatda ('.implode(', ', \App\Models\Checkin::slots()).") «Soatlik qayd» so‘rovi keladi: tugmani bosib, joylashuv va qisqa video yuboring. Javob muddati — keyingi soatgacha.\n"
-                ."3. 13:00–14:00 — tushlik, so‘rov kelmaydi.\n\n"
-                ."/menu — bugungi holat\n/davomat — bugungi davomat\n/yordam — shu qo‘llanma";
+            $text = "<b>Qisqacha</b>\n\n"
+                ."• Har kuni ertalab {$send} da davomat so‘raladi — {$deadline} gacha javob bering.\n"
+                ."• {$hourly}\n\n"
+                .'Xabar yo‘qolsa — /davomat yoki /start.';
         } elseif ($staff->isActive()) {
-            $text = "<b>Xodim uchun qo‘llanma</b>\n\n"
-                ."1. /menu orqali tumaningiz, MFY va obyektni tanlang (🔍 qidirish yoki 📍 yaqin obyektlar ham mavjud).\n"
-                ."2. «Tekshiruvni boshlash» ni bosing va turini tanlang:\n"
-                ."   • <b>Tekshirish</b> — oldingi holat, buzish boshlanganda jarayon, tugaganda keyingi holat (har biri alohida kuni);\n"
-                ."   • <b>Sud qarori bekor qilingan</b> — rasm, video va sud qarori hujjatlari;\n"
-                ."   • <b>Kelganda buzilgan</b> — rasm va video.\n"
-                ."   Har safar: joylashuv → rasm → video (ikkalasi majburiy).\n"
-                ."3. Har ish kuni soat ".config('tutash.attendance.send_at')." da kelgan davomat so‘roviga ".config('tutash.attendance.deadline')." gacha javob bering.\n"
-                .($staff->doesHourlyCheckin()
-                    ? '4. Ish vaqtida har soatda ('.implode(', ', \App\Models\Checkin::slots()).") «Soatlik qayd» so‘rovi keladi: tugmani bosib, joylashuv va qisqa video yuboring. Javob muddati — keyingi soatgacha.\n"
-                    : '')
-                ."\n"
-                ."/davomat — bugungi davomat holati (so‘rov yo‘qolgan bo‘lsa, qayta chiqaradi)\n{$common}";
+            $text = "<b>Qisqacha</b>\n\n"
+                ."• /start → tuman → MFY → obyekt → «Tekshiruvni boshlash».\n"
+                ."• Har safar: joylashuv, rasm, video.\n"
+                ."• Har kuni ertalab {$send} da davomat so‘raladi — {$deadline} gacha javob bering.\n"
+                .($staff->doesHourlyCheckin() ? "• {$hourly}\n" : '')
+                ."\nXabar yo‘qolsa — /davomat yoki /start.";
         } elseif ($staff->isCitizen()) {
-            $text = "<b>Aholi uchun qo‘llanma</b>\n\n"
-                ."/menu orqali tumanni tanlang. Tuman ichida MFY va obyektlarni ko‘rishingiz, nom bo‘yicha qidirishingiz mumkin.\n"
-                ."Obyekt kartasida huquqbuzar, sud qarori, holat va tuman mas’ul xodimining telefon raqami ko‘rsatiladi.\n\n"
-                ."{$common}\n/rol — kirish turini o‘zgartirish";
+            $text = "<b>Qisqacha</b>\n\n/start → tuman → MFY → obyekt. Obyekt kartasida holati va tuman mas’ulining telefoni bor.";
         } else {
-            $text = "<b>Qo‘llanma</b>\n\n/start — tizimga kirish («Xodim» yoki «Aholi» sifatida)\n/yordam — shu qo‘llanma";
+            $text = '/start bosing va kirish turini tanlang.';
         }
 
         Ui::say($bot, $text);
@@ -116,7 +106,7 @@ class HelpHandler
         }
 
         Ui::say($bot, 'Joriy amal bekor qilindi.', Ui::removeKeyboard());
-        if ($staff->canBrowse()) {
+        if ($staff->isActive() || $staff->isCitizen()) {
             (new BrowseHandler)->home($bot);
         }
     }

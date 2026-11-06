@@ -130,10 +130,67 @@ class RolesAttendanceTest extends TestCase
         $this->assertSame(Staff::ROLE_CITIZEN, $staff->role);
         $this->assertTrue($staff->isCitizen());
 
-        // tasdiqlanmagan foydalanuvchiga har /start da kirish turi qayta taklif etiladi
+        // aholi qayta /start bosganda ro'yxatdan o'tish qayta so'ralmaydi — to'g'ridan-to'g'ri tumanlar
         $this->bot()->hearText('/start')->reply();
-        $this->assertStringContainsString('role:employee', $this->sent());
+        $this->assertStringNotContainsString('kirish turini tanlang', $this->sent());
+        $this->assertStringContainsString('Yunusobod tumani', $this->sent());
+        $this->assertStringContainsString('Men xodimman', $this->sent()); // buyruqsiz xodim sifatida kirish yo'li
         $this->assertSame(Staff::ROLE_CITIZEN, $staff->refresh()->role);
+
+        // oddiy matn ham "/start yuboring" emas, bosh sahifani ko'rsatadi
+        $this->bot()->hearText('salom')->reply();
+        $this->assertStringNotContainsString('/start', $this->sent());
+
+        // kirish turini o'zgartirish — faqat /rol bilan
+        $this->bot()->hearText('/rol')->reply();
+        $this->assertStringContainsString('role:employee', $this->sent());
+    }
+
+    /** Shartnoma xodimi davomat tugmasini bosganda va sabab yozganda "/start" so'ralmasligi kerak. */
+    public function test_contract_staff_can_answer_attendance_without_restart(): void
+    {
+        $staff = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Shartnoma Xodim', 'phone' => '950507174', 'status' => Staff::ACTIVE,
+            'role' => Staff::ROLE_CONTRACT, 'attendance_required' => true]);
+        $this->artisan('attendance:send')->assertSuccessful();
+        $row = Attendance::where('staff_id', $staff->id)->first();
+        $this->assertNotNull($row);
+
+        $this->bot()->hearCallbackQueryData('at:0')->reply();
+        $this->assertStringNotContainsString('/start', $this->sent());
+        $this->assertSame(Attendance::REASONING, $row->refresh()->status);
+
+        $this->bot()->hearText('Kasal bolib qoldim, shifokorga bordim')->reply();
+        $this->assertStringNotContainsString('/start', $this->sent());
+        $this->assertSame(Attendance::ABSENT, $row->refresh()->status);
+
+        // ertasiga "Ha" — joylashuv tugmasi chiqadi
+        $this->travelTo(now()->addDay()->setTime(8, 30));
+        $this->artisan('attendance:send')->assertSuccessful();
+        $this->bot()->hearCallbackQueryData('at:1')->reply();
+        $this->assertSame(Attendance::LOCATING, Attendance::where('staff_id', $staff->id)->whereDate('date', today())->value('status'));
+        $this->assertStringContainsString('attendance-location', $this->sent());
+
+        // davomatdan tashqari matn — bosh sahifa, "/start yuboring" emas; /start ham ruxsat tugmasini faqat birinchi marta yuboradi
+        $this->bot()->hearText('/start')->reply();
+        $this->assertStringContainsString('Ruxsatlarni tekshirish', $this->sent());
+        $this->bot()->hearText('/start')->reply();
+        $this->assertStringNotContainsString('Ruxsatlarni tekshirish', $this->sent());
+        $this->assertStringContainsString('shartnoma asosida', $this->sent());
+    }
+
+    /** Mini App yig'ib qo'yilib, keyin qaytilganda (initData 1 soat oldin imzolangan) — qayta "tugmani bosing" demasligi kerak. */
+    public function test_mini_app_accepts_initdata_signed_hours_ago_but_not_days(): void
+    {
+        $sign = function (int $authDate) {
+            $data = ['auth_date' => (string) $authDate, 'query_id' => 'AAA', 'user' => json_encode(['id' => self::UID])];
+            ksort($data);
+            $check = collect($data)->map(fn ($v, $k) => "{$k}={$v}")->implode("\n");
+            $data['hash'] = hash_hmac('sha256', $check, hash_hmac('sha256', (string) config('nutgram.token'), 'WebAppData', true));
+
+            return http_build_query($data);
+        };
+        $this->assertSame(['id' => self::UID], \App\Telegram\Support\WebAppAuth::user($sign(time() - 3600)));
+        $this->assertNull(\App\Telegram\Support\WebAppAuth::user($sign(time() - 2 * 86400)));
     }
 
     public function test_confirmed_employee_goes_straight_home_and_locked_user_can_still_be_citizen(): void

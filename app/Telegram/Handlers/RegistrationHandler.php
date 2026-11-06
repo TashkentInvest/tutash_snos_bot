@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\District;
 use App\Models\Staff;
 use App\Telegram\Support\Ui;
+use Illuminate\Support\Facades\Cache;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardMarkup;
@@ -43,14 +44,17 @@ class RegistrationHandler
             return;
         }
 
-        // Tasdiqlangan xodim to'g'ridan-to'g'ri ishga kiradi; qolganlarga har safar kirish turi taklif etiladi
-        // (noto'g'ri tanlov yoki ruxsat etilmagan raqam holatida administrator panelda tuzatishi mumkin).
-        if (! $staff->isActive()) {
+        // Tasdiqlangan xodim va aholi to'g'ridan-to'g'ri bosh sahifaga kiradi (qayta ro'yxatdan o'tish so'ralmaydi;
+        // aholi kirish turini /rol bilan o'zgartiradi). Qolganlarga kirish turi taklif etiladi.
+        if (! $staff->isActive() && ! $staff->isCitizen()) {
             $this->askRole($bot);
 
             return;
         }
-        $staff->isCitizen() || self::permissionsPrompt($bot);
+        // ruxsatlar tugmasi har /start da emas — haftada bir marta (Mini App menyusidagi «Sozlamalar»da ham bor)
+        if ($staff->isActive() && Cache::add("tg-perm-prompt:{$staff->telegram_id}", 1, now()->addDays(7))) {
+            self::permissionsPrompt($bot);
+        }
         (new BrowseHandler)->home($bot);
     }
 
@@ -109,7 +113,9 @@ class RegistrationHandler
     /** /rol — kirish turini qayta tanlash (/start bilan bir xil). */
     public function resetRole(Nutgram $bot): void
     {
-        $this->start($bot);
+        $staff = self::staff($bot);
+        // aholi va tasdiqlanmaganlar kirish turini qayta tanlaydi; tasdiqlangan xodim — bosh sahifa
+        $staff->isActive() || $staff->status === Staff::BLOCKED ? $this->start($bot) : $this->askRole($bot);
     }
 
     private function askName(Nutgram $bot, Staff $staff): void

@@ -30,32 +30,34 @@ class MessageRouter
 
             return;
         }
-        if (! $staff->canBrowse()) {
-            Ui::say($bot, self::START_HINT);
+        // davomat (sabab matni) — har qanday tasdiqlangan xodimda, shartnoma xodimida ham
+        if ($staff->isActive() && ($attendance = AttendanceHandler::open($staff))) {
+            $handler = new AttendanceHandler;
+            $attendance->status === \App\Models\Attendance::REASONING
+                ? $handler->reason($bot, $staff, $attendance)
+                : $handler->wrongInput($bot, $attendance);
 
             return;
         }
 
-        if ($staff->isActive()) {
-            if ($attendance = AttendanceHandler::open($staff)) {
-                $handler = new AttendanceHandler;
-                $attendance->status === \App\Models\Attendance::REASONING
-                    ? $handler->reason($bot, $staff, $attendance)
-                    : $handler->wrongInput($bot, $attendance);
+        if ($staff->canBrowse()) {
+            if ($staff->isActive() && ($draft = InspectionHandler::draft($staff))) {
+                (new InspectionHandler)->reason($bot, $staff, $draft);
 
                 return;
             }
 
-            if ($draft = InspectionHandler::draft($staff)) {
-                (new InspectionHandler)->reason($bot, $staff, $draft);
+            $await = Cache::get("tg-await:{$bot->userId()}");
+            if (($await['type'] ?? null) === 'search') {
+                (new BrowseHandler)->search($bot, $staff, $await);
 
                 return;
             }
         }
 
-        $await = Cache::get("tg-await:{$bot->userId()}");
-        if (($await['type'] ?? null) === 'search') {
-            (new BrowseHandler)->search($bot, $staff, $await);
+        // ro'yxatdan o'tgan foydalanuvchiga "/start yuboring" demaymiz — bosh sahifasini ko'rsatamiz
+        if ($staff->isActive() || $staff->isCitizen()) {
+            (new BrowseHandler)->home($bot);
 
             return;
         }

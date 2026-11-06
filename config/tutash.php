@@ -19,6 +19,9 @@ return [
     // Tizim xatoliklari haqida Telegram ogohlantirishi oladigan telefonlar (botda ro'yxatdan o'tgan bo'lishi kerak). Bo'sh — o'chiq.
     'debug_alert_phones' => env('DEBUG_ALERT_PHONES', '997906699'),
 
+    // Mini App imzosi (initData) amal qilish muddati, soniya. Oyna yig'ib qo'yilib keyin ochilsa ham ishlashi uchun — 24 soat.
+    'webapp_max_age' => (int) env('TELEGRAM_WEBAPP_MAX_AGE', 86400),
+
     'page_size' => 8,
 
     // Bir xodimdan daqiqasiga qabul qilinadigan maksimal update soni.

@@ -83,7 +83,8 @@ class AttendanceHandler
 
     public function answer(Nutgram $bot, string $value): void
     {
-        if (! $staff = BrowseHandler::guardEmployee($bot)) {
+        // shartnoma xodimi ham (u obyektlarni ko'rmaydi, lekin davomat yuritadi)
+        if (! $staff = BrowseHandler::guardActive($bot)) {
             return;
         }
 
