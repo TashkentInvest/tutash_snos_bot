@@ -14,7 +14,7 @@ class ListInspections extends ListRecords
 
     protected function getHeaderActions(): array
     {
-        return [\App\Filament\Pages\Dashboard::remindAllAction()];
+        return []; // moderator izohlari — har bir xodimning o'z qatorida (Xodimlar → «Izohlar»)
     }
 
     public function getTabs(): array

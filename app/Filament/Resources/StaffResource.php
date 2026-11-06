@@ -147,6 +147,20 @@ class StaffResource extends Resource
             ->actions([
                 Tables\Actions\RestoreAction::make()->label('Tiklash')
                     ->modalDescription('Xodim ro‘yxatga qaytariladi (holati va tumanlari o‘zgarmaydi).'),
+                Tables\Actions\Action::make('notes')->icon('heroicon-o-bell-alert')->color('warning')
+                    ->label(fn (Staff $record) => 'Izohlar ('.\App\Support\FollowupReminder::open()->where('staff_id', $record->id)->count().')')
+                    ->visible(fn (Staff $record) => \App\Models\User::currentIsAdmin() && ! $record->trashed()
+                        && \App\Support\FollowupReminder::open()->where('staff_id', $record->id)->exists())
+                    ->modalHeading(fn (Staff $record) => 'Moderator izohlari — '.$record->full_name)->modalWidth('4xl')
+                    ->modalContent(fn (Staff $record) => view('filament.pages.followup-reminders', [
+                        'items' => \App\Support\FollowupReminder::open()->where('staff_id', $record->id)->orderBy('reviewed_at')->get()->values(),
+                    ]))
+                    ->modalSubmitActionLabel('Shu xodimga eslatma yuborish')
+                    ->action(function (Staff $record) {
+                        $sent = \App\Support\FollowupReminder::open()->where('staff_id', $record->id)->get()
+                            ->filter(fn ($in) => \App\Support\FollowupReminder::send($in, auth()->id()))->count();
+                        \Filament\Notifications\Notification::make()->title($sent ? "Eslatma yuborildi: {$sent} ta" : 'Yuborilmadi')->{$sent ? 'success' : 'warning'}()->send();
+                    }),
                 Tables\Actions\EditAction::make()->hidden(fn (Staff $record) => $record->trashed())->using(function (Staff $record, array $data) {
                     $ids = $data['district_ids'] ?? null;
                     unset($data['district_ids']);

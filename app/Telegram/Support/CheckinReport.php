@@ -135,7 +135,7 @@ class CheckinReport
     }
 
     /** Rasmni sozlamadagi oluvchilarga yuboradi. Yuborilganlar soni qaytadi. */
-    public static function send(Nutgram $bot, string $key, array $report): int
+    public static function send(Nutgram $bot, string $key, array $report, ?Collection $to = null): int
     {
         if (! $report['total']) {
             return 0; // soatlik qayd yuritiladigan xodim yo'q
@@ -145,10 +145,10 @@ class CheckinReport
         $caption = Script::apply($report['caption']);
         $sent = 0;
         try {
-            foreach (ReportSetting::recipients($key) as $to) {
+            foreach ($to ?? ReportSetting::recipients($key) as $person) {
                 try {
                     $fh = fopen($file, 'r');
-                    $bot->sendPhoto($fh, ['chat_id' => $to->telegram_id, 'caption' => $caption, 'parse_mode' => ParseMode::HTML]);
+                    $bot->sendPhoto($fh, ['chat_id' => $person->telegram_id, 'caption' => $caption, 'parse_mode' => ParseMode::HTML]);
                     $sent++;
                 } catch (\Throwable $e) {
                     report($e); // botni bloklagan bo'lsa — ErrorAlert 403 ni o'tkazib yuboradi

@@ -45,11 +45,13 @@ class DashboardHttpTest extends TestCase
             $this->assertSame(200, $r->status(), $action.' mount: '.$r->json('message').' @ '.$r->json('file').':'.$r->json('line'));
             // yuborishdan oldin namuna: kimlarga boradi va matn (buzilish hisobotida — jadval rasmi)
             $html = $r->json('components.0.effects.html');
-            $this->assertStringContainsString('Kimlarga boradi', $html);
+            // oluvchilar tanlanadi (sozlamadagilar oldindan belgilangan), namuna — rasm
+            $this->assertStringContainsString('Kimlarga', $html);
             $this->assertStringContainsString('Global Admin', $html);
             $action === 'sendInspectionReport' && $this->assertStringContainsString('admin-svod.png', $html);
-            // bugun davomat bo'lmasa — bo'sh namuna o'rniga tushuntirish
-            $action === 'sendAttendanceReport' && $this->assertStringContainsString('davomat so‘rovi yuborilmagan', $html);
+            // davomat: hisobot turi tanlanadi; bugun davomat bo'lmasa — tushuntirish
+            $action === 'sendAttendanceReport' && $this->assertStringContainsString('Soatlik qayd — kun yakuni', $html);
+            $action === 'sendAttendanceReport' && $this->assertStringContainsString('ma’lumot yo‘q', $html);
             $snap = $r->json('components.0.snapshot');
             $r = $this->update($snap, [['path' => '', 'method' => 'callMountedAction', 'params' => []]]);
             $this->assertSame(200, $r->status(), $action.' call: '.$r->json('message').' @ '.$r->json('file').':'.$r->json('line'));

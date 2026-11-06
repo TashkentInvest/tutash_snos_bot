@@ -90,7 +90,7 @@ class Inspection extends Model
     private const MOVED = '#r';
 
     protected $fillable = [
-        'site_id', 'staff_id', 'status', 'kind', 'step', 'is_demolished', 'in_progress', 'exempt_type', 'reason',
+        'site_id', 'staff_id', 'status', 'kind', 'step', 'is_demolished', 'in_progress', 'exempt_type', 'reason', 'progress_pct',
         'staff_lat', 'staff_lng', 'distance_m', 'suspicious', 'flags', 'submitted_at', 'device',
         'review_status', 'reviewed_by', 'reviewed_at', 'review_note', 'archived_at',
         'rework_of', 'followup_of', 'edit_target', 'rework_located', 'followup', 'followup_at',
@@ -100,6 +100,7 @@ class Inspection extends Model
     protected $casts = [
         'is_demolished' => 'boolean',
         'in_progress' => 'boolean',
+        'progress_pct' => 'integer',
         'suspicious' => 'boolean',
         'rework_located' => 'boolean',
         'flags' => 'array',
@@ -138,7 +139,7 @@ class Inspection extends Model
         $draft = self::create([
             'site_id' => $old->site_id, 'staff_id' => $old->staff_id, 'status' => self::DRAFT, 'step' => 'edit',
             'rework_of' => $old->id, 'kind' => $old->kindValue(), 'is_demolished' => $old->is_demolished, 'in_progress' => $old->in_progress,
-            'exempt_type' => $old->exempt_type, 'reason' => $old->reason, 'staff_lat' => $old->staff_lat, 'staff_lng' => $old->staff_lng,
+            'exempt_type' => $old->exempt_type, 'reason' => $old->reason, 'progress_pct' => $old->progress_pct, 'staff_lat' => $old->staff_lat, 'staff_lng' => $old->staff_lng,
             'distance_m' => $old->distance_m, 'suspicious' => $old->suspicious, 'flags' => $old->flags, 'device' => $old->device,
         ]);
 

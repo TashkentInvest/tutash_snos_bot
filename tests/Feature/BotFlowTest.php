@@ -375,7 +375,7 @@ class BotFlowTest extends TestCase
     private function comment(string $text = 'Obyekt videoda ko‘rinib turibdi'): void
     {
         $this->app('state')->assertJsonPath('step', 'reason');
-        $this->app('reason', ['reason' => $text])->assertOk()->assertJsonPath('step', 'confirm');
+        $this->app('reason', ['reason' => $text, 'pct' => 40])->assertOk()->assertJsonPath('step', 'confirm');
     }
 
     public function test_start_offers_three_ways_and_creates_nothing_until_chosen(): void
@@ -564,6 +564,28 @@ class BotFlowTest extends TestCase
     }
 
     /** Joylashuv -> rasm -> video -> izoh: izohsiz natija yuborilmaydi, qisqa izoh qabul qilinmaydi, izoh saqlanadi. */
+    /** Buzish jarayoni: izoh bilan birga buzilish foizi (1–99) majburiy, admin sahifasida ko'rinadi. */
+    public function test_process_result_requires_demolition_percent(): void
+    {
+        $this->register();
+        $this->start();
+        $this->capture();                   // oldingi holat
+        $in = $this->start(kind: 'process'); // keyingi kun — buzish jarayoni
+        $this->capture(submit: false, comment: false);
+        $this->app('state')->assertJsonPath('step', 'reason')->assertJsonPath('needs_pct', true);
+
+        $this->app('reason', ['reason' => 'Tom qismi olindi, devorlar qoldi'])->assertStatus(422);       // foiz yo'q
+        $this->app('reason', ['reason' => 'Tom qismi olindi, devorlar qoldi', 'pct' => 100])->assertStatus(422); // 100 — «buzib bo'lindi»
+        $this->app('reason', ['reason' => 'Tom qismi olindi, devorlar qoldi', 'pct' => 40])->assertOk()->assertJsonPath('step', 'confirm');
+        $this->app('submit')->assertOk();
+        $this->assertSame(40, $in->refresh()->progress_pct);
+
+        $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin)->get("/admin/inspections/{$in->id}")->assertOk()->assertSee('Buzilish foizi')->assertSee('40 %')
+            ->assertSee('Tom qismi olindi, devorlar qoldi');
+    }
+
     public function test_inspection_requires_a_comment_before_submit(): void
     {
         $this->register();
@@ -809,9 +831,12 @@ class BotFlowTest extends TestCase
         $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
         $admin->save();
         $this->actingAs($admin)->get('/admin/inspections')->assertOk()->assertSee('Xodim bajardi')->assertSee('Javob kutilmoqda');
-        \Livewire\Livewire::test(\App\Filament\Resources\InspectionResource\Pages\ListInspections::class)
-            ->mountAction('remindFollowups')->assertSee('Moderator izohi')->assertSee('Devorini oldirish kerak')->assertSee('Rad etilgan — tuzatilmagan')
-            ->callMountedAction()->assertNotified('Eslatma yuborildi: 1 ta');
+        // umumiy ro'yxat yo'q — izohlar xodimning o'z qatorida, eslatma faqat unga
+        \Livewire\Livewire::test(\App\Filament\Resources\InspectionResource\Pages\ListInspections::class)->assertActionDoesNotExist('remindFollowups');
+        \Livewire\Livewire::test(\App\Filament\Resources\StaffResource\Pages\ManageStaff::class)
+            ->assertTableActionVisible('notes', $other->staff)
+            ->mountTableAction('notes', $other->staff)->assertSee('Devorini oldirish kerak')->assertSee('Rad etilgan — tuzatilmagan')
+            ->callMountedTableAction()->assertNotified('Eslatma yuborildi: 1 ta');
         $this->assertSame(2, $other->refresh()->followup_reminders);
     }
 

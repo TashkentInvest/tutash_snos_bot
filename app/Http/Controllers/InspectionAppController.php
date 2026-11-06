@@ -115,6 +115,9 @@ class InspectionAppController extends Controller
             'documents' => $in->documents()->map(fn ($m) => ['kind' => $m->kind, 'pdf' => $m->isPdf()])->all(),
             'max_documents' => Inspection::MAX_DOCUMENTS,
             'reason' => $in->reason,
+            'progress_pct' => $in->progress_pct,
+            // buzish jarayonida izoh bilan birga buzilish foizi so'raladi
+            'needs_pct' => ! $in->isFollowup() && $in->kindValue() === Inspection::KIND_PROCESS,
             'distance' => $in->distance_m,
             'far' => in_array('far_from_site', $in->flags ?? [], true),
             'media' => $in->media->pluck('kind')->values(),
@@ -464,7 +467,7 @@ class InspectionAppController extends Controller
     /** Izoh bo'yicha tasdiqda: nima qilingani haqida qisqa izoh. */
     public function reason(Request $request): JsonResponse
     {
-        $request->validate(['initData' => 'required|string|max:4096', 'reason' => 'required|string|max:2000']);
+        $request->validate(['initData' => 'required|string|max:4096', 'reason' => 'required|string|max:2000', 'pct' => 'nullable|integer|between:1,99']);
 
         [, , $in, $error] = $this->context($request);
         if ($error) {
@@ -472,6 +475,11 @@ class InspectionAppController extends Controller
         }
         if ($in->step !== 'reason') {
             return $this->wrongStep();
+        }
+        // buzish jarayoni: necha foiz buzilgani majburiy (1–99; 100% — «Buzib bo'lindi» natijasi)
+        $needsPct = ! $in->isFollowup() && $in->kindValue() === Inspection::KIND_PROCESS;
+        if ($needsPct && ! $request->filled('pct')) {
+            return $this->fail('Buzilish foizini kiriting (1–99). To‘liq buzilgan bo‘lsa — «Buzib bo‘lindi» natijasini yuboring.');
         }
 
         $text = trim(preg_replace('/\s+/u', ' ', (string) $request->input('reason')));
@@ -481,7 +489,7 @@ class InspectionAppController extends Controller
             return $this->fail("Izoh {$min} tadan 1000 tagacha belgidan iborat bo‘lishi kerak.");
         }
 
-        $in->update(['reason' => $text, ...$this->next($in, 'reason')]);
+        $in->update(['reason' => $text, 'progress_pct' => $needsPct ? (int) $request->input('pct') : null, ...$this->next($in, 'reason')]);
 
         return response()->json($this->snapshot($in->refresh()));
     }
@@ -493,10 +501,11 @@ class InspectionAppController extends Controller
             return $error;
         }
         // izohsiz natija yuborilmaydi (deploydan oldin boshlangan qoralamalar ham) — izoh bosqichiga qaytariladi
-        if (blank($in->reason)) {
+        $noPct = ! $in->isFollowup() && $in->kindValue() === Inspection::KIND_PROCESS && $in->progress_pct === null;
+        if (blank($in->reason) || $noPct) {
             $in->update(['step' => 'reason']);
 
-            return response()->json(['ok' => false, 'message' => 'Avval qisqa izoh yozing.', 'state' => $this->snapshot($in->refresh())], 422);
+            return response()->json(['ok' => false, 'message' => $noPct ? 'Buzilish foizini kiriting.' : 'Avval qisqa izoh yozing.', 'state' => $this->snapshot($in->refresh())], 422);
         }
 
         $done = InspectionHandler::finalize($staff);

@@ -41,16 +41,21 @@ class InspectionReport
         return implode("\n", $lines);
     }
 
+    /** Hisobotdagi rasmlar (dashboard'da tanlanadi). */
+    public const IMAGES = ['svod' => 'Tumanlar kesimida svod', 'bajarilish' => 'Tumanlar kesimida bajarilish'];
+
     /**
-     * Hisobotni barcha oluvchilarga yuboradi: bitta albomda ikki rasm — svod jadval (izoh bilan) va tumanlar kesimida bajarilish.
-     * Yuborilgan hisobotlar soni qaytadi.
+     * Hisobotni yuboradi: tanlangan rasmlar (2 ta — bitta albom, 1 ta — rasm, 0 — faqat matn) va izoh.
+     * $to — oluvchilar (bo'sh bo'lsa — Sozlamalar → Hisobotlardagilar). Yuborilgan hisobotlar soni qaytadi.
      */
-    public static function send(Nutgram $bot, CarbonInterface $day): int
+    public static function send(Nutgram $bot, CarbonInterface $day, ?\Illuminate\Support\Collection $to = null, array $images = ['svod', 'bajarilish']): int
     {
         $caption = Script::apply(self::caption($day));
         $t = fn (string $s) => Script::apply($s);
+        $make = ['svod' => fn () => Svod::png($day, $t), 'bajarilish' => fn () => Svod::progressPng($day, $t)];
         $files = [];
-        foreach (['svod' => Svod::png($day, $t), 'bajarilish' => Svod::progressPng($day, $t)] as $name => $png) {
+        foreach (array_intersect_key($make, array_flip($images)) as $name => $build) {
+            $png = $build();
             $tmp = tempnam(sys_get_temp_dir(), $name);
             @unlink($tmp); // tempnam bo'sh fayl yaratadi — biz .png nomini ishlatamiz, eski bo'sh fayl qolib ketmasin
             file_put_contents($files[$name] = $tmp.'.png', $png);
@@ -59,14 +64,21 @@ class InspectionReport
         $sent = 0;
         $ids = null; // birinchi yuborishdan keyin Telegram file_id'lari qayta ishlatiladi
         try {
-            foreach (\App\Models\ReportSetting::recipients(\App\Models\ReportSetting::SVOD) as $admin) {
+            foreach ($to ?? \App\Models\ReportSetting::recipients(\App\Models\ReportSetting::SVOD) as $admin) {
                 // tarmoq uzilishi/timeout bo'lsa — bir marta qayta urinish; bloklangan bot kabi doimiy xatoda qayta urinilmaydi
                 for ($try = 1; $try <= 2; $try++) {
                     try {
-                        $media = array_map(fn ($src) => ['type' => 'photo', 'media' => $src], $ids ?? array_map(fn ($f) => fopen($f, 'r'), array_values($files)));
-                        $media[0] += ['caption' => $caption, 'parse_mode' => ParseMode::HTML];
-                        $messages = $bot->sendMediaGroup($media, ['chat_id' => $admin->telegram_id]);
-                        $ids ??= self::fileIds($messages);
+                        $opt = ['chat_id' => $admin->telegram_id];
+                        if (count($files) >= 2) {
+                            $media = array_map(fn ($src) => ['type' => 'photo', 'media' => $src], $ids ?? array_map(fn ($f) => fopen($f, 'r'), array_values($files)));
+                            $media[0] += ['caption' => $caption, 'parse_mode' => ParseMode::HTML];
+                            $messages = $bot->sendMediaGroup($media, $opt);
+                            $ids ??= self::fileIds($messages);
+                        } elseif ($files) {
+                            $bot->sendPhoto(fopen(array_values($files)[0], 'r'), $opt + ['caption' => $caption, 'parse_mode' => ParseMode::HTML]);
+                        } else {
+                            $bot->sendMessage($caption, $opt + ['parse_mode' => ParseMode::HTML]);
+                        }
                         $sent++;
                         break;
                     } catch (\Throwable $e) {

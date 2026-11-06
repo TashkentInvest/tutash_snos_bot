@@ -313,7 +313,12 @@ class InspectionResource extends Resource
                 Infolists\Components\TextEntry::make('distance_m')->label('Obyektdan masofa (m)')->placeholder('—'),
                 Infolists\Components\TextEntry::make('device')->label('Qurilma')->formatStateUsing(fn ($state) => \App\Support\Device::label($state))->columnSpan(2)
                     ->hidden(fn (Inspection $record) => blank($record->device)),
+                Infolists\Components\TextEntry::make('progress_pct')->label('Buzilish foizi')->badge()->color('danger')
+                    ->formatStateUsing(fn ($state) => $state.' %')->visible(fn (Inspection $record) => $record->progress_pct !== null),
+                // xodim izohi — moderator darhol ko'rishi uchun qizil va qalin
                 Infolists\Components\TextEntry::make('reason')->label(fn (Inspection $record) => $record->exempt_type ? 'Izoh' : ($record->in_progress ? 'Buzish jarayoni haqida izoh' : 'Xodim izohi'))->columnSpanFull()
+                    ->color('danger')->weight(\Filament\Support\Enums\FontWeight::Bold)->size(Infolists\Components\TextEntry\TextEntrySize::Large)
+                    ->icon('heroicon-o-chat-bubble-left-ellipsis')->iconColor('danger')
                     ->visible(fn (Inspection $record) => filled($record->reason)),
                 Infolists\Components\TextEntry::make('flags')->label('Ogohlantirishlar')->badge()->color('danger')
                     ->formatStateUsing(fn ($state) => \App\Support\Gps::flagLabel($state))->visible(fn (Inspection $record) => $record->suspicious),
@@ -327,7 +332,8 @@ class InspectionResource extends Resource
                 ->schema([
                     Infolists\Components\TextEntry::make('submitted_at')->label('Yuborilgan')->dateTime('d.m.Y H:i'),
                     Infolists\Components\TextEntry::make('distance_m')->label('Obyektdan masofa (m)')->placeholder('—'),
-                    Infolists\Components\TextEntry::make('reason')->label('Xodim izohi')->columnSpanFull(),
+                    Infolists\Components\TextEntry::make('reason')->label('Xodim izohi')->columnSpanFull()
+                        ->color('danger')->weight(\Filament\Support\Enums\FontWeight::Bold)->size(Infolists\Components\TextEntry\TextEntrySize::Large),
                     Infolists\Components\ViewEntry::make('media')->hiddenLabel()->view('filament.infolists.inspection-media')->columnSpanFull(),
                 ])->columns(2),
         ]);

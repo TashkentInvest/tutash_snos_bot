@@ -52,7 +52,7 @@ class ReportSettings extends Page implements HasForms
     }
 
     /** Oluvchi bo'la oladiganlar: botda faol xodimlar (aholi emas). */
-    private static function people(): array
+    public static function people(): array
     {
         return Staff::where('status', Staff::ACTIVE)->whereNotNull('telegram_id')->orderBy('full_name')->get()
             ->mapWithKeys(fn (Staff $s) => [(string) $s->id => trim($s->full_name.' · '.($s->isContract() ? 'shartnoma' : ($s->is_global ? 'admin' : 'xodim')))])->all();
@@ -65,6 +65,7 @@ class ReportSettings extends Page implements HasForms
             ReportSetting::CHECKIN_HOURLY => fn () => route('admin.checkin-report.png', ['type' => 'hourly']),
             ReportSetting::CHECKIN_DAILY => fn () => route('admin.checkin-report.png', ['type' => 'daily']),
             ReportSetting::SVOD => fn () => route('admin.svod.png'),
+            ReportSetting::ATTENDANCE => fn () => route('admin.attendance-report.png'),
         ];
 
         return $form->statePath('data')->schema(collect(ReportSetting::catalog())->map(fn ($meta, $key) => Forms\Components\Section::make($meta[0])

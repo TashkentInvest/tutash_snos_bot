@@ -50,17 +50,25 @@ Route::get('/admin-svod.png', function (\Illuminate\Http\Request $request) {
 Route::get('/admin-checkin-report.png', function (\Illuminate\Http\Request $request) {
     abort_unless(\App\Models\User::currentIsAdmin(), 403);
     $slots = \App\Models\Checkin::slots();
+    $day = rescue(fn () => \Carbon\Carbon::parse((string) $request->query('day', today()->toDateString()))->startOfDay(), today(), false);
     if ($request->query('type') === 'daily') {
-        $report = \App\Telegram\Support\CheckinReport::daily(today(), now());
+        $report = \App\Telegram\Support\CheckinReport::daily($day, $day->isToday() ? now() : $day->copy()->endOfDay());
     } else {
         // so'ralgan soat yoki hozirgacha boshlangan oxirgi soat
         $slot = in_array($request->query('slot'), $slots, true) ? $request->query('slot')
             : (collect($slots)->last(fn ($s) => today()->setTimeFromTimeString($s)->lessThanOrEqualTo(now())) ?? ($slots[0] ?? '10:00'));
-        $report = \App\Telegram\Support\CheckinReport::hourly(today(), $slot);
+        $report = \App\Telegram\Support\CheckinReport::hourly($day, $slot);
     }
 
     return response($report['png'], 200, ['Content-Type' => 'image/png', 'Cache-Control' => 'private, no-store']);
 })->middleware(['auth'])->name('admin.checkin-report.png');
+// Ertalabki davomat hisoboti rasmi (dashboard va sozlamada namuna)
+Route::get('/admin-attendance-report.png', function (\Illuminate\Http\Request $request) {
+    abort_unless(\App\Models\User::currentIsAdmin(), 403);
+    $day = rescue(fn () => \Carbon\Carbon::parse((string) $request->query('day', today()->toDateString()))->startOfDay(), today(), false);
+
+    return response(\App\Telegram\Support\AttendanceReport::image($day)['png'], 200, ['Content-Type' => 'image/png', 'Cache-Control' => 'private, no-store']);
+})->middleware(['auth'])->name('admin.attendance-report.png');
 Route::get('/admin-checkin/{checkin}', [MediaController::class, 'checkinVideo'])->middleware(['auth'])->name('admin.checkin-video');
 Route::get('/admin-attendance/{attendance}',[MediaController::class, 'attendanceVideo'])->middleware(['auth'])->name('admin.attendance-video');
 

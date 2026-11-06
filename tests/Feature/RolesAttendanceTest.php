@@ -640,6 +640,49 @@ class RolesAttendanceTest extends TestCase
         $this->assertStringContainsString('Biriktirilgan hududdan uzoqda, Soxta GPS gumoni', $report);
     }
 
+    /** Davomat hisoboti — rasm (uzun matn emas); dashboard'da turi, oluvchilari va rasmlari tanlanadi. */
+    public function test_attendance_report_is_an_image_and_dashboard_lets_choose_type_recipients_and_images(): void
+    {
+        $staff = $this->registerEmployee();
+        Attendance::create(['staff_id' => $staff->id, 'date' => today(), 'status' => Attendance::PRESENT, 'responded_at' => now(), 'comment' => 'Ofisdaman, yig‘ilishdaman']);
+        $boss = Staff::create(['telegram_id' => 801, 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true, 'full_name' => 'Rahbar Bir', 'phone' => '900000101']);
+        $other = Staff::create(['telegram_id' => 802, 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true, 'full_name' => 'Rahbar Ikki', 'phone' => '900000102']);
+        $this->receivesReports([$boss]);
+
+        $image = \App\Telegram\Support\AttendanceReport::image(today());
+        $this->assertStringStartsWith("\x89PNG", $image['png']);
+        $this->assertStringContainsString('Ishda: <b>1</b> / 1', $image['caption']);
+        ($out = getenv('ATTENDANCE_PNG_OUT')) && file_put_contents($out, $image['png']);
+
+        $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin)->get('/admin-attendance-report.png')->assertOk()->assertHeader('Content-Type', 'image/png');
+        $bot = app(Nutgram::class);
+        $uris = function () use ($bot) {
+            return collect($bot->getRequestHistory())->map(fn ($r) => (string) array_values($r)[0]->getUri().' '.(string) array_values($r)[0]->getBody())->implode("\n");
+        };
+
+        // davomat: sozlamadagi rahbar oldindan belgilangan; ikkinchi rahbar qo'lda qo'shiladi — ikkalasiga rasm
+        \Livewire\Livewire::test(\App\Filament\Pages\Dashboard::class)
+            ->mountAction('sendAttendanceReport')->assertActionDataSet(['type' => \App\Models\ReportSetting::ATTENDANCE, 'recipients' => [(string) $boss->id]])
+            ->setActionData(['recipients' => [(string) $boss->id, (string) $other->id]])
+            ->callMountedAction()->assertNotified('Yuborildi: 2 ta xabar');
+        $this->assertStringContainsString('sendPhoto', $uris());
+
+        // buzilish hisoboti: faqat svod rasmi, faqat bitta oluvchi — bitta rasm (albom emas)
+        \Livewire\Livewire::test(\App\Filament\Pages\Dashboard::class)
+            ->mountAction('sendInspectionReport')
+            ->set('mountedActionsData.0.images', ['svod'])->set('mountedActionsData.0.recipients', [(string) $other->id])
+            ->callMountedAction()->assertNotified('Yuborildi: 1 ta xabar');
+        $this->assertStringContainsString('sendPhoto', $uris());
+        $this->assertStringNotContainsString('sendMediaGroup', $uris());
+
+        // oluvchi tanlanmasa — yuborilmaydi
+        \Livewire\Livewire::test(\App\Filament\Pages\Dashboard::class)
+            ->mountAction('sendAttendanceReport')->setActionData(['recipients' => []])
+            ->callMountedAction()->assertHasActionErrors(['recipients']);
+    }
+
     public function test_attendance_request_is_retried_after_transient_error(): void
     {
         $staff = $this->registerEmployee();

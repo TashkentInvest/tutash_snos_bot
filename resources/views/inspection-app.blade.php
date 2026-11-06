@@ -80,6 +80,11 @@
 </div>
 
 <div id="sReason" class="hidden">
+    <div id="pctBox" class="hidden" style="margin-bottom:12px;">
+        <p style="margin:0 0 6px;">Obyekt <b>necha foiz</b> buzildi?</p>
+        <input id="pct" type="number" inputmode="numeric" min="1" max="99" placeholder="masalan 40"
+               style="width:120px;padding:12px;font-size:20px;text-align:center;border-radius:10px;border:1px solid var(--tg-theme-hint-color,#ccc);background:transparent;color:inherit;"> <b style="font-size:20px;">%</b>
+    </div>
     <p id="reasonHint">Izoh bo‘yicha <b>nima qilindi</b>? Qisqa yozing (kamida 10 ta belgi).</p>
     <textarea id="reason" maxlength="1000" placeholder="Izoh…"></textarea>
     <button id="goReason">Davom etish</button>
@@ -190,6 +195,8 @@ async function render(s) {
             show('sReason');
             $('reasonHint').innerHTML = s.kind === 'followup' ? REASON_HINT.followup : REASON_HINT.other;
             $('reason').value = $('reason').value || s.reason || '';
+            $('pctBox').classList.toggle('hidden', !s.needs_pct);
+            $('pct').value = $('pct').value || (s.progress_pct || '');
             break;
         case 'documents':
             show('sDocs'); renderDocs(s);
@@ -238,6 +245,7 @@ $('goEditDone').onclick = () => edit('confirm');
 
 function renderSummary(s) {
     const lines = ['📍 ' + s.address, ...(s.rework ? ['🔁 Tuzatib qayta yuborilmoqda'] : []), 'Tekshiruv: ' + s.kind_label];
+    if (s.progress_pct) lines.push('Buzilish foizi: ' + s.progress_pct + ' %');
     if (s.reason) lines.push('Izoh: ' + s.reason);
     if ((s.documents || []).length) lines.push('Ilova qilingan hujjatlar: ' + s.documents.length + ' ta');
     lines.push('Rasm va video: ' + (s.media || []).filter(k => !k.startsWith('document_')).length + ' ta');
@@ -349,7 +357,9 @@ $('goReason').onclick = async () => {
     if (busy) return; // qo'sh bosish — ikki so'rov ketmasin
     busy = true; $('goReason').disabled = true;
     try {
-        const { ok, j } = await api('reason', { reason: $('reason').value });
+        const pct = state && state.needs_pct ? parseInt($('pct').value, 10) : null;
+        if (state && state.needs_pct && !(pct >= 1 && pct <= 99)) { say('Buzilish foizini kiriting (1–99).', 'err'); return; }
+        const { ok, j } = await api('reason', { reason: $('reason').value, ...(pct ? { pct } : {}) });
         ok ? render(j) : say(j.message || 'Xatolik yuz berdi.', 'err');
     } finally { busy = false; $('goReason').disabled = false; }
 };
