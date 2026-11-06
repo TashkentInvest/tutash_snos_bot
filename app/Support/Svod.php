@@ -9,7 +9,7 @@ use Carbon\Carbon;
 use Carbon\CarbonInterface;
 
 /**
- * Tumanlar kesimida svod jadval: kun boshidagi qoldiq (soni, maydoni), bugun buzilganlar (soni, maydoni) va kun oxiridagi qoldiq maydoni.
+ * Tumanlar kesimida svod jadval: qoldiq (hozir qolgan — soni, maydoni), bugun buzilganlar (soni, maydoni) va jami buzilganlar maydoni.
  * Qo'shimcha (caption va bajarilish rasmi uchun): kun oxiridagi qoldiq soni/maydoni (left, area), sud qarori bekor, jarayondagilar.
  * Kunlik hisobotda rasm sifatida, admin panelda jadval va Excel ko'rinishida ishlatiladi.
  */
@@ -18,14 +18,15 @@ class Svod
     public const COLUMNS = ['№', 'Tuman nomi', 'Qoldiq soni', 'Qoldiq maydoni (ga)', 'Bugun buzilgan', 'Bugun buzilganlar maydoni (ga)', 'Jami buzilganlar maydoni (ga)'];
 
     /**
-     * Jadvaldagi sonli ustunlar: kun boshidagi qoldiq (= kun oxiridagi qoldiq + bugun buzilganlar), bugun buzilganlar,
+     * Jadvaldagi sonli ustunlar: qoldiq (bajarilish jadvalidagi «Qolgan» bilan bir xil), bugun buzilganlar,
      * jami buzilganlar maydoni (kun oxirigacha buzilgan barcha obyektlar, bugungilari bilan).
      *
      * @return array<int, int|float>
      */
     public static function cells(array $r): array
     {
-        return [$r['start'], $r['start_area'], $r['today'], $r['today_area'], $r['demolished_area']];
+        // qoldiq — hozir (kun oxirida) qolgani: bajarilish jadvalidagi «Qolgan» va hisobot izohidagi «Qoldiq» bilan bir xil
+        return [$r['left'], $r['area'], $r['today'], $r['today_area'], $r['demolished_area']];
     }
 
     /**
@@ -86,8 +87,6 @@ class Svod
             $all = $bySite[$d->id] ?? collect();
             $left = $all->reject($demolished);
             $today = $all->filter(fn (Site $s) => isset($todayIds[$s->id]));
-            // kun boshidagi qoldiq: hozir qolganlar + bugun buzilganlar (tasdiq kutayotganlari hali qoldiqda — ikki marta sanalmaydi)
-            $start = $left->merge($today)->unique('id');
             $m2 = fn ($c) => (float) $c->sum('area_m2');
 
             return [
@@ -96,8 +95,6 @@ class Svod
                 'left' => $left->count(),
                 'area' => round($m2($left) / 10000, 2),
                 'today' => $today->count(),
-                'start' => $start->count(),
-                'start_area' => round($m2($start) / 10000, 2),
                 'today_area' => round($m2($today) / 10000, 2),
                 // jami buzilganlar: davr oxirigacha buzilganlar + bugun "buzilgan" deb yuborilib tasdiq kutayotganlar
                 'demolished_area' => round($m2($all->filter($demolished)->merge($today)->unique('id')) / 10000, 2),
@@ -112,8 +109,6 @@ class Svod
             'left' => array_sum(array_column($rows, 'left')),
             'area' => round(array_sum(array_column($rows, 'area')), 2),
             'today' => array_sum(array_column($rows, 'today')),
-            'start' => array_sum(array_column($rows, 'start')),
-            'start_area' => round(array_sum(array_column($rows, 'start_area')), 2),
             'today_area' => round(array_sum(array_column($rows, 'today_area')), 2),
             'demolished_area' => round(array_sum(array_column($rows, 'demolished_area')), 2),
             'progress' => array_sum(array_column($rows, 'progress')),
@@ -135,7 +130,7 @@ class Svod
         $rows = [];
         foreach ([$data['total'], ...$data['rows']] as $n => $r) { // 0 — jami qatori
             $rows[] = [
-                'cells' => [$n ? (string) $n : '', $r['name'], (string) $r['start'], self::area($r['start_area']), (string) $r['today'],
+                'cells' => [$n ? (string) $n : '', $r['name'], (string) $r['left'], self::area($r['area']), (string) $r['today'],
                     self::area($r['today_area']), self::area($r['demolished_area'])],
                 'sum' => $n === 0,
                 'colors' => $r['today'] > 0 ? [4 => 'red', 5 => 'red'] : [],
