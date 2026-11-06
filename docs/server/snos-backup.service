@@ -1,0 +1,8 @@
+[Unit]
+Description=Tutash Snos nightly backup (db + media + .env)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/snos-backup
+Nice=10
+IOSchedulingClass=idle

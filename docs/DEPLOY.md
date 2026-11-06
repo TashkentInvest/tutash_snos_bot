@@ -29,6 +29,24 @@ GitHub secrets: `DEPLOY_SSH_KEY`, `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS`.
 Qo'lda yangilash: `sudo snos-deploy`. Serverda fayllarni qo'lda tahrirlamang — keyingi deploy ularni qayta yozadi.
 Webhookni qayta o'rnatish: `sudo -u snos php artisan bot:webhook https://thudud-snos.toshkentinvest.uz/telegram/webhook`.
 
+## Zaxira nusxa (backup)
+Har kecha 02:30 (UTC, Toshkent 07:30) `snos-backup.timer` → `/usr/local/bin/snos-backup` (nusxasi: [server/snos-backup](server/snos-backup)).
+
+| Nima | Qayerda | Saqlash |
+|---|---|---|
+| PostgreSQL (`pg_dump -Fc`) | `/var/backups/snos/<sana>/db.dump` | 14 kun |
+| `.env` (APP_KEY — usiz pasport/STIR ochilmaydi) | `/var/backups/snos/<sana>/snos.env` | 14 kun |
+| Media (`storage/app`) | `/var/backups/snos/media/` | qo'shib boriladi, o'chirilmaydi |
+
+- Har dump `pg_restore --list` bilan tekshiriladi; xato yoki disk 90% dan to'lsa — `DEBUG_ALERT_PHONES` ga Telegram xabari.
+- Holat: `systemctl list-timers snos-backup.timer`, `journalctl -u snos-backup -n 20`. Qo'lda: `sudo systemctl start snos-backup`.
+- **Tiklash:** `sudo -u postgres pg_restore --clean --if-exists -d snos /var/backups/snos/<sana>/db.dump`,
+  `rsync -a /var/backups/snos/media/ /srv/snos/storage/app/ && chown -R snos:snos /srv/snos/storage/app`.
+  Server yangidan o'rnatilsa — `.env` dagi `APP_KEY` aynan o'sha bo'lishi shart.
+- 2026-11-06: alohida bazaga tiklash sinovi o'tkazildi (sites 812, inspections 83, staff 38, attendances 72, checkins 49 — mos).
+- ⚠️ Nusxalar **shu diskning o'zida**. Server/disk yo'qolishidan himoya uchun ularni tashqariga ko'chirish kerak
+  (masalan `rclone` bilan bulutga yoki boshqa serverga) va `.env` ni parol seyfida saqlash kerak — egasi tomonidan.
+
 ## Eslatmalar
 - Server PHP 8.4: `openspout` v4.32 ga yangilandi (4.25 PHP 8.4 ni qo'llamaydi). Laravel 10 uchun rasmiy qo'llab-quvvatlash tugagan — Laravel 11/12 ga o'tish rejalashtirilsin.
 - Parollarni (admin, bot token, DB, webhook secret) almashtirish egasi tomonidan amalga oshiriladi.

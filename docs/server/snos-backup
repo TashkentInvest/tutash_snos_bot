@@ -1,0 +1,37 @@
+#!/bin/bash
+# Tutash Snos: kunlik zaxira nusxa (systemd: snos-backup.timer, har kecha 02:30).
+#   /var/backups/snos/YYYY-MM-DD/db.dump   — PostgreSQL (pg_dump -Fc), 14 kun saqlanadi
+#   /var/backups/snos/YYYY-MM-DD/snos.env  — .env (APP_KEY! usiz pasport/STIR ochilmaydi), 600
+#   /var/backups/snos/media/               — storage/app nusxasi, qo'shib boriladi (--delete yo'q: o'chirilgan fayl ham saqlanadi)
+# Tiklash: sudo -u postgres pg_restore --clean --if-exists -d snos /var/backups/snos/<sana>/db.dump
+#          rsync -a /var/backups/snos/media/ /srv/snos/storage/app/ && chown -R snos:snos /srv/snos/storage/app
+# Xato bo'lsa — DEBUG_ALERT_PHONES ga Telegram orqali xabar (ErrorAlert).
+set -Eeuo pipefail
+
+APP=/srv/snos
+B=/var/backups/snos
+D=$(date +%F)
+
+alert() {
+    trap - ERR
+    sudo -u snos php "$APP/artisan" tinker --execute="App\Support\ErrorAlert::report(new RuntimeException('Zaxira nusxa olinmadi (snos-backup): $1'), 'snos-backup');" >/dev/null 2>&1 || true
+    echo "snos-backup XATO: $1" >&2
+    exit 1
+}
+trap 'alert "qator $LINENO"' ERR
+
+umask 077
+mkdir -p "$B/$D" "$B/media"
+chmod 700 "$B"
+
+sudo -u postgres pg_dump -Fc snos > "$B/$D/db.dump.tmp"
+pg_restore --list "$B/$D/db.dump.tmp" > /dev/null   # dump ochiladimi (bazaga ulanmaydi)
+mv "$B/$D/db.dump.tmp" "$B/$D/db.dump"
+install -m 600 "$APP/.env" "$B/$D/snos.env"
+rsync -a "$APP/storage/app/" "$B/media/"
+
+find "$B" -maxdepth 1 -type d -name '20*' -mtime +14 -exec rm -rf {} +
+# disk 90% dan to'lsa — ogohlantirish (zaxira olingan, lekin joy tugayapti)
+df -P / | awk 'NR==2 && $5+0 > 90 { exit 1 }' || alert "disk 90% dan ko'p to'lgan"
+
+echo "snos-backup OK: $(du -sh "$B/$D/db.dump" | cut -f1) db, media $(du -sh "$B/media" | cut -f1)"
