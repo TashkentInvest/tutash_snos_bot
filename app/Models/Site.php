@@ -21,7 +21,7 @@ class Site extends Model
         'district_id', 'mahalla_id', 'source_no', 'address', 'lat', 'lng',
         'violator_name', 'violator_passport', 'org_inn', 'area_m2', 'is_tutash',
         'court_date', 'court_number', 'court_status', 'status', 'demolished_at', 'last_inspected_at', 'photos',
-        'approval', 'added_by_staff_id', 'approval_note',
+        'approval', 'added_by_staff_id', 'approval_note', 'street_id', 'updated_by_staff_id',
     ];
 
     /** Kadastr xodimi qo'shgan, admin tasdig'ini kutayotgan / rad etilgan obyekt. */
@@ -40,6 +40,16 @@ class Site extends Model
     public function addedBy(): BelongsTo
     {
         return $this->belongsTo(Staff::class, 'added_by_staff_id')->withTrashed();
+    }
+
+    public function updatedBy(): BelongsTo
+    {
+        return $this->belongsTo(Staff::class, 'updated_by_staff_id')->withTrashed();
+    }
+
+    public function street(): BelongsTo
+    {
+        return $this->belongsTo(Street::class);
     }
 
     public function isApproved(): bool

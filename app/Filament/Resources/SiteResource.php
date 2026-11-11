@@ -124,7 +124,11 @@ class SiteResource extends Resource
                         Site::APPROVAL_PENDING => 'tasdiq kutilmoqda',
                         Site::APPROVAL_REJECTED => 'rad etilgan: '.$s->approval_note,
                         default => 'tasdiqlangan',
-                    }) : null)->columnSpanFull()->color(fn ($record) => $site($record)?->approval ? 'danger' : null),
+                    }.($s->updated_by_staff_id ? ' · oxirgi tahrir: '.$s->updatedBy?->full_name.' ('.$s->updated_at?->format('d.m.Y H:i').')' : '')
+                    .collect([
+                        $s->mahalla?->created_by_staff_id ? 'MFY qo‘shgan: '.$s->mahalla->createdBy?->full_name : null,
+                        $s->street?->created_by_staff_id ? 'ko‘cha qo‘shgan: '.$s->street->createdBy?->full_name : null,
+                    ])->filter()->map(fn ($t) => ' · '.$t)->join('')) : null)->columnSpanFull()->color(fn ($record) => $site($record)?->approval ? 'danger' : null),
                 $text('o_place', 'Manzil', fn (Site $s) => collect([$s->district?->name, $s->mahalla?->name, $s->address !== $s->mahalla?->name ? $s->address : null])
                     ->filter(fn ($v) => filled($v) && $v !== '—')->join(' · '))->columnSpan(2),
                 Infolists\Components\TextEntry::make('o_status')->label('Holat')->badge()

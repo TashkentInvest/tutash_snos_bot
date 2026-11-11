@@ -5,16 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <title>Obyekt qo‘shish</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <style>
         body { margin: 0; padding: 16px; font-family: -apple-system, Roboto, sans-serif; background: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #111); }
         h1 { font-size: 19px; margin: 4px 0 4px; text-align: center; }
         .sub { text-align: center; color: var(--tg-theme-hint-color, #777); font-size: 14px; margin-bottom: 12px; }
         label { display: block; font-size: 14px; font-weight: 600; margin: 14px 0 6px; }
-        label small { font-weight: 400; color: var(--tg-theme-hint-color, #888); }
-        input, select, textarea { width: 100%; box-sizing: border-box; padding: 12px; font-size: 16px; border-radius: 10px; font-family: inherit;
+        label small, .hint { font-weight: 400; color: var(--tg-theme-hint-color, #888); font-size: 13px; }
+        input, select { width: 100%; box-sizing: border-box; padding: 12px; font-size: 16px; border-radius: 10px; font-family: inherit;
             border: 1px solid var(--tg-theme-hint-color, #ccc); background: var(--tg-theme-secondary-bg-color, #f5f5f5); color: inherit; }
-        .row { display: flex; gap: 8px; } .row > * { flex: 1; }
-        .check { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: 15px; }
+        .row { display: flex; gap: 8px; } .row > * { flex: 1; min-width: 0; }
+        .check { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: 15px; font-weight: 400; }
         .check input { width: 22px; height: 22px; }
         button { width: 100%; padding: 14px; border: 0; border-radius: 10px; font-size: 17px; margin-top: 18px;
             background: var(--tg-theme-button-color, #2481cc); color: var(--tg-theme-button-text-color, #fff); }
@@ -22,7 +24,29 @@
         button:disabled { opacity: .6; }
         #msg { margin-top: 14px; font-size: 15px; text-align: center; } .err { color: #d33; } .ok { color: #2a9d4a; }
         .note { background: rgba(211, 51, 51, .1); color: #d33; border-radius: 10px; padding: 10px 12px; font-size: 14px; margin-bottom: 8px; }
-        .hidden { display: none; }
+        .hidden { display: none !important; }
+
+        /* qidiriladigan ro'yxat (MFY, ko'cha) */
+        .combo { position: relative; }
+        .opts { position: absolute; z-index: 1000; left: 0; right: 0; top: calc(100% + 4px); max-height: 240px; overflow-y: auto; border-radius: 10px;
+            background: var(--tg-theme-bg-color, #fff); border: 1px solid var(--tg-theme-hint-color, #ccc); box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+        .opts div { padding: 12px; font-size: 15px; border-bottom: 1px solid rgba(127,127,127,.15); }
+        .opts div:last-child { border-bottom: 0; }
+        .opts .add { color: var(--tg-theme-link-color, #2481cc); font-weight: 600; }
+        .opts .empty { color: var(--tg-theme-hint-color, #888); }
+        .new-hint { margin-top: 6px; font-size: 13px; color: var(--tg-theme-link-color, #2481cc); }
+
+        /* xarita */
+        #map { height: 300px; border-radius: 10px; border: 1px solid var(--tg-theme-hint-color, #ccc); }
+        .pin { font-size: 30px; line-height: 30px; text-align: center; filter: drop-shadow(0 2px 2px rgba(0,0,0,.4)); }
+        #coords { margin-top: 6px; }
+
+        /* buzilish holati */
+        .seg { display: flex; gap: 8px; }
+        .seg label { flex: 1; margin: 0; padding: 12px; text-align: center; border-radius: 10px; font-weight: 600;
+            border: 1px solid var(--tg-theme-hint-color, #ccc); background: var(--tg-theme-secondary-bg-color, #f5f5f5); }
+        .seg input { display: none; }
+        .seg label.on { background: var(--tg-theme-button-color, #2481cc); color: var(--tg-theme-button-text-color, #fff); border-color: transparent; }
     </style>
 </head>
 <body>
@@ -34,19 +58,27 @@
     <label>Tuman</label>
     <select id="district" required></select>
 
-    <label>MFY</label>
-    <select id="mahalla"></select>
-    <input id="mahallaName" class="hidden" placeholder="Yangi MFY nomi" maxlength="150" style="margin-top:8px;">
+    <label>MFY <small>(yozib qidiring)</small></label>
+    <div class="combo" id="mahalla"><input placeholder="MFY nomini yozing…" maxlength="150"><div class="opts hidden"></div></div>
+    <div class="new-hint hidden" id="mahallaNew"></div>
 
-    <label>Manzil <small>(ko‘cha, uy, mo‘ljal)</small></label>
-    <input id="address" required minlength="5" maxlength="500" placeholder="masalan: Bunyodkor ko‘chasi 12-uy oldi">
+    <label>Ko‘cha <small>(yozib qidiring)</small></label>
+    <div class="combo" id="street"><input placeholder="Ko‘cha nomini yozing…" maxlength="150"><div class="opts hidden"></div></div>
+    <div class="new-hint hidden" id="streetNew"></div>
 
-    <label>Joylashuv <small>(obyekt yonida turib — telefon GPS’i, yoki xaritadan nusxalab)</small></label>
-    <div class="row">
-        <input id="lat" inputmode="decimal" placeholder="Kenglik 41.3…">
-        <input id="lng" inputmode="decimal" placeholder="Uzunlik 69.2…">
+    <label>Uy, mo‘ljal <small>(ixtiyoriy)</small></label>
+    <input id="house" maxlength="300" placeholder="masalan: 12-uy oldi">
+
+    <label>Joylashuv <small>(xaritada obyekt joyini bosing, belgini surib aniqlashtiring)</small></label>
+    <div id="map"></div>
+    <div id="coords" class="hint">Joy tanlanmagan</div>
+    <button type="button" id="goLoc" class="secondary">📍 Turgan joyimni olish</button>
+
+    <label>Buzilish holati</label>
+    <div class="seg">
+        <label><input type="radio" name="status" value="not_demolished" checked> Buzilmagan</label>
+        <label><input type="radio" name="status" value="in_progress"> Jarayonda</label>
     </div>
-    <button type="button" id="goLoc" class="secondary">📍 Joylashuvimni olish</button>
 
     <label>Egallangan maydon, m²</label>
     <input id="area" type="number" inputmode="decimal" min="1" step="0.01" required placeholder="masalan 120">
@@ -73,9 +105,10 @@
 <script src="/js/tg-location.js?v=4"></script>
 <script>
 const tg = window.Telegram && window.Telegram.WebApp;
-tg && (tg.ready(), tg.expand());
+tg && (tg.ready(), tg.expand(), tg.disableVerticalSwipes && tg.disableVerticalSwipes()); // xaritani surganda oyna yopilib ketmasin
 const $ = id => document.getElementById(id), msg = $('msg');
 const say = (t, c) => { msg.textContent = t; msg.className = c || ''; };
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const q = new URLSearchParams(location.search);
 const initData = () => (tg ? tg.initData : '');
 let districts = [], busy = false;
@@ -91,45 +124,107 @@ async function api(path, body) {
     } finally { clearTimeout(timer); }
 }
 
-function fillMahallas(selected) {
-    const d = districts.find(x => String(x.id) === $('district').value) || { mahallas: [] };
-    $('mahalla').innerHTML = '<option value="">— MFY ni tanlang —</option>'
-        + d.mahallas.map(m => `<option value="${m.id}">${m.name.replace(/</g, '&lt;')}</option>`).join('')
-        + '<option value="new">➕ Ro‘yxatda yo‘q — yangisini yozish</option>';
-    $('mahalla').value = selected ? String(selected) : '';
-    $('mahallaName').classList.toggle('hidden', $('mahalla').value !== 'new');
+// ---- qidiriladigan ro'yxat: tanlanadi yoki ro'yxatda yo'q nom yangi sifatida qo'shiladi
+const norm = t => String(t || '').toLowerCase().replace(/[‘’ʻʼ`´']/g, "'").replace(/\s+/g, ' ').trim();
+function Combo(id, word) {
+    const root = $(id), inp = root.querySelector('input'), box = root.querySelector('.opts'), hint = $(id + 'New');
+    let items = [], picked = null;
+    const exact = () => items.find(i => norm(i.name) === norm(inp.value));
+    const showHint = () => {
+        const isNew = !picked && !exact() && norm(inp.value).length >= 3;
+        hint.textContent = isNew ? `➕ «${inp.value.trim()}» — yangi ${word} sifatida qo‘shiladi` : '';
+        hint.classList.toggle('hidden', !isNew);
+    };
+    const render = () => {
+        const s = norm(inp.value), list = items.filter(i => !s || norm(i.name).includes(s)).slice(0, 40);
+        let html = list.map(i => `<div data-id="${i.id}">${esc(i.name)}</div>`).join('');
+        if (s.length >= 3 && !exact()) html += `<div class="add" data-new="1">➕ «${esc(inp.value.trim())}» — yangi ${word} qo‘shish</div>`;
+        box.innerHTML = html || `<div class="empty">${items.length ? 'Topilmadi' : 'Ro‘yxat bo‘sh'} — nomini yozing (kamida 3 harf)</div>`;
+        box.classList.remove('hidden');
+    };
+    inp.addEventListener('focus', render);
+    inp.addEventListener('input', () => { picked = null; render(); showHint(); });
+    inp.addEventListener('blur', () => setTimeout(() => { box.classList.add('hidden'); showHint(); }, 250));
+    box.addEventListener('click', e => {
+        const d = e.target.closest('[data-id],[data-new]');
+        if (!d) return;
+        if (d.dataset.new) { picked = { id: null, name: inp.value.trim().replace(/\s+/g, ' ') }; }
+        else { const it = items.find(i => String(i.id) === d.dataset.id); picked = { id: it.id, name: it.name }; inp.value = it.name; }
+        box.classList.add('hidden'); inp.blur(); showHint();
+    });
+    return {
+        setItems(list) { items = list || []; },
+        set(id, name) { picked = id ? { id, name } : null; inp.value = name || ''; showHint(); },
+        // tanlangan → id; aynan shu nom ro'yxatda bo'lsa → o'sha; aks holda yangi nom
+        value() {
+            if (picked) return picked;
+            const e = exact();
+            if (e) return { id: e.id, name: e.name };
+            const name = inp.value.trim().replace(/\s+/g, ' ');
+            return name.length >= 3 ? { id: null, name } : null;
+        },
+    };
 }
-$('district').onchange = () => fillMahallas(null);
-$('mahalla').onchange = () => $('mahallaName').classList.toggle('hidden', $('mahalla').value !== 'new');
+// eski telefonlarda :has() yo'q — tanlangan holat klass bilan
+const segSync = () => document.querySelectorAll('.seg label').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
+document.querySelectorAll('.seg input').forEach(i => i.addEventListener('change', segSync)); segSync();
+const mahalla = Combo('mahalla', 'MFY'), street = Combo('street', 'ko‘cha');
+const current = () => districts.find(x => String(x.id) === $('district').value) || { mahallas: [], streets: [] };
+$('district').onchange = () => {
+    const d = current();
+    mahalla.setItems(d.mahallas); mahalla.set(null, '');
+    street.setItems(d.streets); street.set(null, '');
+    point || (d.center && map && map.setView(d.center, 14));
+};
+
+// ---- xarita: bosilgan joy — obyekt; belgini surib aniqlashtiriladi
+let map = null, marker = null, point = null;
+const pin = () => L.divIcon({ className: 'pin', html: '📍', iconSize: [30, 30], iconAnchor: [15, 28] });
+function setPoint(lat, lng, zoom) {
+    point = { lat: +lat, lng: +lng };
+    if (!marker) {
+        marker = L.marker([point.lat, point.lng], { icon: pin(), draggable: true }).addTo(map);
+        marker.on('dragend', () => { const p = marker.getLatLng(); setPoint(p.lat, p.lng); });
+    } else marker.setLatLng([point.lat, point.lng]);
+    zoom && map.setView([point.lat, point.lng], Math.max(map.getZoom(), zoom));
+    $('coords').textContent = `✅ Tanlandi: ${point.lat.toFixed(6)}, ${point.lng.toFixed(6)}`;
+    $('coords').className = 'hint ok';
+}
+function initMap(center) {
+    if (!window.L) { $('coords').textContent = 'Xarita yuklanmadi — «Turgan joyimni olish» tugmasini bosing.'; return; }
+    map = L.map('map').setView(center || [41.3111, 69.2797], center ? 14 : 11);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+    map.on('click', e => setPoint(e.latlng.lat, e.latlng.lng));
+    // Telegram oynani kengaytirganda / telefon burilganda xarita o'lchami yangilansin (aks holda kulrang bo'shliq qoladi)
+    const fit = () => map.invalidateSize();
+    setTimeout(fit, 300); window.addEventListener('resize', fit); tg && tg.onEvent && tg.onEvent('viewportChanged', fit);
+}
 
 $('goLoc').onclick = async () => {
     $('goLoc').disabled = true; say('Joylashuv aniqlanmoqda…');
     try {
         const p = await TgLoc.get();
-        $('lat').value = p.lat.toFixed(6); $('lng').value = p.lng.toFixed(6);
-        say('📍 Joylashuv olindi' + (p.accuracy ? ` (aniqlik ~${Math.round(p.accuracy)} m)` : ''), 'ok');
+        map ? setPoint(p.lat, p.lng, 17) : (point = { lat: p.lat, lng: p.lng }, $('coords').textContent = `✅ ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`);
+        say('📍 Joylashuv olindi' + (p.accuracy ? ` (aniqlik ~${Math.round(p.accuracy)} m). Kerak bo‘lsa belgini surib aniqlashtiring.` : ''), 'ok');
     } catch (e) { say(e.message || 'Joylashuv aniqlanmadi.', 'err'); }
     $('goLoc').disabled = false;
 };
 
-// "41.311, 69.279" kabi bitta maydonga nusxalansa — ikkiga ajratiladi
-$('lat').addEventListener('input', () => {
-    const m = $('lat').value.match(/^\s*(-?\d+[.,]\d+)\s*[,; ]\s*(-?\d+[.,]\d+)\s*$/);
-    if (m) { $('lat').value = m[1].replace(',', '.'); $('lng').value = m[2].replace(',', '.'); }
-});
-
 $('f').onsubmit = async ev => {
     ev.preventDefault();
     if (busy) return;
-    const mahalla = $('mahalla').value;
-    if (!mahalla || (mahalla === 'new' && $('mahallaName').value.trim().length < 3)) return say('MFY ni tanlang yoki nomini yozing.', 'err');
+    const m = mahalla.value(), s = street.value();
+    if (!m) return say('MFY ni tanlang yoki nomini yozing.', 'err');
+    if (!s) return say('Ko‘chani tanlang yoki nomini yozing.', 'err');
+    if (!point) { $('map').scrollIntoView({ behavior: 'smooth', block: 'center' }); return say('Xaritada obyekt joyini belgilang.', 'err'); }
     const num = v => (v.trim() === '' ? null : Number(v.trim().replace(',', '.')));
     busy = true; $('goSave').disabled = true; say('Yuborilmoqda…');
     try {
         const { ok, j } = await api('save', {
             site: q.get('site') || null, district_id: Number($('district').value),
-            mahalla_id: mahalla === 'new' ? null : Number(mahalla), mahalla_name: mahalla === 'new' ? $('mahallaName').value.trim() : null,
-            address: $('address').value.trim(), lat: num($('lat').value), lng: num($('lng').value), area_m2: num($('area').value),
+            mahalla_id: m.id, mahalla_name: m.id ? null : m.name, street_id: s.id, street_name: s.id ? null : s.name,
+            house: $('house').value.trim() || null, status: document.querySelector('input[name=status]:checked').value,
+            lat: point.lat, lng: point.lng, area_m2: num($('area').value),
             is_tutash: $('tutash').checked, violator_name: $('violator').value.trim(), violator_passport: $('passport').value.trim() || null,
             org_inn: $('inn').value.trim() || null, court_number: $('courtNo').value.trim() || null,
             court_date: $('courtDate').value || null, court_status: $('courtStatus').value.trim() || null,
@@ -147,21 +242,27 @@ $('f').onsubmit = async ev => {
         if (!ok) return say(j.message || 'Telegram ichida oching.', 'err');
         districts = j.districts || [];
         if (!districts.length) return say('Sizga tuman biriktirilmagan. Administratorga murojaat qiling.', 'err');
-        $('district').innerHTML = districts.map(d => `<option value="${d.id}">${d.name.replace(/</g, '&lt;')}</option>`).join('');
+        $('district').innerHTML = districts.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
         const s = j.site;
         $('district').value = String(s ? s.district_id : (q.get('district') || districts[0].id));
-        fillMahallas(s ? s.mahalla_id : null);
+        const d = current();
+        mahalla.setItems(d.mahallas); street.setItems(d.streets);
+        say(''); $('f').classList.remove('hidden');
+        initMap(s && s.lat ? [s.lat, s.lng] : d.center); // forma ko'ringandan keyin — xarita o'lchami to'g'ri chiqadi
         if (s) {
             $('title').textContent = '✏️ Obyektni tahrirlash';
             if (s.approval === 'rejected') { $('note').textContent = '❌ Rad etilgan' + (s.approval_note ? ': ' + s.approval_note : '') + '. Tuzatib, qayta yuboring.'; $('note').classList.remove('hidden'); }
             const set = (id, v) => { $(id).value = v == null ? '' : v; };
-            set('address', s.address); set('lat', s.lat); set('lng', s.lng); set('area', s.area_m2);
+            mahalla.set(s.mahalla_id, (d.mahallas.find(x => x.id === s.mahalla_id) || {}).name);
+            street.set(s.street_id, s.street);
+            set('house', s.house); set('area', s.area_m2);
             set('violator', s.violator_name); set('passport', s.violator_passport); set('inn', s.org_inn);
             set('courtNo', s.court_number); set('courtDate', s.court_date); set('courtStatus', s.court_status);
             $('tutash').checked = !!s.is_tutash;
+            const st = document.querySelector(`input[name=status][value="${s.status}"]`); st && (st.checked = true); segSync();
+            s.lat && map && setPoint(s.lat, s.lng);
             $('goSave').textContent = 'Qayta yuborish';
         }
-        say(''); $('f').classList.remove('hidden');
     } catch (e) { say('Aloqa xatosi. Qayta oching.', 'err'); }
 })();
 </script>

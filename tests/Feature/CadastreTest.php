@@ -33,7 +33,7 @@ class CadastreTest extends TestCase
         $this->district = District::create(['name' => 'Chilonzor tumani', 'phone' => '974100313']);
         $this->other = District::create(['name' => 'Sergeli tumani', 'phone' => '992340101']);
         $this->mahalla = Mahalla::create(['district_id' => $this->district->id, 'name' => 'Bo‘rijar MFY']);
-        Site::create(['district_id' => $this->district->id, 'mahalla_id' => $this->mahalla->id, 'source_no' => 1, 'address' => 'Eski obyekt 1', 'area_m2' => 100]);
+        Site::create(['district_id' => $this->district->id, 'mahalla_id' => $this->mahalla->id, 'source_no' => 1, 'address' => 'Eski obyekt 1', 'area_m2' => 100, 'lat' => 41.31, 'lng' => 69.24]);
     }
 
     private function bot(): FakeNutgram
@@ -77,7 +77,8 @@ class CadastreTest extends TestCase
     private function newSite(array $over = []): array
     {
         return $over + [
-            'district_id' => $this->district->id, 'mahalla_id' => $this->mahalla->id, 'address' => 'Yangi ko‘cha 5-uy oldi',
+            'district_id' => $this->district->id, 'mahalla_id' => $this->mahalla->id, 'street_name' => 'Yangi ko‘cha', 'house' => '5-uy oldi',
+            'status' => Site::NOT_DEMOLISHED,
             'lat' => 41.30, 'lng' => 69.25, 'area_m2' => 75, 'is_tutash' => true, 'violator_name' => 'Kadastr Test MCHJ',
             'violator_passport' => 'AB1234567', 'org_inn' => '301234567', 'court_number' => '2-1001/1', 'court_date' => '2025-10-01',
         ];
@@ -113,6 +114,9 @@ class CadastreTest extends TestCase
         $this->form('save', $this->newSite(['district_id' => $this->other->id]))->assertStatus(403); // o'z tumani emas
         $this->form('save', $this->newSite(['mahalla_id' => null]))->assertStatus(422);              // MFY yo'q
         $this->form('save', $this->newSite(['area_m2' => null]))->assertStatus(422)->assertJsonValidationErrors('area_m2');
+        $this->form('save', $this->newSite(['lat' => null]))->assertStatus(422)->assertJsonValidationErrors('lat');      // xaritada joy tanlanmagan
+        $this->form('save', $this->newSite(['status' => 'demolished']))->assertStatus(422);                             // faqat buzilmagan / jarayonda
+        $this->form('save', $this->newSite(['street_name' => null]))->assertStatus(422);                                // ko'cha yo'q
 
         // yangi MFY nomi bilan qo'shish
         $id = $this->form('save', $this->newSite(['mahalla_id' => null, 'mahalla_name' => 'Yangi MFY']))->assertOk()->json('id');
@@ -121,6 +125,14 @@ class CadastreTest extends TestCase
         $this->assertSame($staff->id, $site->added_by_staff_id);
         $this->assertSame('AB1234567', $site->violator_passport);
         $this->assertSame('Yangi MFY', $site->mahalla->name);
+        $this->assertSame($staff->id, $site->mahalla->created_by_staff_id);   // yangi MFY ni kim qo'shgani
+        $this->assertSame('Yangi ko‘cha', $site->street->name);
+        $this->assertSame($staff->id, $site->street->created_by_staff_id);    // yangi ko'chani kim qo'shgani
+        $this->assertSame('Yangi ko‘cha, 5-uy oldi', $site->address);
+        $this->assertSame(Site::NOT_DEMOLISHED, $site->status);
+        $this->assertNull($site->updated_by_staff_id);
+        // ko'cha va MFY endi ro'yxatda — keyingi safar qidiruvda chiqadi
+        $this->form('state')->assertJsonPath('districts.0.streets.0.name', 'Yangi ko‘cha')->assertJsonPath('districts.0.center', [41.31, 69.24]); // xarita tasdiqlangan obyektlar o'rtasidan
         $this->assertStringContainsString('Obyekt yuborildi', $this->sent());
 
         // tasdiqlanguncha: ro'yxatda, svodda, tuman sonida — yo'q
@@ -142,9 +154,16 @@ class CadastreTest extends TestCase
         $this->assertStringContainsString('rad etildi', $this->sent());
         $this->assertStringContainsString('Maydoni noto', $this->sent());
         $this->form('state', ['site' => $site->id])->assertOk()->assertJsonPath('site.approval', 'rejected');
-        $this->form('save', $this->newSite(['site' => $site->id, 'area_m2' => 82]))->assertOk();
+        $this->form('state', ['site' => $site->id])->assertJsonPath('site.street', 'Yangi ko‘cha')->assertJsonPath('site.house', '5-uy oldi');
+        // shu ko'cha boshqa harflar bilan yozilsa — yangisi qo'shilmaydi; holati «jarayonda»
+        $this->form('save', $this->newSite(['site' => $site->id, 'area_m2' => 82, 'street_name' => '  yangi   KO‘CHA ', 'status' => Site::IN_PROGRESS]))->assertOk();
         $this->assertSame(Site::APPROVAL_PENDING, $site->refresh()->approval);
         $this->assertSame(82.0, $site->area_m2);
+        $this->assertSame(1, \App\Models\Street::count());
+        $this->assertSame(Site::IN_PROGRESS, $site->status);
+        $this->assertSame($staff->id, $site->updated_by_staff_id);           // kim tahrirlagani
+        $log = \App\Models\AuditLog::where('event', 'site.cadastre_updated')->latest('id')->first();
+        $this->assertEqualsCanonicalizing(['area_m2', 'mahalla_id', 'status'], $log->context['fields']);
 
         // admin tasdiqlaydi — endi hamma joyda
         \Livewire\Livewire::test(\App\Filament\Resources\SiteResource\Pages\ListSites::class)

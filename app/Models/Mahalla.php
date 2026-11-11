@@ -8,7 +8,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Mahalla extends Model
 {
-    protected $fillable = ['district_id', 'name'];
+    protected $fillable = ['district_id', 'name', 'created_by_staff_id'];
+
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(Staff::class, 'created_by_staff_id')->withTrashed();
+    }
 
     public function district(): BelongsTo
     {
