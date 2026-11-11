@@ -83,9 +83,8 @@ class Staff extends Model
 
     /**
      * Xodim tumanlarini telefon orqali belgilaydi (Xodimlar sahifasidan): tanlangan tumanlarning «Qo'shimcha xodimlar»
-     * ro'yxatiga raqami qo'shiladi, tanlanmaganlaridan olib tashlanadi. Raqami mas'ul telefon bo'lgan tumanlar
-     * (Tumanlar sahifasida) saqlanib qoladi. Bog'lanish har doim telefonlar bo'yicha qayta hisoblanadi — qo'lda qo'shilgan
-     * tuman keyinroq o'chib ketmaydi.
+     * ro'yxatiga raqami qo'shiladi, tanlanmaganlaridan olib tashlanadi. Xodimda aynan tanlangan tumanlar qoladi
+     * (raqami tuman mas'uli bo'lsa ham). Qo'lda qo'shilgan tuman keyinroq o'chib ketmaydi.
      */
     public function assignDistricts(array $districtIds): void
     {
@@ -102,6 +101,8 @@ class Staff extends Model
             }
         });
         self::resyncDistrictsByPhone([$this->phone]);
+        // admin tanlovi yakuniy: raqami tuman mas'uli yoki «barcha tumanlar» ro'yxatida bo'lsa ham aynan tanlangani qoladi
+        $this->districts()->sync($ids);
     }
 
     /**

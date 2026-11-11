@@ -169,10 +169,10 @@ class BotFlowTest extends TestCase
         $this->olmazor->update(['phone' => '901234567']);
         $this->assertEqualsCanonicalizing([$this->yunus->id, $this->olmazor->id], $staff->refresh()->districts()->pluck('districts.id')->all());
 
-        // Olmazor olib tashlanadi; mas'ul tuman (Yunusobod) bu yerdan olib tashlanmaydi
+        // hammasi olib tashlanadi — admin tanlovi yakuniy, mas'ul tuman (Yunusobod) ham
         $edit([]);
         $this->assertFalse($this->olmazor->phones()->where('phone', '999075300')->exists());
-        $this->assertSame([$this->yunus->id], $staff->districts()->pluck('districts.id')->all());
+        $this->assertSame([], $staff->districts()->pluck('districts.id')->all());
     }
 
     public function test_admin_adds_contract_and_employee_staff_in_advance(): void

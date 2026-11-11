@@ -179,4 +179,24 @@ class CadastreTest extends TestCase
         $this->assertTrue($staff->isCadastre());
         $this->assertSame([$this->other->id], $staff->districts()->pluck('districts.id')->all());
     }
+
+    /** Tumanni olib tashlab saqlash: raqami tuman mas'uli, «barcha tumanlar» ro'yxatida yoki eski is_global bo'lsa ham saqlanadi. */
+    public function test_removing_districts_from_staff_form_is_saved(): void
+    {
+        config(['tutash.all_districts_employee_phones' => '901112233']);
+        $this->district->update(['phone' => '901112233']); // shu xodim Chilonzor mas'uli
+        $staff = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Xodim', 'phone' => '901112233', 'status' => Staff::ACTIVE,
+            'role' => Staff::ROLE_CADASTRE, 'is_global' => true]);
+        $staff->districts()->sync([$this->district->id, $this->other->id]);
+        $this->actingAs($this->admin());
+
+        \Livewire\Livewire::test(\App\Filament\Resources\StaffResource\Pages\ManageStaff::class)
+            ->mountTableAction('edit', $staff)
+            ->setTableActionData(['district_ids' => [(string) $this->other->id]])
+            ->callMountedTableAction()->assertHasNoTableActionErrors();
+
+        $staff->refresh();
+        $this->assertFalse($staff->is_global);
+        $this->assertSame([$this->other->id], $staff->districts()->pluck('districts.id')->all());
+    }
 }

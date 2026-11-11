@@ -170,6 +170,8 @@ class StaffResource extends Resource
                     unset($data['district_ids']);
                     // «soatlik qayd» belgisi faqat oddiy xodimda; rol o'zgarsa eski belgi yashirin qolib ketmasin
                     ($data['role'] ?? $record->role) === Staff::ROLE_EMPLOYEE || $data['hourly_checkin'] = false;
+                    // «Barcha tumanlar» faqat xodimda ko'rinadi; kadastrda yashirin qolib, tanlangan tumanlarni bekor qilmasin
+                    ($data['role'] ?? $record->role) === Staff::ROLE_CADASTRE && $data['is_global'] = false;
                     $record->update($data);
                     $ids !== null && ! $record->is_global && $record->assignDistricts($ids);
 
