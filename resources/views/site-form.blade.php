@@ -193,7 +193,13 @@ function setPoint(lat, lng, zoom) {
 function initMap(center) {
     if (!window.L) { $('coords').textContent = 'Xarita yuklanmadi — «Turgan joyimni olish» tugmasini bosing.'; return; }
     map = L.map('map').setView(center || [41.3111, 69.2797], center ? 14 : 11);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+    // tile.openstreetmap.org va CARTO Telegram oynasini bloklaydi (Referer yo'q) — Esri kalitsiz ishlaydi;
+    // sun'iy yo'ldosh — obyektni tomidan topish uchun (nomlar ustida)
+    const esri = name => L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/${name}/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19, attribution: '© Esri' });
+    const streets = esri('World_Street_Map');
+    const sat = L.layerGroup([esri('World_Imagery'), esri('Reference/World_Boundaries_and_Places'), esri('Reference/World_Transportation')]);
+    streets.addTo(map);
+    L.control.layers({ 'Xarita': streets, 'Sun’iy yo’ldosh': sat }, null, { position: 'topright' }).addTo(map);
     map.on('click', e => setPoint(e.latlng.lat, e.latlng.lng));
     // Telegram oynani kengaytirganda / telefon burilganda xarita o'lchami yangilansin (aks holda kulrang bo'shliq qoladi)
     const fit = () => map.invalidateSize();
