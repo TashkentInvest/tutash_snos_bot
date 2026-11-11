@@ -21,7 +21,7 @@ class ReportSetting extends Model
     {
         return [
             self::CHECKIN_HOURLY => ['Soatlik qayd — har soat yakuni', 'Har soatlik so‘rov muddati tugaganda (H:59:59): kim qayd etdi, kim javob bermadi. Rasm.'],
-            self::CHECKIN_DAILY => ['Soatlik qayd — kun yakuni', 'Ish kunlari '.config('tutash.checkins.daily_report_at').':59 da: kun bo‘yi barcha soatlar jadvali. Rasm.'],
+            self::CHECKIN_DAILY => ['Soatlik qayd — kun yakuni', 'Oxirgi soat ('.collect(\App\Models\Checkin::slots())->max().') hisobotidan darhol keyin: kun bo‘yi barcha soatlar jadvali. Rasm.'],
             self::ATTENDANCE => ['Ertalabki davomat xulosasi', 'Ish kunlari davomat yopilganda ('.\App\Models\Attendance::closeAt()->format('H:i').'): ishda, sabab bilan yo‘q, javob bermadi (izoh bilan). Rasm.'],
             self::SVOD => ['Kunlik buzilish hisoboti', 'Har kuni '.config('tutash.daily_report_at').' da: tumanlar kesimida svod va bajarilish (2 rasm).'],
         ];

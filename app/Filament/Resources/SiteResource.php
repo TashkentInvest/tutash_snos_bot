@@ -119,6 +119,12 @@ class SiteResource extends Resource
                     ->url(fn ($record) => ($s = $site($record)) ? self::getUrl('view', ['record' => $s]) : null),
             ] : [])
             ->schema([
+                $text('o_approval', 'Kadastr qo‘shgan', fn (Site $s) => $s->added_by_staff_id
+                    ? trim(($s->addedBy?->full_name ?? '').' · '.match ($s->approval) {
+                        Site::APPROVAL_PENDING => 'tasdiq kutilmoqda',
+                        Site::APPROVAL_REJECTED => 'rad etilgan: '.$s->approval_note,
+                        default => 'tasdiqlangan',
+                    }) : null)->columnSpanFull()->color(fn ($record) => $site($record)?->approval ? 'danger' : null),
                 $text('o_place', 'Manzil', fn (Site $s) => collect([$s->district?->name, $s->mahalla?->name, $s->address !== $s->mahalla?->name ? $s->address : null])
                     ->filter(fn ($v) => filled($v) && $v !== '—')->join(' · '))->columnSpan(2),
                 Infolists\Components\TextEntry::make('o_status')->label('Holat')->badge()
@@ -155,8 +161,14 @@ class SiteResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['district', 'mahalla', 'pendingReview']))
+            ->modifyQueryUsing(fn ($query) => $query->with(['district', 'mahalla', 'pendingReview', 'addedBy']))
             ->columns([
+                // kadastr xodimi qo'shgan, admin tasdig'ini kutayotgan / rad etilgan obyektlar
+                Tables\Columns\TextColumn::make('approval')->label('Tasdiq')->badge()
+                    ->formatStateUsing(fn ($state) => $state === Site::APPROVAL_REJECTED ? 'Rad etilgan' : 'Tasdiq kutilmoqda')
+                    ->color(fn ($state) => $state === Site::APPROVAL_REJECTED ? 'danger' : 'warning')
+                    ->description(fn (Site $record) => $record->addedBy ? 'Kadastr: '.$record->addedBy->full_name : null)
+                    ->placeholder('—')->toggleable(),
                 Tables\Columns\TextColumn::make('district.name')->label('Tuman')->sortable(),
                 Tables\Columns\TextColumn::make('mahalla.name')->label('MFY')->searchable()->toggleable(),
                 Tables\Columns\TextColumn::make('address')->label('Manzil')->searchable()->limit(40)->tooltip(fn (Site $record) => $record->address),
@@ -168,6 +180,13 @@ class SiteResource extends Resource
                 Tables\Columns\TextColumn::make('last_inspected_at')->label('Oxirgi tekshiruv')->dateTime('d.m.Y H:i')->sortable()->placeholder('Tekshirilmagan'),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('approval')->label('Kadastr qo‘shgan')
+                    ->options([Site::APPROVAL_PENDING => 'Tasdiq kutilmoqda', Site::APPROVAL_REJECTED => 'Rad etilgan', 'approved' => 'Tasdiqlangan'])
+                    ->query(fn ($query, array $data) => match ($data['value'] ?? null) {
+                        Site::APPROVAL_PENDING, Site::APPROVAL_REJECTED => $query->where('approval', $data['value']),
+                        'approved' => $query->whereNull('approval')->whereNotNull('added_by_staff_id'),
+                        default => $query,
+                    }),
                 Tables\Filters\SelectFilter::make('district_id')->label('Tuman')->relationship('district', 'name'),
                 Tables\Filters\SelectFilter::make('status')->label('Holat')->options(self::STATUS),
                 Tables\Filters\Filter::make('in_review')->label('Ko‘rib chiqilmoqda')->toggle()->query(fn ($query) => $query->whereHas('pendingReview')),
@@ -177,8 +196,70 @@ class SiteResource extends Resource
                         false: fn ($query) => $query->whereNull('last_inspected_at'),
                     ),
             ])
-            ->actions([Tables\Actions\ViewAction::make(), Tables\Actions\EditAction::make()])
+            ->actions([self::approveAction(Tables\Actions\Action::class), self::rejectAction(Tables\Actions\Action::class),
+                Tables\Actions\ViewAction::make(), Tables\Actions\EditAction::make()])
             ->defaultSort('id');
+    }
+
+    /** Tasdiq kutayotganlar ham admin panelda ko'rinadi (botda, svodda va boshqa sahifalarda — yo'q). */
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        return parent::getEloquentQuery()->withoutGlobalScope('approved');
+    }
+
+    public static function getNavigationBadge(): ?string
+    {
+        return ($n = Site::withoutGlobalScope('approved')->where('approval', Site::APPROVAL_PENDING)->count()) ? (string) $n : null;
+    }
+
+    public static function getNavigationBadgeTooltip(): ?string
+    {
+        return 'Kadastr qo‘shgan, tasdiq kutilmoqda';
+    }
+
+    /** Kadastr qo'shgan obyektni tasdiqlash: ro'yxatga, xodimlarga va svodga kiradi; kadastr xodimiga xabar. */
+    public static function approveAction(string $class)
+    {
+        return $class::make('approveSite')->label('Tasdiqlash')->icon('heroicon-o-check-circle')->color('success')
+            ->requiresConfirmation()->modalHeading('Obyekt tasdiqlansinmi?')
+            ->modalDescription('Obyekt umumiy ro‘yxatga, xodimlarga va svod hisobotiga qo‘shiladi.')
+            ->visible(fn (Site $record) => $record->approval === Site::APPROVAL_PENDING && User::currentIsAdmin())
+            ->action(function (Site $record) {
+                $record->update(['approval' => null, 'approval_note' => null]);
+                \App\Models\AuditLog::record('site.cadastre_approved', null, ['site' => $record->id, 'by' => auth()->id()]);
+                self::notifyAdder($record, '✅ <b>Siz qo‘shgan obyekt tasdiqlandi</b> va ro‘yxatga kiritildi.');
+                \Filament\Notifications\Notification::make()->title('Tasdiqlandi')->success()->send();
+            });
+    }
+
+    /** Rad etish: sabab bilan; kadastr xodimiga botda sabab va «Tahrirlash» tugmasi boradi. */
+    public static function rejectAction(string $class)
+    {
+        return $class::make('rejectSite')->label('Rad etish')->icon('heroicon-o-x-circle')->color('danger')
+            ->form([Forms\Components\Textarea::make('note')->label('Sabab (kadastr xodimiga boradi)')->required()->minLength(5)->maxLength(1000)])
+            ->visible(fn (Site $record) => $record->approval === Site::APPROVAL_PENDING && User::currentIsAdmin())
+            ->action(function (Site $record, array $data) {
+                $record->update(['approval' => Site::APPROVAL_REJECTED, 'approval_note' => trim($data['note'])]);
+                \App\Models\AuditLog::record('site.cadastre_rejected', null, ['site' => $record->id, 'by' => auth()->id()]);
+                self::notifyAdder($record, "❌ <b>Siz qo‘shgan obyekt rad etildi.</b>\n💬 Sabab: <i>".e($data['note']).'</i>', true);
+                \Filament\Notifications\Notification::make()->title('Rad etildi')->success()->send();
+            });
+    }
+
+    private static function notifyAdder(Site $site, string $html, bool $withEdit = false): void
+    {
+        $to = $site->addedBy?->telegram_id;
+        if (! $to) {
+            return;
+        }
+        try {
+            app(\SergiX44\Nutgram\Nutgram::class)->sendMessage(\App\Telegram\Support\Script::apply($html."\n📍 ".e($site->address)), array_filter([
+                'chat_id' => $to, 'parse_mode' => \SergiX44\Nutgram\Telegram\Attributes\ParseMode::HTML,
+                'reply_markup' => $withEdit ? \App\Telegram\Support\Ui::markup([[\App\Telegram\Handlers\BrowseHandler::siteFormButton('✏️ Tahrirlash', ['site' => $site->id])]]) : null,
+            ]));
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     public static function getRelations(): array

@@ -11,7 +11,7 @@
             <option value="employee">Xodimlar (soatlik qayd qo‘shilgan)</option>
         </select>
         <span style="font-size:.8rem;opacity:.7;">
-            Soatlik so‘rov: {{ implode(', ', $slots) }} · javob muddati — keyingi soatgacha · 13:00–14:00 tushlik
+            Soatlik so‘rov: {{ implode(', ', $slots) }} · javob muddati — keyingi soatgacha
         </span>
     </div>
 

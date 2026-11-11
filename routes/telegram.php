@@ -35,6 +35,8 @@ $bot->onCallbackQueryData('s:{id}', [BrowseHandler::class, 'site']);
 $bot->onCallbackQueryData('q:{id}', [BrowseHandler::class, 'askSearch']);
 $bot->onCallbackQueryData('near:{id}', [BrowseHandler::class, 'askNear']);
 $bot->onCallbackQueryData('noop', fn (Nutgram $bot) => $bot->answerCallbackQuery());
+// Kadastr: o'zi qo'shgan obyektlar (yangi obyekt qo'shish — Mini App /tg/site-form)
+$bot->onCallbackQueryData('cad:mine', [BrowseHandler::class, 'mySites']);
 
 // Tekshiruv
 $bot->onCallbackQueryData('go:{id}', [InspectionHandler::class, 'begin']);

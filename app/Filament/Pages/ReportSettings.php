@@ -55,7 +55,7 @@ class ReportSettings extends Page implements HasForms
     public static function people(): array
     {
         return Staff::where('status', Staff::ACTIVE)->whereNotNull('telegram_id')->orderBy('full_name')->get()
-            ->mapWithKeys(fn (Staff $s) => [(string) $s->id => trim($s->full_name.' · '.($s->isContract() ? 'shartnoma' : ($s->is_global ? 'admin' : 'xodim')))])->all();
+            ->mapWithKeys(fn (Staff $s) => [(string) $s->id => trim($s->full_name.' · '.($s->isContract() ? 'shartnoma' : ($s->isCadastre() ? 'kadastr' : ($s->is_global ? 'admin' : 'xodim'))))])->all();
     }
 
     public function form(Form $form): Form

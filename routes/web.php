@@ -86,6 +86,11 @@ Route::post('/tg/checkin-location', [\App\Http\Controllers\CheckinController::cl
 Route::post('/tg/checkin-video', [\App\Http\Controllers\CheckinController::class, 'video'])->middleware('throttle:tg-video');
 
 // Obyekt tekshiruvi (Telegram Mini App).
+// Kadastr xodimi: obyekt qo'shish / tahrirlash (admin tasdiqlaydi)
+Route::get('/tg/site-form', [\App\Http\Controllers\SiteFormController::class, 'page']);
+Route::post('/tg/site-form/state', [\App\Http\Controllers\SiteFormController::class, 'state'])->middleware('throttle:tg-app');
+Route::post('/tg/site-form/save', [\App\Http\Controllers\SiteFormController::class, 'save'])->middleware('throttle:tg-app');
+
 Route::get('/tg/inspection', [\App\Http\Controllers\InspectionAppController::class, 'page']);
 Route::prefix('tg/inspection')->middleware('throttle:tg-app')->group(function () {
     Route::post('/state', [\App\Http\Controllers\InspectionAppController::class, 'state']);

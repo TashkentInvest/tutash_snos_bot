@@ -25,7 +25,7 @@ class HelpHandler
         $staff = RegistrationHandler::staff($bot);
         $send = config('tutash.attendance.send_at');
         $deadline = config('tutash.attendance.deadline');
-        $hourly = 'Ish vaqtida har soatda xabar keladi — tugmani bosing, joylashuv va qisqa video yuboring (keyingi soatgacha). 13:00–14:00 tushlik.';
+        $hourly = 'Ish vaqtida har soatda xabar keladi — tugmani bosing, joylashuv, qisqa video va izoh yuboring (keyingi soatgacha).';
 
         if ($staff->isActive() && $staff->isContract()) {
             $text = "<b>Qisqacha</b>\n\n"

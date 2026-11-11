@@ -21,7 +21,31 @@ class Site extends Model
         'district_id', 'mahalla_id', 'source_no', 'address', 'lat', 'lng',
         'violator_name', 'violator_passport', 'org_inn', 'area_m2', 'is_tutash',
         'court_date', 'court_number', 'court_status', 'status', 'demolished_at', 'last_inspected_at', 'photos',
+        'approval', 'added_by_staff_id', 'approval_note',
     ];
+
+    /** Kadastr xodimi qo'shgan, admin tasdig'ini kutayotgan / rad etilgan obyekt. */
+    public const APPROVAL_PENDING = 'pending';
+    public const APPROVAL_REJECTED = 'rejected';
+
+    /**
+     * Tasdiqlanmagan obyektlar hech qayerda ko'rinmaydi (bot ro'yxatlari, qidiruv, svod, statistika) —
+     * faqat admin panel va uni qo'shgan kadastr xodimi `withoutGlobalScope('approved')` bilan ko'radi.
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope('approved', fn (Builder $q) => $q->whereNull($q->getModel()->getTable().'.approval'));
+    }
+
+    public function addedBy(): BelongsTo
+    {
+        return $this->belongsTo(Staff::class, 'added_by_staff_id')->withTrashed();
+    }
+
+    public function isApproved(): bool
+    {
+        return $this->approval === null;
+    }
 
     protected $casts = [
         'violator_passport' => 'encrypted',

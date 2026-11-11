@@ -44,6 +44,7 @@ class StaffResource extends Resource
     public const ROLES = [
         Staff::ROLE_EMPLOYEE => 'Xodim',
         Staff::ROLE_CONTRACT => 'Shartnoma',
+        Staff::ROLE_CADASTRE => 'Kadastr',
         Staff::ROLE_CITIZEN => 'Aholi',
     ];
 
@@ -55,6 +56,8 @@ class StaffResource extends Resource
     public static function form(Form $form): Form
     {
         $isEmployee = fn (Forms\Get $get) => $get('role') === Staff::ROLE_EMPLOYEE;
+        // tumanga biriktiriladiganlar: xodim va kadastr
+        $hasDistricts = fn (Forms\Get $get) => in_array($get('role'), [Staff::ROLE_EMPLOYEE, Staff::ROLE_CADASTRE], true);
         $isWorker = fn (Forms\Get $get) => in_array($get('role'), Staff::WORK_ROLES, true);
 
         return $form->schema([
@@ -70,6 +73,7 @@ class StaffResource extends Resource
                     ->descriptions([
                         Staff::ROLE_EMPLOYEE => 'Obyektlarni tekshiradi',
                         Staff::ROLE_CONTRACT => 'Faqat davomat va soatlik qayd',
+                        Staff::ROLE_CADASTRE => 'O‘z tumaniga yangi obyekt qo‘shadi (admin tasdiqlaydi)',
                         Staff::ROLE_CITIZEN => 'Faqat ko‘radi',
                     ]),
                 Forms\Components\Toggle::make('attendance_required')->label('Ertalabki davomat')
@@ -92,10 +96,10 @@ class StaffResource extends Resource
                 Forms\Components\Select::make('district_ids')->label('Tumanlar')->multiple()
                     ->options(fn () => \App\Models\District::orderBy('name')->pluck('name', 'id'))
                     ->afterStateHydrated(fn ($component, ?Staff $record) => $component->state($record?->districts()->pluck('districts.id')->all() ?? []))
-                    ->visible(fn (Forms\Get $get) => $get('role') === Staff::ROLE_EMPLOYEE && ! $get('is_global'))
+                    ->visible(fn (Forms\Get $get) => $hasDistricts($get) && ! ($get('role') === Staff::ROLE_EMPLOYEE && $get('is_global')))
                     ->disabled(fn (?Staff $record) => ! $record?->phone)
                     ->helperText(fn (?Staff $record) => $record?->phone ? null : 'Avval botda ro‘yxatdan o‘tishi kerak.'),
-            ])->visible($isEmployee),
+            ])->visible($hasDistricts),
 
             // faqat bloklangan bo'lsa ko'rinadi: 0 qilinsa xodim qayta urina oladi
             Forms\Components\TextInput::make('failed_attempts')->label('Noto‘g‘ri urinishlar (0 — qayta ochish)')->numeric()->minValue(0)
@@ -111,7 +115,7 @@ class StaffResource extends Resource
                 Tables\Columns\TextColumn::make('full_name')->label('F.I.SH')->searchable(),
                 Tables\Columns\TextColumn::make('phone')->label('Telefon')->searchable(),
                 Tables\Columns\TextColumn::make('role')->label('Rol')->badge()->formatStateUsing(fn ($state) => self::ROLES[$state] ?? '—')
-                    ->color(fn ($state) => match ($state) { Staff::ROLE_CONTRACT => 'warning', Staff::ROLE_CITIZEN => 'gray', default => 'primary' }),
+                    ->color(fn ($state) => match ($state) { Staff::ROLE_CONTRACT => 'warning', Staff::ROLE_CADASTRE => 'info', Staff::ROLE_CITIZEN => 'gray', default => 'primary' }),
                 // barcha tumanlarni ko'radigan adminda 12 ta nishon o'rniga bitta yozuv; boshqalarda 3 tadan keyin "yana N ta"
                 Tables\Columns\TextColumn::make('districts.name')->label('Tumanlar')->badge()
                     ->state(fn (Staff $record) => $record->is_global ? ['Barcha tumanlar'] : $record->districts->pluck('name')->all())

@@ -23,6 +23,7 @@ class Staff extends Model
     public const ROLE_EMPLOYEE = 'employee';
     public const ROLE_CITIZEN = 'citizen';
     public const ROLE_CONTRACT = 'contract'; // shartnoma: faqat davomat va har soatlik qayd (obyektlar bilan ishlamaydi)
+    public const ROLE_CADASTRE = 'cadastre'; // kadastr: o'z tumanini ko'radi va botdan yangi obyekt qo'shadi (admin tasdiqlaydi); tekshiruv va davomat yo'q
 
     /** Ishga chiqadigan (davomat yuritiladigan) rollar. */
     public const WORK_ROLES = [self::ROLE_EMPLOYEE, self::ROLE_CONTRACT];
@@ -71,7 +72,8 @@ class Staff extends Model
             return;
         }
 
-        self::where('status', self::ACTIVE)->where('role', self::ROLE_EMPLOYEE)->where('is_global', false)
+        // tumanga telefon orqali biriktiriladiganlar: xodim va kadastr
+        self::where('status', self::ACTIVE)->whereIn('role', [self::ROLE_EMPLOYEE, self::ROLE_CADASTRE])->where('is_global', false)
             ->whereIn('phone', $phones)->get()
             ->reject(fn (Staff $s) => self::isAllDistrictsEmployeePhone($s->phone))
             ->each(fn (Staff $s) => $s->districts()->sync(District::forPhone($s->phone)->pluck('id')));
@@ -153,6 +155,17 @@ class Staff extends Model
     public function isContract(): bool
     {
         return $this->role === self::ROLE_CONTRACT;
+    }
+
+    public function isCadastre(): bool
+    {
+        return $this->role === self::ROLE_CADASTRE;
+    }
+
+    /** Kadastr xodimi qo'shgan obyektlar (tasdiqlanmaganlari ham). */
+    public function addedSites(): HasMany
+    {
+        return $this->hasMany(Site::class, 'added_by_staff_id')->withoutGlobalScope('approved');
     }
 
     /** Har soatlik qayd: shartnoma xodimi — har doim; oddiy xodim — admin «Soatlik qayd» belgisini qo'ysa (ikkinchi vazifa). */

@@ -97,15 +97,18 @@ class CheckinTest extends TestCase
         Storage::disk('local')->assertExists($row->video_path);
         $this->tg('/tg/checkin-state')->assertJsonPath('step', 'done');
 
-        // 13:30 — tushlik, so'rov yo'q; 11:00 dagi javobsiz qolgani 12:00 da yopiladi
+        // 11:00 dagi javobsiz qolgani 12:00 da yopiladi
         $this->travelTo(today()->setTime(11, 5));
         $this->artisan('checkins:run')->assertSuccessful();
         $this->travelTo(today()->setTime(12, 0));
         $this->artisan('checkins:run')->expectsOutputToContain('yopildi 1')->assertSuccessful();
         $this->assertSame(Checkin::MISSED, Checkin::where('slot', '11:00')->value('status'));
+        // 13:00 — tushlik tanaffusi yo'q, so'rov yuboriladi; 19:30 — kun tugagan
         $this->travelTo(today()->setTime(13, 30));
+        $this->artisan('checkins:run')->expectsOutputToContain('Soat 13:00')->assertSuccessful();
+        $this->assertSame(1, Checkin::where('slot', '13:00')->count());
+        $this->travelTo(today()->setTime(19, 30));
         $this->artisan('checkins:run')->expectsOutputToContain('vaqti emas')->assertSuccessful();
-        $this->assertSame(0, Checkin::where('slot', '13:00')->count());
 
         // admin: kunlik jadval va ro'yxat
         $admin = (new User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
@@ -171,7 +174,7 @@ class CheckinTest extends TestCase
         $this->get(route('admin.checkin-video', ['checkin' => $row, 'face' => 1]))->assertOk();
     }
 
-    /** Soatlik hisobot H:59:59 da va kun yakuni 17:59:59 da — rasm, sozlamadagi oluvchilarga. */
+    /** Soatlik hisobot H:59:59 da; oxirgi soatdan (18:00) keyin — o'sha jarayonda, soatlik hisobotdan KEYIN kun yakuni. */
     public function test_hourly_and_day_end_checkin_reports_go_to_configured_recipients(): void
     {
         $a = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Aslanov Sanjar', 'phone' => '950507174', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
@@ -189,7 +192,7 @@ class CheckinTest extends TestCase
         // 15:59:59 — 15:00 soat hisoboti faqat rahbarga
         $this->travelTo(today()->setTime(15, 59, 59));
         $before = count(app(Nutgram::class)->getRequestHistory());
-        $this->artisan('checkins:report')->expectsOutputToContain('Yuborildi: 1')->assertSuccessful();
+        $this->artisan('checkins:report')->expectsOutputToContain('Soat 15:00: yuborildi 1')->doesntExpectOutputToContain('Kun yakuni')->assertSuccessful();
         $sent = collect(app(Nutgram::class)->getRequestHistory())->slice($before)->map(fn ($r) => (string) array_values($r)[0]->getBody())->implode("\n");
         $this->assertStringContainsString('sendPhoto', collect(app(Nutgram::class)->getRequestHistory())->slice($before)->map(fn ($r) => (string) array_values($r)[0]->getUri())->implode(' '));
         $this->assertStringContainsString('777099', $sent);
@@ -197,16 +200,28 @@ class CheckinTest extends TestCase
         $this->assertStringContainsString('Qayd etdi: <b>1</b> / 2', $sent);
         $this->assertStringContainsString('Javob bermadi: <b>1</b>', $sent);
 
-        // 13:59 — tushlik, so'rov yo'q
+        // 13:00 ham soat (tushlik tanaffusi yo'q); 19:59 — so'rov yo'q
+        $this->assertContains('13:00', Checkin::slots());
         $this->travelTo(today()->setTime(13, 59, 59));
+        $this->artisan('checkins:report')->expectsOutputToContain('Soat 13:00')->assertSuccessful();
+        $this->travelTo(today()->setTime(19, 59, 59));
         $this->artisan('checkins:report')->expectsOutputToContain('so‘rov yo‘q')->assertSuccessful();
 
-        // kun yakuni 17:59:59: 10:00..17:00 gacha tugagan soatlar
+        // 17:59:59 — faqat soatlik (kun yakuni hali emas)
         $this->travelTo(today()->setTime(17, 59, 59));
+        $this->artisan('checkins:report')->expectsOutputToContain('Soat 17:00')->doesntExpectOutputToContain('Kun yakuni')->assertSuccessful();
+
+        // 18:59:59 — avval 18:00 soatlik, so'ng kun yakuni (barcha 9 soat)
+        $this->travelTo(today()->setTime(18, 59, 59));
+        $before = count(app(Nutgram::class)->getRequestHistory());
+        $this->artisan('checkins:report')->expectsOutputToContain('Soat 18:00: yuborildi 1')->expectsOutputToContain('Kun yakuni: yuborildi 1')->assertSuccessful();
+        $captions = collect(app(Nutgram::class)->getRequestHistory())->slice($before)->map(fn ($r) => (string) array_values($r)[0]->getBody())->values();
+        $this->assertCount(2, $captions);
+        $this->assertStringContainsString('Soatlik qayd — 18:00', $captions[0]);   // birinchi — soatlik
+        $this->assertStringContainsString('kun yakuni', $captions[1]);             // ikkinchi — kun yakuni
         $day = \App\Telegram\Support\CheckinReport::daily(today(), now());
         $this->assertStringStartsWith("\x89PNG", $day['png']);
-        $this->assertStringContainsString('Qayd etildi: <b>2</b> / 14', $day['caption']); // 2 kishi × 7 soat (10,11,12,14,15,16,17)
-        $this->artisan('checkins:report --daily')->expectsOutputToContain('Yuborildi: 1')->assertSuccessful();
+        $this->assertStringContainsString('Qayd etildi: <b>2</b> / 18', $day['caption']); // 2 kishi × 9 soat (10..18)
         ($out = getenv('CHECKIN_PNG_OUT')) && file_put_contents($out, $day['png'])
             && file_put_contents(str_replace('.png', '-hourly.png', $out), \App\Telegram\Support\CheckinReport::hourly(today(), '15:00')['png']);
 

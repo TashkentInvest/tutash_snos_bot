@@ -13,6 +13,8 @@ class ViewSite extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            SiteResource::approveAction(Actions\Action::class),
+            SiteResource::rejectAction(Actions\Action::class),
             Actions\EditAction::make(),
         ];
     }

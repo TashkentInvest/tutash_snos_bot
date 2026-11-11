@@ -14,12 +14,15 @@ class StaffInvites
     {
         $phone = Staff::normalizePhone($phone);
         $hourlyCheckin = $role === Staff::ROLE_EMPLOYEE && $hourlyCheckin; // shartnoma xodimida rol bo'yicha doim yoqilgan
-        $districtIds = $role === Staff::ROLE_EMPLOYEE ? array_map('intval', $districtIds) : [];
+        $withDistricts = in_array($role, [Staff::ROLE_EMPLOYEE, Staff::ROLE_CADASTRE], true);
+        $districtIds = $withDistricts ? array_map('intval', $districtIds) : [];
 
         // botda allaqachon bor — roli va tumanlari darhol yangilanadi
         if ($staff = Staff::where('phone', $phone)->whereNotNull('telegram_id')->first()) {
             $staff->update(['role' => $role, 'hourly_checkin' => $hourlyCheckin, 'full_name' => $name ?: $staff->full_name] + ($staff->isActive() ? [] : ['status' => Staff::ACTIVE, 'registered_at' => now()]));
-            $role === Staff::ROLE_EMPLOYEE && $staff->assignDistricts($districtIds);
+            $withDistricts && $staff->assignDistricts($districtIds);
+            // kadastr xodimiga davomat va soatlik qayd yuritilmaydi
+            $role === Staff::ROLE_CADASTRE && $staff->update(['attendance_required' => false, 'is_global' => false]);
             AuditLog::record('staff.role_set', null, ['by' => $userId, 'staff' => $staff->id, 'role' => $role]);
 
             return "{$staff->full_name} botda bor — roli yangilandi.";
@@ -49,9 +52,10 @@ class StaffInvites
             'failed_attempts' => 0, 'is_global' => false, 'attendance_required' => true,
             'full_name' => $invite->full_name ?: $staff->full_name,
         ]);
-        $invite->role === Staff::ROLE_EMPLOYEE
+        in_array($invite->role, [Staff::ROLE_EMPLOYEE, Staff::ROLE_CADASTRE], true)
             ? $staff->assignDistricts($invite->district_ids ?? [])
             : $staff->districts()->detach();
+        $invite->role === Staff::ROLE_CADASTRE && $staff->update(['attendance_required' => false]);
         $invite->update(['staff_id' => $staff->id, 'used_at' => now()]);
         AuditLog::record('registration.invite', $staff->telegram_id, ['invite' => $invite->id, 'role' => $invite->role]);
 

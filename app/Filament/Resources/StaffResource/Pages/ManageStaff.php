@@ -30,12 +30,13 @@ class ManageStaff extends ManageRecords
                     Forms\Components\TextInput::make('phone')->label('Telefon (9 raqam)')->required()->placeholder('901234567')
                         ->regex('/^\+?(998)?\s*\d{2}\s*\d{3}\s*\d{2}\s*\d{2}$/')->validationMessages(['regex' => 'Telefon raqami noto‘g‘ri (masalan: 901234567).']),
                     Forms\Components\Radio::make('role')->label('Rol')->required()->live()->default(\App\Models\Staff::ROLE_EMPLOYEE)
-                        ->options([\App\Models\Staff::ROLE_EMPLOYEE => 'Xodim — obyektlar bilan ishlaydi', \App\Models\Staff::ROLE_CONTRACT => 'Shartnoma — davomat va har soatlik qayd'])
+                        ->options([\App\Models\Staff::ROLE_EMPLOYEE => 'Xodim — obyektlar bilan ishlaydi', \App\Models\Staff::ROLE_CONTRACT => 'Shartnoma — davomat va har soatlik qayd',
+                            \App\Models\Staff::ROLE_CADASTRE => 'Kadastr — o‘z tumaniga yangi obyekt qo‘shadi'])
                         ->helperText(StaffResource::ROLE_HINT),
                     Forms\Components\Select::make('district_ids')->label('Tumanlar')->multiple()
                         ->options(District::orderBy('name')->pluck('name', 'id'))
-                        ->visible(fn (Forms\Get $get) => $get('role') === \App\Models\Staff::ROLE_EMPLOYEE)
-                        ->requiredIf('role', \App\Models\Staff::ROLE_EMPLOYEE),
+                        ->visible(fn (Forms\Get $get) => in_array($get('role'), [\App\Models\Staff::ROLE_EMPLOYEE, \App\Models\Staff::ROLE_CADASTRE], true))
+                        ->required(fn (Forms\Get $get) => in_array($get('role'), [\App\Models\Staff::ROLE_EMPLOYEE, \App\Models\Staff::ROLE_CADASTRE], true)),
                     Forms\Components\Toggle::make('hourly_checkin')->label('Soatlik qayd ham yuritiladi')
                         ->helperText(StaffResource::CHECKIN_HINT)
                         ->visible(fn (Forms\Get $get) => $get('role') === \App\Models\Staff::ROLE_EMPLOYEE),

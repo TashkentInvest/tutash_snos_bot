@@ -66,8 +66,53 @@ class BrowseHandler
 
             return null;
         }
+        if ($staff?->isCadastre()) {
+            $bot->callbackQuery() && $bot->answerCallbackQuery(['text' => Ui::t('Kadastr xodimi tekshiruv o‘tkazmaydi — obyekt qo‘shishingiz mumkin.'), 'show_alert' => true]);
+
+            return null;
+        }
 
         return $staff;
+    }
+
+    /** Kadastr xodimi: yangi obyekt qo'shish oynasi (Mini App), ixtiyoriy — tuman yoki tahrirlanadigan obyekt bilan. */
+    public static function siteFormButton(string $label, array $query = []): InlineKeyboardButton
+    {
+        $url = rtrim((string) config('app.url'), '/').'/tg/site-form'.($query ? '?'.http_build_query($query) : '');
+
+        return InlineKeyboardButton::make(Ui::t($label), web_app: new WebAppInfo($url));
+    }
+
+    /** "📋 Men qo'shgan obyektlar" ("cad:mine"): holati, rad etilganining sababi va tahrirlash tugmalari. */
+    public function mySites(Nutgram $bot): void
+    {
+        $staff = Staff::where('telegram_id', $bot->userId())->first();
+        if (! $staff?->isActive() || ! $staff->isCadastre()) {
+            $bot->callbackQuery() && $bot->answerCallbackQuery();
+
+            return;
+        }
+        $bot->callbackQuery() && $bot->answerCallbackQuery();
+        $sites = $staff->addedSites()->with('mahalla')->latest('id')->take(15)->get();
+
+        $lines = ['📋 <b>Siz qo‘shgan obyektlar</b> (oxirgi 15 ta)'];
+        $rows = [];
+        foreach ($sites as $i => $s) {
+            [$icon, $label] = match ($s->approval) {
+                Site::APPROVAL_PENDING => ['⏳', 'tasdiq kutilmoqda'],
+                Site::APPROVAL_REJECTED => ['❌', 'rad etildi'],
+                default => ['✅', 'tasdiqlangan'],
+            };
+            $lines[] = ($i + 1).". {$icon} ".Ui::e(Ui::cut($s->address, 50)).' — <i>'.$label.'</i>'
+                .($s->approval === Site::APPROVAL_REJECTED && $s->approval_note ? "\n   Sabab: <i>".Ui::e(Ui::cut($s->approval_note, 120)).'</i>' : '');
+            if (! $s->isApproved()) {
+                $rows[] = [self::siteFormButton('✏️ '.($i + 1).'. '.Ui::cut($s->address, 30), ['site' => $s->id])];
+            }
+        }
+        $sites->isEmpty() && $lines[] = "\nHali obyekt qo‘shmagansiz.";
+        $rows[] = [self::siteFormButton('➕ Obyekt qo‘shish')];
+        $rows[] = [Ui::btn('⬅️ Orqaga', 'home')];
+        Ui::show($bot, implode("\n", $lines), Ui::markup($rows));
     }
 
     /** Hozir javob kutilayotgan soatlik qayd (so'rov yuborilgan, muddati o'tmagan). */
@@ -144,13 +189,16 @@ class BrowseHandler
 
             return;
         }
-        if ($districts->count() === 1 && ! $hourly) {
+        if ($districts->count() === 1 && ! $hourly && ! $staff->isCadastre()) {
             $this->district($bot, (string) $districts->first()->id);
 
             return;
         }
 
         $rows = $districts->map(fn ($d) => [Ui::btn("{$d->name} · {$d->sites_count}/{$d->demolished_count}", "d:{$d->id}")])->all();
+        if ($staff->isCadastre()) {
+            array_unshift($rows, [self::siteFormButton('➕ Obyekt qo‘shish')], [Ui::btn('📋 Men qo‘shgan obyektlar', 'cad:mine')]);
+        }
         // aholi sifatida kirgan xodim buyruq bilmasa ham xodim sifatida qayta kira olsin (/rol o'rniga)
         $staff->isCitizen() && $rows[] = [Ui::btn('👷 Men xodimman', 'role:employee')];
         $bot->callbackQuery() && $bot->answerCallbackQuery();
@@ -194,9 +242,11 @@ class BrowseHandler
         if ($pages > 1) {
             $rows[] = $this->pager("dp:{$district->id}", $page, $pages);
         }
-        $rows[] = $staff->isCitizen()
-            ? [Ui::btn('🔍 Qidirish', "q:{$district->id}")]
-            : [Ui::btn('🔍 Qidirish', "q:{$district->id}"), Ui::btn('📍 Yaqinimdagilar', "near:{$district->id}")];
+        $rows[] = match (true) {
+            $staff->isCitizen() => [Ui::btn('🔍 Qidirish', "q:{$district->id}")],
+            $staff->isCadastre() => [Ui::btn('🔍 Qidirish', "q:{$district->id}"), self::siteFormButton('➕ Obyekt qo‘shish', ['district' => $district->id])],
+            default => [Ui::btn('🔍 Qidirish', "q:{$district->id}"), Ui::btn('📍 Yaqinimdagilar', "near:{$district->id}")],
+        };
         if ($staff->accessibleDistricts()->count() > 1) {
             $rows[] = [Ui::btn('⬅️ Orqaga', 'home')];
         }
@@ -259,7 +309,7 @@ class BrowseHandler
 
         $rows = [];
         if (! $staff->isCitizen()) {
-            if (! $site->isDemolished() && ! $site->pendingReview) {
+            if (! $site->isDemolished() && ! $site->pendingReview && ! $staff->isCadastre()) {
                 $rows[] = [Ui::btn('▶️ Tekshiruvni boshlash', "go:{$site->id}")];
             }
             if ($site->lat && $site->lng) {
