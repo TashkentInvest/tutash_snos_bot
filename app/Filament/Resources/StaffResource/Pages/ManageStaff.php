@@ -34,7 +34,7 @@ class ManageStaff extends ManageRecords
                         ->regex('/^\+?(998)?\s*\d{2}\s*\d{3}\s*\d{2}\s*\d{2}$/')->validationMessages(['regex' => 'Telefon raqami noto‘g‘ri (masalan: 901234567).']),
                     Forms\Components\Radio::make('role')->label('Rol')->required()->live()->default(static::DEFAULT_ROLE)
                         ->options([\App\Models\Staff::ROLE_EMPLOYEE => 'Xodim — obyektlar bilan ishlaydi', \App\Models\Staff::ROLE_CONTRACT => 'Shartnoma — davomat va har soatlik qayd',
-                            \App\Models\Staff::ROLE_CADASTRE => 'Kadastr — o‘z tumaniga yangi obyekt qo‘shadi'])
+                            \App\Models\Staff::ROLE_CADASTRE => 'Kadastr — o‘z tumanida tekshiradi va yangi obyekt qo‘shadi'])
                         ->helperText(StaffResource::ROLE_HINT),
                     Forms\Components\Select::make('district_ids')->label('Tumanlar')->multiple()
                         ->options(District::orderBy('name')->pluck('name', 'id'))

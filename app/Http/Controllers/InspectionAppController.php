@@ -57,7 +57,7 @@ class InspectionAppController extends Controller
             return [null, null, null, $this->fail('Oyna eskirgan. Uni yopib, botdagi tugmani qayta bosing.', 403)];
         }
 
-        $staff = Staff::where('telegram_id', $user['id'])->where('status', Staff::ACTIVE)->where('role', Staff::ROLE_EMPLOYEE)->first();
+        $staff = Staff::where('telegram_id', $user['id'])->where('status', Staff::ACTIVE)->whereIn('role', [Staff::ROLE_EMPLOYEE, Staff::ROLE_CADASTRE])->first();
         $in = $staff ? InspectionHandler::draft($staff) : null;
         if (! $in) {
             return [$user, $staff, null, $this->fail('Faol tekshiruv topilmadi. Botda obyektni tanlab, «Tekshiruvni boshlash» tugmasini bosing.', 409)];

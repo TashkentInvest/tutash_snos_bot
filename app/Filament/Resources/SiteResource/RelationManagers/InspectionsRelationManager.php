@@ -20,7 +20,8 @@ class InspectionsRelationManager extends RelationManager
             ->modifyQueryUsing(fn ($query) => $query->where('status', Inspection::SUBMITTED)->whereNull('archived_at')->whereNull('followup_of')->with('staff'))
             ->columns([
                 Tables\Columns\TextColumn::make('submitted_at')->label('Sana')->dateTime('d.m.Y H:i'),
-                Tables\Columns\TextColumn::make('staff.full_name')->label('Xodim'),
+                Tables\Columns\TextColumn::make('staff.full_name')->label('Kim yubordi')
+                    ->description(fn (Inspection $record) => collect([\App\Filament\Resources\StaffResource::ROLES[$record->staff?->role] ?? null, $record->staff?->phone])->filter()->join(' · ')),
                 Tables\Columns\TextColumn::make('result')->label('Natija')->badge()
                     ->state(fn (Inspection $record) => InspectionResource::result($record))
                     ->color(fn (Inspection $record) => InspectionResource::resultColor($record)),

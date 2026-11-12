@@ -23,7 +23,7 @@ class Staff extends Model
     public const ROLE_EMPLOYEE = 'employee';
     public const ROLE_CITIZEN = 'citizen';
     public const ROLE_CONTRACT = 'contract'; // shartnoma: faqat davomat va har soatlik qayd (obyektlar bilan ishlamaydi)
-    public const ROLE_CADASTRE = 'cadastre'; // kadastr: o'z tumanini ko'radi va botdan yangi obyekt qo'shadi (admin tasdiqlaydi); tekshiruv va davomat yo'q
+    public const ROLE_CADASTRE = 'cadastre'; // kadastr: o'z tumanida tekshiruv o'tkazadi va botdan yangi obyekt qo'shadi (admin tasdiqlaydi); davomat yo'q
 
     /** Ishga chiqadigan (davomat yuritiladigan) rollar. */
     public const WORK_ROLES = [self::ROLE_EMPLOYEE, self::ROLE_CONTRACT];
@@ -158,6 +158,12 @@ class Staff extends Model
     public function isContract(): bool
     {
         return $this->role === self::ROLE_CONTRACT;
+    }
+
+    /** Kim: «F.I.SH · Kadastr · 901234567» — tekshiruvni kim yuborganini aniq ko'rsatish uchun. */
+    public function whoLabel(): string
+    {
+        return collect([$this->full_name, \App\Filament\Resources\StaffResource::ROLES[$this->role] ?? null, $this->phone])->filter()->join(' · ');
     }
 
     public function isCadastre(): bool

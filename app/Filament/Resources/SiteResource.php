@@ -144,6 +144,13 @@ class SiteResource extends Resource
                 $text('o_court', 'Sud qarori', fn (Site $s) => collect([$s->court_number, $s->court_date?->format('d.m.Y')])->filter()->join(' · ')),
                 $text('o_court_status', 'Sud holati', fn (Site $s) => $s->court_status),
                 $text('o_demolished', 'Buzilgan sana', fn (Site $s) => $s->demolished_at?->format('d.m.Y')),
+                // buzildi deb kim yubordi (tasdiqlangan tekshiruv) yoki hozir kim yuborib, tasdiq kutyapti
+                $text('o_demolished_by', 'Buzildi deb yuborgan', function (Site $s) {
+                    $in = $s->pendingReview ?? \App\Models\Inspection::where('site_id', $s->id)->where('is_demolished', true)
+                        ->where('review_status', \App\Models\Inspection::REVIEW_APPROVED)->whereNull('followup_of')->with('staff')->latest('submitted_at')->first();
+
+                    return $in?->staff ? $in->staff->whoLabel().' · '.$in->submitted_at?->format('d.m.Y H:i').($s->pendingReview ? ' (tasdiq kutilmoqda)' : '') : null;
+                })->columnSpan(2),
                 $text('o_responsible', 'Tuman mas’uli', fn (Site $s) => $s->district ? collect([$s->district->responsible_name, $s->district->phoneFormatted()])->filter()->join(', ') : null),
                 Infolists\Components\TextEntry::make('o_map')->label('Xarita')
                     ->state(fn ($record) => ($s = $site($record)) && $s->lat ? 'Xaritada ochish' : null)

@@ -535,6 +535,13 @@ class BotFlowTest extends TestCase
         $this->assertFalse(\App\Support\InspectionReview::approve($after, null));
         $this->assertSame(Site::DEMOLISHED, $this->site->refresh()->status);
         $this->assertNotNull($this->site->demolished_at);
+
+        // obyekt sahifasida: buzildi deb aynan kim yuborgan (roli va telefoni bilan)
+        $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin)->get("/admin/sites/{$this->site->id}")->assertOk()
+            ->assertSee('Buzildi deb yuborgan')->assertSee('Aliyev Ali Aliyevich · Xodim · 999075300');
+        $this->get('/admin/inspections')->assertOk()->assertSee('Kim yubordi');
     }
 
     public function test_admin_moves_wrong_before_to_after_and_uploads_real_before(): void

@@ -212,7 +212,8 @@ class InspectionResource extends Resource
                 Tables\Columns\TextColumn::make('submitted_at')->label('Sana')->dateTime('d.m.Y H:i')->sortable(),
                 Tables\Columns\TextColumn::make('site.district.name')->label('Tuman'),
                 Tables\Columns\TextColumn::make('site.address')->label('Obyekt')->limit(40)->searchable(),
-                Tables\Columns\TextColumn::make('staff.full_name')->label('Xodim')->searchable(),
+                Tables\Columns\TextColumn::make('staff.full_name')->label('Kim yubordi')->searchable()
+                    ->description(fn (Inspection $record) => collect([\App\Filament\Resources\StaffResource::ROLES[$record->staff?->role] ?? null, $record->staff?->phone])->filter()->join(' · ')),
                 Tables\Columns\TextColumn::make('result')->label('Natija')->badge()
                     ->state(fn (Inspection $record) => self::result($record))
                     ->color(fn (Inspection $record) => self::resultColor($record)),
@@ -238,6 +239,9 @@ class InspectionResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('district')->label('Tuman')
                     ->relationship('site.district', 'name'),
+                Tables\Filters\SelectFilter::make('staff_role')->label('Kim yubordi (rol)')
+                    ->options([\App\Models\Staff::ROLE_EMPLOYEE => 'Tuman xodimi', \App\Models\Staff::ROLE_CADASTRE => 'Kadastr xodimi'])
+                    ->query(fn ($query, array $data) => filled($data['value'] ?? null) ? $query->whereHas('staff', fn ($q) => $q->where('role', $data['value'])) : $query),
                 Tables\Filters\SelectFilter::make('result')->label('Natija')
                     ->options(['before' => 'Oldingi holat', 'in_progress' => 'Jarayonda', 'demolished' => 'Buzilgan', 'found' => 'Buzilgan (kelganda)', 'court_cancelled' => 'Sud qarori bekor', 'other' => 'Boshqa muammo (eski)', 'standing' => 'Buzilmagan (eski)'])
                     ->query(fn ($query, array $data) => match ($data['value'] ?? null) {
@@ -283,7 +287,8 @@ class InspectionResource extends Resource
             // obyekt ma'lumotlari — obyekt sahifasidagi bilan bir xil ixcham blok
             SiteResource::summary(fn (Inspection $record) => $record->site, withLink: true),
             Infolists\Components\Section::make('Tekshiruv')->columns(4)->compact()->schema([
-                Infolists\Components\TextEntry::make('staff.full_name')->label('Xodim'),
+                Infolists\Components\TextEntry::make('staff.full_name')->label('Kim yubordi')
+                    ->state(fn (Inspection $record) => $record->staff?->whoLabel())->color(fn (Inspection $record) => $record->staff?->isCadastre() ? 'info' : null),
                 Infolists\Components\TextEntry::make('result')->label('Natija')->badge()
                     ->state(fn (Inspection $record) => self::result($record))
                     ->color(fn (Inspection $record) => self::resultColor($record)),

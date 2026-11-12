@@ -66,12 +66,7 @@ class BrowseHandler
 
             return null;
         }
-        if ($staff?->isCadastre()) {
-            $bot->callbackQuery() && $bot->answerCallbackQuery(['text' => Ui::t('Kadastr xodimi tekshiruv o‘tkazmaydi — obyekt qo‘shishingiz mumkin.'), 'show_alert' => true]);
-
-            return null;
-        }
-
+        // kadastr xodimi ham tekshiruv o'tkazadi (buzish paytida joyida bo'ladi) — natijani moderator tasdiqlaydi
         return $staff;
     }
 
@@ -244,9 +239,10 @@ class BrowseHandler
         }
         $rows[] = match (true) {
             $staff->isCitizen() => [Ui::btn('🔍 Qidirish', "q:{$district->id}")],
-            $staff->isCadastre() => [Ui::btn('🔍 Qidirish', "q:{$district->id}"), self::siteFormButton('➕ Obyekt qo‘shish', ['district' => $district->id])],
             default => [Ui::btn('🔍 Qidirish', "q:{$district->id}"), Ui::btn('📍 Yaqinimdagilar', "near:{$district->id}")],
         };
+        // kadastr: tekshiruvdan tashqari yangi obyekt ham qo'shadi
+        $staff->isCadastre() && $rows[] = [self::siteFormButton('➕ Obyekt qo‘shish', ['district' => $district->id])];
         if ($staff->accessibleDistricts()->count() > 1) {
             $rows[] = [Ui::btn('⬅️ Orqaga', 'home')];
         }
@@ -309,7 +305,7 @@ class BrowseHandler
 
         $rows = [];
         if (! $staff->isCitizen()) {
-            if (! $site->isDemolished() && ! $site->pendingReview && ! $staff->isCadastre()) {
+            if (! $site->isDemolished() && ! $site->pendingReview) {
                 $rows[] = [Ui::btn('▶️ Tekshiruvni boshlash', "go:{$site->id}")];
             }
             if ($site->lat && $site->lng) {

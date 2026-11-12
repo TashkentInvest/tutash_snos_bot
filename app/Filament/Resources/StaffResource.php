@@ -73,7 +73,7 @@ class StaffResource extends Resource
                     ->descriptions([
                         Staff::ROLE_EMPLOYEE => 'Obyektlarni tekshiradi',
                         Staff::ROLE_CONTRACT => 'Faqat davomat va soatlik qayd',
-                        Staff::ROLE_CADASTRE => 'O‘z tumaniga yangi obyekt qo‘shadi (admin tasdiqlaydi)',
+                        Staff::ROLE_CADASTRE => 'O‘z tumanida tekshiradi va yangi obyekt qo‘shadi (admin tasdiqlaydi)',
                         Staff::ROLE_CITIZEN => 'Faqat ko‘radi',
                     ]),
                 Forms\Components\Toggle::make('attendance_required')->label('Ertalabki davomat')
@@ -188,7 +188,7 @@ class StaffResource extends Resource
                     ->form([
                         Forms\Components\Radio::make('role')->label('Rol')->required()->live()->default(Staff::ROLE_EMPLOYEE)
                             ->options([Staff::ROLE_EMPLOYEE => 'Xodim — obyektlarni tekshiradi', Staff::ROLE_CONTRACT => 'Shartnoma — davomat va soatlik qayd',
-                                Staff::ROLE_CADASTRE => 'Kadastr — o‘z tumaniga obyekt qo‘shadi']),
+                                Staff::ROLE_CADASTRE => 'Kadastr — o‘z tumanida tekshiradi va obyekt qo‘shadi']),
                         Forms\Components\Select::make('district_ids')->label('Tumanlar')->multiple()->required()
                             ->options(fn () => \App\Models\District::orderBy('name')->pluck('name', 'id')),
                     ])

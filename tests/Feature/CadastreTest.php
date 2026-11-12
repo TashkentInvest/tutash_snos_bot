@@ -98,15 +98,22 @@ class CadastreTest extends TestCase
         $this->assertFalse((bool) $staff->attendance_required); // kadastrga davomat yuritilmaydi
         $this->assertSame([$this->district->id], $staff->districts()->pluck('districts.id')->all());
 
-        // /start — qo'shish va "men qo'shganlar" tugmalari; tekshiruv tugmasi yo'q
+        // /start — qo'shish va "men qo'shganlar" tugmalari
         $this->bot()->hearText('/start')->reply();
         $this->assertStringContainsString('tg\/site-form', $this->sent());
         $this->assertStringContainsString('cad:mine', $this->sent());
+        // kadastr ham tekshiruv o'tkazadi (buzish paytida joyida) — tuman xodimi kabi
         $site1 = Site::first();
         $this->bot()->hearCallbackQueryData("s:{$site1->id}")->reply();
-        $this->assertStringNotContainsString('go:', $this->sent());
+        $this->assertStringContainsString("go:{$site1->id}", $this->sent());
         $this->bot()->hearCallbackQueryData("go:{$site1->id}")->reply();
-        $this->assertSame(0, Inspection::count());
+        $this->assertStringContainsString("gk:{$site1->id}:check", $this->sent());
+        $this->bot()->hearCallbackQueryData("gk:{$site1->id}:check")->reply();
+        $in = Inspection::sole();
+        $this->assertSame($staff->id, $in->staff_id);
+        $this->assertStringContainsString('Kadastr', $in->staff->whoLabel());   // kim yubordi — roli bilan
+        $this->postJson('/tg/inspection/state', ['initData' => $this->initData()])->assertOk(); // Mini App kadastrni qabul qiladi
+        $in->delete();
 
         // Mini App: tumanlari va MFY lari
         $this->get('/tg/site-form')->assertOk()->assertSee('Yangi obyekt');

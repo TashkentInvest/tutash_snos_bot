@@ -18,7 +18,7 @@ class ManageCadastreStaff extends ManageStaff
 
     public function getSubheading(): ?string
     {
-        return 'Har tuman uchun kadastr xodimlari: botdan o‘z tumaniga yangi obyekt qo‘shadi, siz «Obyektlar» bo‘limida tasdiqlaysiz.';
+        return 'Har tuman uchun kadastr xodimlari: o‘z tumanida buzilishni qayd etadi (tekshiruv) va yangi obyekt qo‘shadi — ikkalasini ham siz tasdiqlaysiz.';
     }
 
     /** Qo'shilgan, lekin botga hali kirmaganlar — shu sahifaning o'zida (aks holda «ro'yxatda yo'q» bo'lib ko'rinadi). */
@@ -42,9 +42,8 @@ class ManageCadastreStaff extends ManageStaff
             ->when($approval, fn ($q) => $q->where('approval', $approval), fn ($q) => $q->whereNull('approval'))->count();
 
         $table = parent::table($table);
-        // kadastrga soatlik qayd va tekshiruv yo'q — ustunlar shovqin
+        // kadastrga soatlik qayd yo'q — ustun shovqin
         $table->getColumn('hourly_checkin')?->hidden();
-        $table->getColumn('inspections_count')?->hidden();
 
         return $table
             ->heading('Botga kirganlar')
