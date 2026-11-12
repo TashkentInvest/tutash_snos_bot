@@ -14,6 +14,9 @@ class ManageStaff extends ManageRecords
 {
     protected static string $resource = StaffResource::class;
 
+    /** «Xodim qo'shish» oynasidagi boshlang'ich rol (Kadastr xodimlari sahifasida — kadastr). */
+    protected const DEFAULT_ROLE = \App\Models\Staff::ROLE_EMPLOYEE;
+
     protected function getHeaderActions(): array
     {
         return [
@@ -29,7 +32,7 @@ class ManageStaff extends ManageRecords
                     Forms\Components\TextInput::make('full_name')->label('F.I.SH')->required()->maxLength(150),
                     Forms\Components\TextInput::make('phone')->label('Telefon (9 raqam)')->required()->placeholder('901234567')
                         ->regex('/^\+?(998)?\s*\d{2}\s*\d{3}\s*\d{2}\s*\d{2}$/')->validationMessages(['regex' => 'Telefon raqami noto‘g‘ri (masalan: 901234567).']),
-                    Forms\Components\Radio::make('role')->label('Rol')->required()->live()->default(\App\Models\Staff::ROLE_EMPLOYEE)
+                    Forms\Components\Radio::make('role')->label('Rol')->required()->live()->default(static::DEFAULT_ROLE)
                         ->options([\App\Models\Staff::ROLE_EMPLOYEE => 'Xodim — obyektlar bilan ishlaydi', \App\Models\Staff::ROLE_CONTRACT => 'Shartnoma — davomat va har soatlik qayd',
                             \App\Models\Staff::ROLE_CADASTRE => 'Kadastr — o‘z tumaniga yangi obyekt qo‘shadi'])
                         ->helperText(StaffResource::ROLE_HINT),

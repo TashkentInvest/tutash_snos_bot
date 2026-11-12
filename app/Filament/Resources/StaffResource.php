@@ -212,6 +212,20 @@ class StaffResource extends Resource
 
     public static function getPages(): array
     {
-        return ['index' => Pages\ManageStaff::route('/')];
+        return ['index' => Pages\ManageStaff::route('/'), 'cadastre' => Pages\ManageCadastreStaff::route('/cadastre')];
+    }
+
+    /** Menyuda ikkita band: «Xodimlar» (hammasi) va «Kadastr xodimlari» (faqat kadastr, tasdiq kutayotgan obyektlar soni bilan). */
+    public static function getNavigationItems(): array
+    {
+        $items = parent::getNavigationItems();
+        $items[0]->isActiveWhen(fn () => request()->routeIs(static::getRouteBaseName().'.index'));
+        $pending = \App\Models\Site::withoutGlobalScope('approved')->where('approval', \App\Models\Site::APPROVAL_PENDING)->count();
+
+        return [...$items, \Filament\Navigation\NavigationItem::make('Kadastr xodimlari')
+            ->group(static::getNavigationGroup())->icon('heroicon-o-map')->sort(static::getNavigationSort())
+            ->isActiveWhen(fn () => request()->routeIs(static::getRouteBaseName().'.cadastre'))
+            ->badge($pending ?: null, 'warning')->badgeTooltip('Kadastr qo‘shgan, tasdiq kutayotgan obyektlar')
+            ->url(static::getUrl('cadastre'))];
     }
 }

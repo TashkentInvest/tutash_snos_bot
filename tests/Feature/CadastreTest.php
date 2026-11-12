@@ -186,6 +186,20 @@ class CadastreTest extends TestCase
         $this->assertSame(0, Site::withoutGlobalScope('approved')->where('approval', Site::APPROVAL_PENDING)->count());
     }
 
+    public function test_cadastre_staff_menu_page_lists_only_cadastre(): void
+    {
+        $cad = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Kadastrchi Bir', 'phone' => '901112233', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CADASTRE]);
+        Staff::create(['telegram_id' => 555, 'full_name' => 'Oddiy Xodimov', 'phone' => '901112244', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE]);
+        Site::withoutGlobalScope('approved')->create(['district_id' => $this->district->id, 'source_no' => 7, 'address' => 'Kutilayotgan', 'area_m2' => 10,
+            'approval' => Site::APPROVAL_PENDING, 'added_by_staff_id' => $cad->id]);
+        $this->actingAs($this->admin());
+
+        $this->get('/admin/staff')->assertOk()->assertSee('Kadastr xodimlari')->assertSee('Oddiy Xodimov');
+        $this->get('/admin/staff/cadastre')->assertOk()->assertSee('Kadastrchi Bir')->assertDontSee('Oddiy Xodimov')->assertSee('1 kutilmoqda');
+        \Livewire\Livewire::test(\App\Filament\Resources\StaffResource\Pages\ManageCadastreStaff::class)
+            ->mountAction('invite')->assertActionDataSet(['role' => Staff::ROLE_CADASTRE]);
+    }
+
     public function test_admin_sets_cadastre_role_and_districts_from_staff_form(): void
     {
         $staff = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Xodim', 'phone' => '901112233', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE]);
