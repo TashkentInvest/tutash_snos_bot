@@ -99,9 +99,13 @@ class RegistrationHandler
         }
 
         // Telefon tekshiruvidan ko'p marta o'ta olmaganlar uchun xodim sifatida kirish yopiq (administrator tiklaydi).
+        // Raqami avval Telegram kontakti bilan tasdiqlangan bo'lsa — so'rov adminga yana eslatiladi (kuniga bir marta), u paneldan tasdiqlaydi.
         if ($staff->failed_attempts >= config('tutash.max_registration_attempts')) {
             $staff->update(['role' => Staff::ROLE_EMPLOYEE, 'status' => Staff::REJECTED]);
-            Ui::say($bot, '⛔ Telefon raqamingiz ruxsat etilgan ro‘yxatda topilmadi va urinishlar soni tugadi. Iltimos, administrator bilan bog‘laning yoki /start orqali «Aholi» sifatida kiring.');
+            $staff->phone && \App\Support\AccessRequest::notifyAdmins($bot, $staff);
+            Ui::say($bot, $staff->phone
+                ? "⏳ Telefon raqamingiz (+998 ".Ui::e($staff->phone).") hali ruxsat etilgan ro‘yxatda yo‘q.\nAdministratorga so‘rov yuborilgan — tasdiqlangach shu botga xabar keladi."
+                : '⛔ Urinishlar soni tugadi. Iltimos, administrator bilan bog‘laning yoki /start orqali «Aholi» sifatida kiring.');
 
             return;
         }

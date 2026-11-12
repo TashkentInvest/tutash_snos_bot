@@ -349,6 +349,16 @@ class BotFlowTest extends TestCase
         $this->assertStringContainsString($json('Ro‘yxatda yo‘q raqam'), $sent);               // adminga darhol xabar
         $this->assertStringContainsString('"chat_id":4242', $sent);
 
+        // urinishlari tugagan (bloklangan) odam keyingi kun qayta kirsa — so'rov adminga yana boradi
+        $staff->update(['failed_attempts' => 3]);
+        \Illuminate\Support\Facades\Cache::flush();
+        $this->bot()->hearText('/start')->reply();
+        $this->bot()->hearCallbackQueryData('role:employee')->reply();
+        $sent = collect($this->bot()->getRequestHistory())->map(fn ($r) => urldecode((string) $r['request']->getBody()))->implode("\n");
+        $this->assertStringContainsString($json('Ro‘yxatda yo‘q raqam'), $sent);
+        $this->assertStringContainsString($json('Administratorga so‘rov yuborilgan'), $sent);
+        $this->assertSame(Staff::REJECTED, $staff->refresh()->status);
+
         // admin paneldan: rol + tuman → faol, odamga botda xabar
         $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
         $admin->save();
