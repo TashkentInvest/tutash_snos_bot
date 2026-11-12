@@ -153,21 +153,25 @@ class InspectionAppController extends Controller
         }
 
         $accuracy = isset($data['accuracy']) ? (float) $data['accuracy'] : null;
-        if ($message = Gps::accuracyError($accuracy)) {
-            AuditLog::record('inspection.low_gps_accuracy', $user['id'], ['inspection' => $in->id, 'accuracy' => $accuracy]);
-
-            return $this->fail($message);
-        }
-
         $lat = (float) $data['lat'];
         $lng = (float) $data['lng'];
         $site = $in->site;
         $distance = ($site->lat && $site->lng) ? Site::distanceMeters($lat, $lng, $site->lat, $site->lng) : null;
+        $device = Device::clean($request->input('device'));
+
+        if ($message = Gps::accuracyError($accuracy)) {
+            AuditLog::record('inspection.low_gps_accuracy', $user['id'], ['inspection' => $in->id, 'accuracy' => $accuracy]);
+            \App\Models\LocationRejection::capture($in, \App\Models\LocationRejection::LOW_ACCURACY, $lat, $lng, $accuracy, $distance, $device);
+
+            return $this->fail($message);
+        }
+
         $tooFar = $distance !== null && $distance > config('tutash.max_distance_m');
         $flags = [...($tooFar ? ['far_from_site'] : []), ...Gps::flags($accuracy)];
 
         if ($tooFar && config('tutash.strict_distance')) {
             AuditLog::record('inspection.too_far_rejected', $user['id'], ['site' => $in->site_id, 'distance' => $distance]);
+            \App\Models\LocationRejection::capture($in, \App\Models\LocationRejection::TOO_FAR, $lat, $lng, $accuracy, $distance, $device);
 
             $radius = (int) config('tutash.max_distance_m');
 
@@ -181,7 +185,7 @@ class InspectionAppController extends Controller
             'staff_lat' => $lat, 'staff_lng' => $lng, 'distance_m' => $distance,
             'suspicious' => $flags !== [], 'flags' => $flags ?: null,
             ...($in->isRework() ? ['step' => $in->edit_target ?? 'edit', 'rework_located' => true] : ['step' => 'photo']),
-            'device' => Device::clean($request->input('device')) ?? $in->device,
+            'device' => $device ?? $in->device,
         ]);
 
         return response()->json($this->snapshot($in->refresh()));

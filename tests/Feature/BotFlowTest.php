@@ -520,6 +520,19 @@ class BotFlowTest extends TestCase
         $this->assertSame('location', $in->refresh()->step);
         $this->assertNull($in->staff_lat);
 
+        // «Xatolikka uchraganlar»: xodim nuqtasi va obyekt nuqtasi saqlanadi, admin xaritada ko'radi
+        $rej = \App\Models\LocationRejection::sole();
+        $this->assertSame(\App\Models\LocationRejection::TOO_FAR, $rej->reason);
+        $this->assertSame([41.5, 69.9], [$rej->lat, $rej->lng]);
+        $this->assertSame([$this->site->lat, $this->site->lng], [$rej->site_lat, $rej->site_lng]);
+        $this->assertGreaterThan(300, $rej->distance_m);
+        $this->assertSame($in->staff_id, $rej->staff_id);
+        $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin);
+        $this->get('/admin/location-rejections')->assertOk()->assertSee('Obyektdan uzoq')->assertSee(' km');
+        $this->get("/admin/location-rejections/{$rej->id}")->assertOk()->assertSee('Xodim yuborgan nuqta')->assertSee('41.5, 69.9')->assertSee('1 marta');
+
         config(['tutash.strict_distance' => false]);
         $this->app('location', ['lat' => 41.5, 'lng' => 69.9])->assertOk();
         $this->assertTrue($in->refresh()->suspicious);
@@ -858,6 +871,7 @@ class BotFlowTest extends TestCase
         $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501, 'accuracy' => 900])->assertStatus(422)->assertJsonPath('ok', false);
         $this->assertSame('location', $in->refresh()->step);
         $this->assertDatabaseHas('audit_logs', ['event' => 'inspection.low_gps_accuracy']);
+        $this->assertDatabaseHas('location_rejections', ['reason' => 'low_accuracy', 'accuracy' => 900, 'inspection_id' => $in->id]);
 
         // aynan 0 m — soxta GPS gumoni: qabul qilinadi, lekin shubhali deb belgilanadi
         $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501, 'accuracy' => 0])->assertOk()->assertJsonPath('step', 'photo');

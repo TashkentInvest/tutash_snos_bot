@@ -144,18 +144,23 @@ class CheckinReport
         file_put_contents($file, $report['png']);
         $caption = Script::apply($report['caption']);
         $sent = 0;
+        $log = ['key' => $key, 'title' => strip_tags(strtok($report['caption'], "\n")), 'to' => [], 'failed' => []];
         try {
             foreach ($to ?? ReportSetting::recipients($key) as $person) {
                 try {
                     $fh = fopen($file, 'r');
-                    $bot->sendPhoto($fh, ['chat_id' => $person->telegram_id, 'caption' => $caption, 'parse_mode' => ParseMode::HTML]);
+                    $msg = $bot->sendPhoto($fh, ['chat_id' => $person->telegram_id, 'caption' => $caption, 'parse_mode' => ParseMode::HTML]);
                     $sent++;
+                    $log['to'][] = $person->full_name.' #'.($msg?->message_id ?? '?');
                 } catch (\Throwable $e) {
+                    $log['failed'][] = $person->full_name.': '.mb_substr($e->getMessage(), 0, 150);
                     report($e); // botni bloklagan bo'lsa — ErrorAlert 403 ni o'tkazib yuboradi
                 }
             }
         } finally {
             @unlink($file);
+            // kimga yetib bordi / bormadi — «falonchiga kelmadi» desa, Audit jurnalidan tekshiriladi
+            \App\Models\AuditLog::record('report.sent.'.$key, null, $log);
         }
 
         return $sent;
