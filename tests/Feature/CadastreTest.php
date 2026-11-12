@@ -196,6 +196,12 @@ class CadastreTest extends TestCase
 
         $this->get('/admin/staff')->assertOk()->assertSee('Kadastr xodimlari')->assertSee('Oddiy Xodimov');
         $this->get('/admin/staff/cadastre')->assertOk()->assertSee('Kadastrchi Bir')->assertDontSee('Oddiy Xodimov')->assertSee('1 kutilmoqda');
+
+        // qo'shilgan, lekin botga hali kirmaganlar ham shu sahifada (butun shahar — barcha tumanlar)
+        \App\Support\StaffInvites::add('903259298', 'Кадиров Сарвар', Staff::ROLE_CADASTRE, \App\Models\District::pluck('id')->all(), null);
+        \App\Support\StaffInvites::add('998332122', 'Нарзуллаев Жасур', Staff::ROLE_CADASTRE, [$this->other->id], null);
+        $this->get('/admin/staff/cadastre')->assertOk()->assertSee('Botga hali kirmaganlar — 2 ta')
+            ->assertSee('Кадиров Сарвар')->assertSee('Butun shahar (2 tuman)')->assertSee('Нарзуллаев Жасур')->assertSee('Sergeli tumani');
         \Livewire\Livewire::test(\App\Filament\Resources\StaffResource\Pages\ManageCadastreStaff::class)
             ->mountAction('invite')->assertActionDataSet(['role' => Staff::ROLE_CADASTRE]);
     }

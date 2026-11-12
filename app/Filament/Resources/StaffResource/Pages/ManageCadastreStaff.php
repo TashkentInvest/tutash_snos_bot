@@ -21,12 +21,33 @@ class ManageCadastreStaff extends ManageStaff
         return 'Har tuman uchun kadastr xodimlari: botdan o‘z tumaniga yangi obyekt qo‘shadi, siz «Obyektlar» bo‘limida tasdiqlaysiz.';
     }
 
+    /** Qo'shilgan, lekin botga hali kirmaganlar — shu sahifaning o'zida (aks holda «ro'yxatda yo'q» bo'lib ko'rinadi). */
+    public function getFooter(): ?\Illuminate\Contracts\View\View
+    {
+        $all = \App\Models\District::count();
+        $names = \App\Models\District::pluck('name', 'id');
+        $invites = \App\Models\StaffInvite::whereNull('used_at')->where('role', Staff::ROLE_CADASTRE)->orderBy('full_name')->get()
+            ->map(fn ($i) => [
+                'name' => $i->full_name, 'phone' => $i->phone, 'at' => $i->created_at?->format('d.m.Y'),
+                'districts' => count($i->district_ids ?? []) >= $all && $all > 0 ? 'Butun shahar ('.$all.' tuman)'
+                    : collect($i->district_ids ?? [])->map(fn ($id) => $names[$id] ?? null)->filter()->join(', '),
+            ]);
+
+        return view('filament.cadastre-invites', ['invites' => $invites, 'url' => \App\Filament\Resources\StaffInviteResource::getUrl()]);
+    }
+
     public function table(Table $table): Table
     {
         $added = fn (Staff $s, ?string $approval) => Site::withoutGlobalScope('approved')->where('added_by_staff_id', $s->id)
             ->when($approval, fn ($q) => $q->where('approval', $approval), fn ($q) => $q->whereNull('approval'))->count();
 
-        return parent::table($table)
+        $table = parent::table($table);
+        // kadastrga soatlik qayd va tekshiruv yo'q — ustunlar shovqin
+        $table->getColumn('hourly_checkin')?->hidden();
+        $table->getColumn('inspections_count')?->hidden();
+
+        return $table
+            ->heading('Botga kirganlar')
             ->modifyQueryUsing(fn ($query) => $query->where('role', Staff::ROLE_CADASTRE))
             ->pushColumns([
                 Tables\Columns\TextColumn::make('cad_sites')->label('Qo‘shgan obyektlar')
