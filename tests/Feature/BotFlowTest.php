@@ -240,6 +240,35 @@ class BotFlowTest extends TestCase
             ->mountTableAction('edit', $this->olmazor)->assertSee('Xodim telefoni qo‘shish');
     }
 
+    /** Tuman formasida botdagi xodimlar qidirib tanlanadi; olib tashlansa — tumandan ajratiladi. */
+    public function test_district_form_links_registered_staff_by_search(): void
+    {
+        $a = Staff::create(['telegram_id' => 71, 'full_name' => 'Saidov Anvar', 'phone' => '901110001', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE]);
+        $b = Staff::create(['telegram_id' => 72, 'full_name' => 'Karimov Bobur', 'phone' => '901110002', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
+        $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin);
+        $page = fn () => \Livewire\Livewire::test(\App\Filament\Resources\DistrictResource\Pages\ManageDistricts::class);
+
+        // botga hali kirmagan odam raqami qo'lda (repeater) — saqlanib qolishi kerak
+        $this->olmazor->phones()->create(['phone' => '935554433', 'name' => 'Hali kirmagan']);
+
+        $page()->mountTableAction('edit', $this->olmazor)->assertSee('qidirib tanlang')
+            ->setTableActionData(['staff_ids' => [(string) $a->id, (string) $b->id]])
+            ->callMountedTableAction()->assertHasNoTableActionErrors();
+        $this->assertEqualsCanonicalizing(['901110001', '901110002', '935554433'], $this->olmazor->phones()->pluck('phone')->all());
+        $this->assertSame([$this->olmazor->id], $a->districts()->pluck('districts.id')->all()); // darhol biriktirildi
+        $this->assertSame([$this->olmazor->id], $b->districts()->pluck('districts.id')->all());
+
+        // qayta ochilganda tanlanganlar ko'rinadi; birini olib tashlash
+        $page()->mountTableAction('edit', $this->olmazor)->assertTableActionDataSet(['staff_ids' => [(string) $b->id, (string) $a->id]])
+            ->setTableActionData(['staff_ids' => [(string) $a->id]])
+            ->callMountedTableAction()->assertHasNoTableActionErrors();
+        $this->assertEqualsCanonicalizing(['901110001', '935554433'], $this->olmazor->phones()->pluck('phone')->all());
+        $this->assertSame([], $b->districts()->pluck('districts.id')->all());
+        $this->assertSame([$this->olmazor->id], $a->districts()->pluck('districts.id')->all());
+    }
+
     public function test_one_phone_responsible_for_two_districts(): void
     {
         // bitta raqam ikki tumanga mas'ul bo'lgan holat

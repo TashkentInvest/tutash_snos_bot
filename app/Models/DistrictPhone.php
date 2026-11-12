@@ -27,6 +27,6 @@ class DistrictPhone extends Model
     public function staff(): BelongsTo
     {
         return $this->belongsTo(Staff::class, 'phone', 'phone')
-            ->where('status', Staff::ACTIVE)->where('role', Staff::ROLE_EMPLOYEE);
+            ->where('status', Staff::ACTIVE)->whereIn('role', Staff::DISTRICT_ROLES);
     }
 }

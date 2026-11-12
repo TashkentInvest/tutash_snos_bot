@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\DistrictResource\Pages;
 use App\Models\District;
+use App\Models\Staff;
 use Filament\Forms;
 use Filament\Forms\Form;
 use App\Models\User;
@@ -37,9 +38,28 @@ class DistrictResource extends Resource
             Forms\Components\TextInput::make('phone')->label('Mas\'ul xodim telefoni (9 raqam)')
                 ->helperText('Masalan: 992012272. Xodim shu raqam bilan botga kirganda tumanga biriktiriladi.')
                 ->regex('/^\d{9}$/')->length(9),
-            // bitta tumanga 2-3 xodim: har bir raqam egasi botga kirganda shu tumanga xodim sifatida biriktiriladi
-            Forms\Components\Repeater::make('phones')->relationship()->label('Qo‘shimcha xodimlar')
-                ->helperText('Shu tumanda ishlaydigan boshqa xodimlar. Raqam egasi botda /start bosib, telefonini yuborganda tumanga biriktiriladi.')
+            // botda bor xodimlar — qidirib tanlanadi (yozish shart emas); tanlansa shu tumanga darhol biriktiriladi
+            Forms\Components\Select::make('staff_ids')->label('Qo‘shimcha xodimlar — qidirib tanlang')
+                ->helperText('Botda ro‘yxatdan o‘tgan xodimlar: ism yoki telefon bo‘yicha qidiring, bir nechtasini tanlang. Saqlangach shu tumanga darhol biriktiriladi.')
+                ->multiple()->searchable()->preload()
+                ->options(fn () => self::linkableStaff()->get()->mapWithKeys(fn (Staff $s) => [(string) $s->id => $s->full_name.' · '
+                    .(StaffResource::ROLES[$s->role] ?? $s->role).' · '.$s->phone])->all())
+                ->afterStateHydrated(fn ($component, ?District $record) => $component->state($record
+                    ? self::linkableStaff()->whereIn('phone', $record->phones()->pluck('phone'))->pluck('id')->map(fn ($id) => (string) $id)->all() : []))
+                ->dehydrated(false)
+                ->saveRelationshipsUsing(function (District $record, $state) {
+                    $linkable = self::linkableStaff()->get(['id', 'phone', 'full_name']);
+                    $chosen = $linkable->whereIn('id', array_map('intval', $state ?? []));
+                    // olib tashlanganlar (o'chirish hodisasi xodim tumanlarini darhol yangilaydi)
+                    $record->phones()->whereIn('phone', $linkable->pluck('phone'))->whereNotIn('phone', $chosen->pluck('phone'))->get()->each->delete();
+                    $chosen->each(fn (Staff $s) => $record->phones()->firstOrCreate(['phone' => $s->phone], ['name' => $s->full_name]));
+                })
+                ->columnSpanFull(),
+            // botga hali kirmagan odam — raqami qo'lda: egasi botda /start bosib, telefonini yuborganda tumanga biriktiriladi
+            Forms\Components\Repeater::make('phones')
+                ->relationship('phones', modifyQueryUsing: fn ($query) => $query->whereNotIn('phone', self::linkableStaff()->pluck('phone')))
+                ->label('Botga hali kirmaganlar (telefon raqami bilan)')
+                ->helperText('Ro‘yxatda topilmagan odam: raqam egasi botda /start bosib, telefonini yuborganda shu tumanga biriktiriladi.')
                 ->schema([
                     Forms\Components\TextInput::make('name')->label('F.I.SH')->maxLength(100),
                     Forms\Components\TextInput::make('phone')->label('Telefon (9 raqam)')->required()
@@ -49,6 +69,13 @@ class DistrictResource extends Resource
                 ->columns(2)->defaultItems(0)->addActionLabel('Xodim telefoni qo‘shish')->reorderable(false)
                 ->columnSpanFull(),
         ]);
+    }
+
+    /** Tumanga biriktirsa bo'ladigan, botda bor faol xodimlar (xodim, shartnoma, kadastr). */
+    public static function linkableStaff()
+    {
+        return Staff::where('status', Staff::ACTIVE)->whereNotNull('telegram_id')->whereNotNull('phone')
+            ->whereIn('role', Staff::DISTRICT_ROLES)->orderBy('full_name');
     }
 
     public static function table(Table $table): Table
