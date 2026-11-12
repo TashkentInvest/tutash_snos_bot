@@ -156,6 +156,10 @@ class SiteResource extends Resource
     {
         return $infolist->schema([
             self::summary(fn (Site $record) => $record),
+            // obyekt qayerda: xaritada nuqta, ruxsat etilgan radius, xodimlar turgan va rad etilgan joylar
+            Infolists\Components\Section::make('Joylashuv')->compact()->collapsible()->schema([
+                Infolists\Components\ViewEntry::make('location_map')->hiddenLabel()->view('filament.site-map'),
+            ]),
             Infolists\Components\Section::make('Avvalgi holat rasmlari')->visible(fn (Site $record) => ! empty($record->photos))->schema([
                 Infolists\Components\ViewEntry::make('photos')->hiddenLabel()->view('filament.infolists.site-photos'),
             ]),
