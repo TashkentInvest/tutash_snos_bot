@@ -104,6 +104,13 @@ class CheckinController extends Controller
         $lowAccuracy = Gps::accuracyError($accuracy) !== null;
         $lat = (float) $data['lat'];
         $lng = (float) $data['lng'];
+        // faqat biriktirilgan tuman hududidan (tuman kesimida)
+        if ($outside = Gps::outsideDistricts($row->staff, $lat, $lng, $accuracy)) {
+            AuditLog::record('checkin.out_of_district', $user['id'], ['checkin' => $row->id] + $outside);
+            \App\Models\LocationRejection::captureDistrict($row->staff, 'checkin', $lat, $lng, $accuracy, $outside, Device::clean($request->input('device')));
+
+            return $this->fail('Siz biriktirilgan hududingizdan tashqaridasiz ('.$outside['districts'].' chegarasidan taxminan '.\App\Filament\Resources\LocationRejectionResource::meters($outside['distance']).' uzoqda). Joylashuv faqat o‘z tumaningiz hududidan qabul qilinadi.');
+        }
         $distance = Gps::nearestSiteDistance($row->staff, $lat, $lng);
         $far = $distance !== null && $distance > config('tutash.attendance.max_distance_m');
         $flags = [...($far ? ['far_from_district'] : []), ...($lowAccuracy ? ['low_gps_accuracy'] : []), ...Gps::flags($accuracy)];

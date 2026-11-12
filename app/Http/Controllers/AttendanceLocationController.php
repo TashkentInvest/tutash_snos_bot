@@ -110,9 +110,17 @@ class AttendanceLocationController extends Controller
         $lowAccuracy = Gps::accuracyError($accuracy) !== null;
         $lowAccuracy && AuditLog::record('attendance.low_gps_accuracy', $user['id'], ['attendance' => $row->id, 'accuracy' => $accuracy]);
 
-        // Xodim o'z hududida ekanini tekshirish: biriktirilgan tumanlardagi eng yaqin obyektgacha masofa.
         $lat = (float) $data['lat'];
         $lng = (float) $data['lng'];
+        // faqat biriktirilgan tuman hududidan (tuman kesimida); tashqarida — rad, admin «Xatolikka uchraganlar»da ko'radi
+        if ($outside = Gps::outsideDistricts($row->staff, $lat, $lng, $accuracy)) {
+            AuditLog::record('attendance.out_of_district', $user['id'], ['attendance' => $row->id] + $outside);
+            \App\Models\LocationRejection::captureDistrict($row->staff, 'attendance', $lat, $lng, $accuracy, $outside, Device::clean($request->input('device')));
+
+            return response()->json(['ok' => false, 'message' => 'Siz biriktirilgan hududingizdan tashqaridasiz ('.$outside['districts'].' chegarasidan taxminan '.\App\Filament\Resources\LocationRejectionResource::meters($outside['distance']).' uzoqda). Joylashuv faqat o‘z tumaningiz hududidan qabul qilinadi.'], 422);
+        }
+
+        // eng yaqin obyektgacha masofa (admin uchun belgi)
         $distance = Gps::nearestSiteDistance($row->staff, $lat, $lng);
         $far = $distance !== null && $distance > config('tutash.attendance.max_distance_m');
         $flags = [...($far ? ['far_from_district'] : []), ...($lowAccuracy ? ['low_gps_accuracy'] : []), ...Gps::flags($accuracy)];

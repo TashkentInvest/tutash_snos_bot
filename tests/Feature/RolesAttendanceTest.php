@@ -523,6 +523,43 @@ class RolesAttendanceTest extends TestCase
         $this->assertSame(['far_from_district'], $row->flags);
     }
 
+    /** Davomat faqat biriktirilgan tuman hududidan (tuman obyektlari o'rami + 1500 m zaxira + GPS aniqligi). */
+    public function test_attendance_is_accepted_only_inside_assigned_district(): void
+    {
+        foreach ([[41.32, 69.25], [41.31, 69.27], [41.31, 69.23]] as $i => [$lat, $lng]) {
+            Site::create(['district_id' => $this->district->id, 'source_no' => 20 + $i, 'address' => "Chekka {$i}", 'lat' => $lat, 'lng' => $lng]);
+        }
+        $staff = $this->registerEmployee();
+        $this->artisan('attendance:send')->assertSuccessful();
+        $row = Attendance::where('staff_id', $staff->id)->first();
+        $this->bot()->hearCallbackQueryData('at:1')->reply();
+        $init = $this->initData(self::UID);
+
+        // ~9 km tashqarida — rad, «Xatolikka uchraganlar»ga tushadi
+        $this->postJson('/tg/attendance-location', ['initData' => $init, 'lat' => 41.40, 'lng' => 69.25, 'accuracy' => 20])
+            ->assertStatus(422)->assertJsonPath('message', fn ($m) => str_contains($m, 'Yunusobod tumani') && str_contains($m, 'tashqaridasiz'));
+        $this->assertSame(Attendance::LOCATING, $row->refresh()->status);
+        $rej = \App\Models\LocationRejection::sole();
+        $this->assertSame(['attendance', 'out_of_district', $staff->id], [$rej->source, $rej->reason, $rej->staff_id]);
+        $this->assertStringContainsString('Yunusobod tumani', $rej->note);
+        $this->assertNotNull($rej->site_id); // xaritada eng yaqin obyekt bilan
+
+        // tuman chetidan ~1,1 km (zaxira ichida) va GPS ±300 m bo'lsa ham — qabul
+        $this->postJson('/tg/attendance-location', ['initData' => $init, 'lat' => 41.33, 'lng' => 69.25, 'accuracy' => 300])->assertOk();
+        $this->assertSame(Attendance::RECORDING, $row->refresh()->status);
+
+        // admin: ro'yxat va xarita sahifasi (tuman hududi chiziladi)
+        $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin);
+        $this->get('/admin/location-rejections')->assertOk()->assertSee('Tumandan tashqarida')->assertSee('Ertalabki davomat');
+        $this->get("/admin/location-rejections/{$rej->id}")->assertOk()->assertSee('Eng yaqin obyekt')->assertSee('Yunusobod tumani')->assertSee('punktir');
+
+        // barcha tumanlarga biriktirilgan xodim tekshirilmaydi
+        $staff->update(['is_global' => true]);
+        $this->assertNull(\App\Support\Gps::outsideDistricts($staff->refresh(), 41.40, 69.25, 20));
+    }
+
     public function test_attendance_location_near_site_is_not_flagged(): void
     {
         $staff = $this->registerEmployee();

@@ -14,7 +14,7 @@ class StaffInvites
     {
         $phone = Staff::normalizePhone($phone);
         $hourlyCheckin = $role === Staff::ROLE_EMPLOYEE && $hourlyCheckin; // shartnoma xodimida rol bo'yicha doim yoqilgan
-        $withDistricts = in_array($role, [Staff::ROLE_EMPLOYEE, Staff::ROLE_CADASTRE], true);
+        $withDistricts = in_array($role, Staff::DISTRICT_ROLES, true);
         $districtIds = $withDistricts ? array_map('intval', $districtIds) : [];
 
         // botda allaqachon bor — roli va tumanlari darhol yangilanadi
@@ -52,7 +52,7 @@ class StaffInvites
             'failed_attempts' => 0, 'is_global' => false, 'attendance_required' => true,
             'full_name' => $invite->full_name ?: $staff->full_name,
         ]);
-        in_array($invite->role, [Staff::ROLE_EMPLOYEE, Staff::ROLE_CADASTRE], true)
+        in_array($invite->role, Staff::DISTRICT_ROLES, true)
             ? $staff->assignDistricts($invite->district_ids ?? [])
             : $staff->districts()->detach();
         $invite->role === Staff::ROLE_CADASTRE && $staff->update(['attendance_required' => false]);

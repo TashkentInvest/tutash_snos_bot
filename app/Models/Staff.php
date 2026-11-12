@@ -27,6 +27,8 @@ class Staff extends Model
 
     /** Ishga chiqadigan (davomat yuritiladigan) rollar. */
     public const WORK_ROLES = [self::ROLE_EMPLOYEE, self::ROLE_CONTRACT];
+    /** Tumanga biriktiriladigan rollar: davomat tuman hududidan qabul qilinadi (shartnoma ham), xodim va kadastr tumanni ko'radi. */
+    public const DISTRICT_ROLES = [self::ROLE_EMPLOYEE, self::ROLE_CADASTRE, self::ROLE_CONTRACT];
 
     protected $table = 'staff';
 
@@ -73,7 +75,7 @@ class Staff extends Model
         }
 
         // tumanga telefon orqali biriktiriladiganlar: xodim va kadastr
-        self::where('status', self::ACTIVE)->whereIn('role', [self::ROLE_EMPLOYEE, self::ROLE_CADASTRE])->where('is_global', false)
+        self::where('status', self::ACTIVE)->whereIn('role', self::DISTRICT_ROLES)->where('is_global', false)
             ->whereIn('phone', $phones)->get()
             ->reject(fn (Staff $s) => self::isAllDistrictsEmployeePhone($s->phone))
             ->each(fn (Staff $s) => $s->districts()->sync(District::forPhone($s->phone)->pluck('id')));

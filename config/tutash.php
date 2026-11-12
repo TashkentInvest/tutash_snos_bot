@@ -42,6 +42,8 @@ return [
         'min_video_seconds' => 3,
         // Xodim biriktirilgan tumanlardagi eng yaqin obyektdan shu masofadan (metr) uzoqda bo'lsa davomat "shubhali" deb belgilanadi.
         'max_distance_m' => (int) env('ATTENDANCE_MAX_DISTANCE_M', 5000),
+        // davomat faqat biriktirilgan tuman hududidan: tuman obyektlari o'ramidan shu masofagacha (+ GPS aniqligi) ruxsat
+        'district_buffer_m' => (int) env('ATTENDANCE_DISTRICT_BUFFER_M', 1500),
         // Eski sozlama: hisobot oluvchilar endi admin panelda («Hisobot oladi»); faqat birinchi migratsiyada o'qiladi.
         'report_phones' => env('ATTENDANCE_REPORT_PHONES', ''),
     ],

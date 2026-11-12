@@ -57,7 +57,7 @@ class StaffResource extends Resource
     {
         $isEmployee = fn (Forms\Get $get) => $get('role') === Staff::ROLE_EMPLOYEE;
         // tumanga biriktiriladiganlar: xodim va kadastr
-        $hasDistricts = fn (Forms\Get $get) => in_array($get('role'), [Staff::ROLE_EMPLOYEE, Staff::ROLE_CADASTRE], true);
+        $hasDistricts = fn (Forms\Get $get) => in_array($get('role'), Staff::DISTRICT_ROLES, true);
         $isWorker = fn (Forms\Get $get) => in_array($get('role'), Staff::WORK_ROLES, true);
 
         return $form->schema([

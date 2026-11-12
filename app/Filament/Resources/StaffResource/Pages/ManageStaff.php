@@ -35,7 +35,7 @@ class ManageStaff extends ManageRecords
                         ->helperText(StaffResource::ROLE_HINT),
                     Forms\Components\Select::make('district_ids')->label('Tumanlar')->multiple()
                         ->options(District::orderBy('name')->pluck('name', 'id'))
-                        ->visible(fn (Forms\Get $get) => in_array($get('role'), [\App\Models\Staff::ROLE_EMPLOYEE, \App\Models\Staff::ROLE_CADASTRE], true))
+                        ->visible(fn (Forms\Get $get) => in_array($get('role'), \App\Models\Staff::DISTRICT_ROLES, true))
                         ->required(fn (Forms\Get $get) => in_array($get('role'), [\App\Models\Staff::ROLE_EMPLOYEE, \App\Models\Staff::ROLE_CADASTRE], true)),
                     Forms\Components\Toggle::make('hourly_checkin')->label('Soatlik qayd ham yuritiladi')
                         ->helperText(StaffResource::CHECKIN_HINT)

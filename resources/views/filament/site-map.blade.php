@@ -6,7 +6,7 @@
     $visits = $site->inspections()->whereNotNull('staff_lat')->with('staff')->latest('id')->limit(15)->get()
         ->map(fn ($in) => ['p' => [$in->staff_lat, $in->staff_lng], 'c' => '#16a34a',
             't' => 'Tekshiruv · '.($in->staff?->full_name ?? '').' · '.$in->created_at?->format('d.m.Y H:i').($in->distance_m !== null ? ' · '.$in->distance_m.' m' : '')])->values();
-    $rejected = \App\Models\LocationRejection::where('site_id', $site->id)->with('staff')->latest('id')->limit(15)->get()
+    $rejected = \App\Models\LocationRejection::where('site_id', $site->id)->where('source', 'inspection')->with('staff')->latest('id')->limit(15)->get()
         ->map(fn ($r) => ['p' => [$r->lat, $r->lng], 'c' => '#dc2626',
             't' => 'Rad etilgan · '.($r->staff?->full_name ?? '').' · '.$r->created_at?->format('d.m.Y H:i').' · '.\App\Filament\Resources\LocationRejectionResource::meters($r->distance_m)])->values();
     $data = ['site' => $site->lat ? [$site->lat, $site->lng] : null, 'radius' => $radius, 'points' => $visits->concat($rejected)->all()];
