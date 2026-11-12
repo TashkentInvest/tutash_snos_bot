@@ -140,6 +140,8 @@ class StaffResource extends Resource
                 Tables\Columns\TextColumn::make('last_seen_at')->label('Oxirgi faollik')->since()->sortable(),
             ])
             ->filters([
+                Tables\Filters\Filter::make('waiting')->label('Tasdiq kutayotganlar (raqami ro‘yxatda yo‘q)')
+                    ->query(fn ($query) => $query->whereIn('status', [Staff::REGISTERING, Staff::REJECTED])->whereNotNull('phone')->whereNotNull('telegram_id')),
                 Tables\Filters\SelectFilter::make('status')->label('Holat')->options(self::STATUSES),
                 Tables\Filters\SelectFilter::make('role')->label('Rol')->options(self::ROLES),
                 Tables\Filters\Filter::make('hourly')->label('Soatlik qayd yuritiladi')
@@ -177,6 +179,23 @@ class StaffResource extends Resource
 
                     return $record;
                 }),
+                // raqami ro'yxatda topilmagan, botda kutib turgan odam — rol va tuman berib tasdiqlash (odamga botda xabar boradi)
+                Tables\Actions\Action::make('approveAccess')->label('Tasdiqlash')->color('success')->icon('heroicon-o-check-badge')->button()
+                    ->visible(fn (Staff $record) => in_array($record->status, [Staff::REGISTERING, Staff::REJECTED], true) && $record->phone && $record->telegram_id && ! $record->trashed())
+                    ->modalHeading(fn (Staff $record) => 'Tasdiqlash — '.$record->full_name.' (+998 '.$record->phone.')')
+                    ->modalDescription('Raqami ruxsat etilgan ro‘yxatda topilmagani uchun kutib turibdi. Rol va tumanni tanlang — unga botda xabar boradi.')
+                    ->modalSubmitActionLabel('Tasdiqlash')
+                    ->form([
+                        Forms\Components\Radio::make('role')->label('Rol')->required()->live()->default(Staff::ROLE_EMPLOYEE)
+                            ->options([Staff::ROLE_EMPLOYEE => 'Xodim — obyektlarni tekshiradi', Staff::ROLE_CONTRACT => 'Shartnoma — davomat va soatlik qayd',
+                                Staff::ROLE_CADASTRE => 'Kadastr — o‘z tumaniga obyekt qo‘shadi']),
+                        Forms\Components\Select::make('district_ids')->label('Tumanlar')->multiple()->required()
+                            ->options(fn () => \App\Models\District::orderBy('name')->pluck('name', 'id')),
+                    ])
+                    ->action(function (Staff $record, array $data) {
+                        \App\Support\AccessRequest::approve($record, $data['role'], array_map('intval', $data['district_ids']), auth()->id());
+                        Notification::make()->title('Tasdiqlandi — botda xabar yuborildi')->success()->send();
+                    }),
                 Tables\Actions\Action::make('block')->label('Bloklash')->color('danger')->icon('heroicon-o-no-symbol')
                     ->requiresConfirmation()->visible(fn (Staff $record) => $record->status !== Staff::BLOCKED && ! $record->trashed())
                     ->action(fn (Staff $record) => $record->update(['status' => Staff::BLOCKED])),
@@ -220,6 +239,10 @@ class StaffResource extends Resource
     {
         $items = parent::getNavigationItems();
         $items[0]->isActiveWhen(fn () => request()->routeIs(static::getRouteBaseName().'.index'));
+        // raqami ro'yxatda topilmay botda kutib turganlar — ko'zga tashlansin
+        ($waiting = \App\Support\AccessRequest::waiting()->count()) && $items[0]->badge((string) $waiting, 'danger')
+            ->badgeTooltip('Tasdiq kutayotganlar: raqami ro‘yxatda topilmagan')
+            ->url(static::getUrl('index', ['tableFilters' => ['waiting' => ['isActive' => true]]]));
         $pending = \App\Models\Site::withoutGlobalScope('approved')->where('approval', \App\Models\Site::APPROVAL_PENDING)->count();
 
         return [...$items, \Filament\Navigation\NavigationItem::make('Kadastr xodimlari')

@@ -303,13 +303,36 @@ class BotFlowTest extends TestCase
         $this->assertSame(2, $staff->accessibleDistricts()->count());
     }
 
-    public function test_unknown_phone_is_rejected(): void
+    public function test_unknown_phone_waits_admin_is_alerted_and_approves_in_one_click(): void
     {
+        // admin (DEBUG_ALERT_PHONES) botda bor
+        config(['tutash.debug_alert_phones' => '+998 99 790 66 99']);
+        Staff::create(['telegram_id' => 4242, 'full_name' => 'Admin', 'phone' => '997906699', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true]);
+
         $this->register('+998 90 000 00 00');
+        $sent = collect($this->bot()->getRequestHistory())->map(fn ($r) => urldecode((string) $r['request']->getBody()))->implode("\n");
 
         $staff = Staff::where('telegram_id', self::UID)->first();
         $this->assertNotSame(Staff::ACTIVE, $staff->status);
         $this->assertCount(0, $staff->districts);
+        $json = fn (string $t) => trim(json_encode($t), '"'); // so'rov tanasi JSON (‘ ko'rinishida)
+        $this->assertStringContainsString($json('Administratorga so‘rov yuborildi'), $sent);   // odamga: kutib qolmasin
+        $this->assertStringContainsString($json('Ro‘yxatda yo‘q raqam'), $sent);               // adminga darhol xabar
+        $this->assertStringContainsString('"chat_id":4242', $sent);
+
+        // admin paneldan: rol + tuman → faol, odamga botda xabar
+        $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin);
+        $this->get('/admin/staff?tableFilters[waiting][isActive]=1')->assertOk()->assertSee('Aliyev Ali Aliyevich')->assertSee('Tasdiqlash');
+        \Livewire\Livewire::test(\App\Filament\Resources\StaffResource\Pages\ManageStaff::class)
+            ->callTableAction('approveAccess', $staff, ['role' => Staff::ROLE_EMPLOYEE, 'district_ids' => [(string) $this->olmazor->id]])
+            ->assertHasNoTableActionErrors();
+        $staff->refresh();
+        $this->assertSame(Staff::ACTIVE, $staff->status);
+        $this->assertSame(Staff::ROLE_EMPLOYEE, $staff->role);
+        $this->assertSame([$this->olmazor->id], $staff->districts()->pluck('districts.id')->all());
+        $this->assertDatabaseHas('audit_logs', ['event' => 'registration.approved_by_admin']);
     }
 
     public function test_foreign_contact_is_rejected(): void

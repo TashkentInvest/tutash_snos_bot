@@ -188,10 +188,10 @@ class RegistrationHandler
             $locked = $staff->failed_attempts >= config('tutash.max_registration_attempts');
             $staff->update(['phone' => $phone, 'status' => $locked ? Staff::REJECTED : Staff::REGISTERING]);
             AuditLog::record('registration.phone_not_found', $bot->userId(), ['phone' => $phone, 'name' => $staff->full_name]);
+            // kutib qolmasin: admin darhol xabar oladi va paneldan bir bosishda tasdiqlaydi
+            \App\Support\AccessRequest::notifyAdmins($bot, $staff->refresh());
 
-            Ui::say($bot, $locked
-                ? '⛔ Telefon raqamingiz ruxsat etilgan ro‘yxatda topilmadi. Urinishlar soni tugadi. Iltimos, administrator bilan bog‘laning.'
-                : "⛔ Telefon raqamingiz ruxsat etilgan ro‘yxatda topilmadi.\nAgar bu xato deb hisoblasangiz, tuman mas’ul xodimiga murojaat qilib, qayta /start buyrug‘ini yuboring.", Ui::removeKeyboard());
+            Ui::say($bot, "⏳ Telefon raqamingiz hali ruxsat etilgan ro‘yxatda yo‘q.\nAdministratorga so‘rov yuborildi — tasdiqlangach shu botga xabar keladi, qayta urinish shart emas.", Ui::removeKeyboard());
 
             return;
         }
