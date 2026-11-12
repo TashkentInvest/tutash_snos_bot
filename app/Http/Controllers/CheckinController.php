@@ -99,15 +99,14 @@ class CheckinController extends Controller
             return $this->fail('Hozir soatlik so‘rov yo‘q yoki javob muddati tugagan.', 409);
         }
 
+        // soatlik qaydda ham past aniqlik rad etilmaydi — qabul qilinadi, belgi qo'yiladi
         $accuracy = isset($data['accuracy']) ? (float) $data['accuracy'] : null;
-        if ($message = Gps::accuracyError($accuracy)) {
-            return $this->fail($message);
-        }
+        $lowAccuracy = Gps::accuracyError($accuracy) !== null;
         $lat = (float) $data['lat'];
         $lng = (float) $data['lng'];
         $distance = Gps::nearestSiteDistance($row->staff, $lat, $lng);
         $far = $distance !== null && $distance > config('tutash.attendance.max_distance_m');
-        $flags = [...($far ? ['far_from_district'] : []), ...Gps::flags($accuracy)];
+        $flags = [...($far ? ['far_from_district'] : []), ...($lowAccuracy ? ['low_gps_accuracy'] : []), ...Gps::flags($accuracy)];
 
         $row->update(['lat' => $lat, 'lng' => $lng, 'nearest_site_m' => $distance, 'flags' => $flags ?: null, 'status' => Checkin::RECORDING,
             'device' => Device::clean($request->input('device')) ?? $row->device]);

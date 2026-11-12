@@ -511,9 +511,11 @@ class RolesAttendanceTest extends TestCase
         $this->bot()->hearCallbackQueryData('at:1')->reply();
         $init = $this->initData(self::UID);
 
-        // past aniqlik — rad
-        $this->postJson('/tg/attendance-location', ['initData' => $init, 'lat' => 41.3, 'lng' => 69.25, 'accuracy' => 800])->assertStatus(422);
-        $this->assertSame(Attendance::LOCATING, $row->refresh()->status);
+        // past aniqlik (bino ichida ±300 m) — rad etilmaydi: qabul qilinadi, admin uchun belgilanadi
+        $this->postJson('/tg/attendance-location', ['initData' => $init, 'lat' => 41.3, 'lng' => 69.25, 'accuracy' => 800])->assertOk();
+        $this->assertSame(Attendance::RECORDING, $row->refresh()->status);
+        $this->assertSame(['low_gps_accuracy'], $row->flags);
+        $row->update(['status' => Attendance::LOCATING, 'flags' => null]);
 
         // biriktirilgan tumandagi obyektlardan ~50 km uzoqda — qabul qilinadi, lekin belgilanadi
         $this->postJson('/tg/attendance-location', ['initData' => $init, 'lat' => 41.75, 'lng' => 69.25, 'accuracy' => 10])->assertOk();

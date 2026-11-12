@@ -105,19 +105,17 @@ class AttendanceLocationController extends Controller
             return response()->json(['ok' => false, 'message' => 'Davomatni qabul qilish muddati tugagan.'], 409);
         }
 
+        // davomatda past aniqlik rad etilmaydi (bino ichida GPS ±300 m bo'lib qoladi) — qabul qilinadi, admin uchun belgi qo'yiladi
         $accuracy = isset($data['accuracy']) ? (float) $data['accuracy'] : null;
-        if ($message = Gps::accuracyError($accuracy)) {
-            AuditLog::record('attendance.low_gps_accuracy', $user['id'], ['attendance' => $row->id, 'accuracy' => $accuracy]);
-
-            return response()->json(['ok' => false, 'message' => $message], 422);
-        }
+        $lowAccuracy = Gps::accuracyError($accuracy) !== null;
+        $lowAccuracy && AuditLog::record('attendance.low_gps_accuracy', $user['id'], ['attendance' => $row->id, 'accuracy' => $accuracy]);
 
         // Xodim o'z hududida ekanini tekshirish: biriktirilgan tumanlardagi eng yaqin obyektgacha masofa.
         $lat = (float) $data['lat'];
         $lng = (float) $data['lng'];
         $distance = Gps::nearestSiteDistance($row->staff, $lat, $lng);
         $far = $distance !== null && $distance > config('tutash.attendance.max_distance_m');
-        $flags = [...($far ? ['far_from_district'] : []), ...Gps::flags($accuracy)];
+        $flags = [...($far ? ['far_from_district'] : []), ...($lowAccuracy ? ['low_gps_accuracy'] : []), ...Gps::flags($accuracy)];
 
         $row->update([
             'lat' => $lat, 'lng' => $lng, 'status' => Attendance::RECORDING,
