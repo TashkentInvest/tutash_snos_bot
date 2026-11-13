@@ -317,4 +317,36 @@ class CheckinTest extends TestCase
             ->callAction('remind', ['scope' => 'all', 'text' => 'Ertaga 08:00 da yig‘ilish'])
             ->assertNotified('Eslatma yuborildi: 2 ta xodimga');
     }
+
+    /** Soatlik va kun yakuni hisobotlari: tumandan tashqaridan urinib, qabul qilinmagan — «Javob bermadi» emas, joyi va masofasi bilan. */
+    public function test_hourly_reports_show_out_of_district_attempts(): void
+    {
+        $d = \App\Models\District::create(['name' => 'Yakkasaroy tumani', 'phone' => '901110000',
+            'boundary' => [[[41.29, 69.24], [41.31, 69.24], [41.31, 69.27], [41.29, 69.27], [41.29, 69.24]]]]);
+        $a = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Aslanov Sanjar', 'phone' => '950507174', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
+        $b = Staff::create(['telegram_id' => 777011, 'full_name' => 'Boboyev Bobur', 'phone' => '900000011', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
+        $b->districts()->sync([$d->id]);
+        foreach (['10:00', '11:00'] as $slot) {
+            $this->travelTo(today()->setTimeFromTimeString($slot));
+            $this->artisan('checkins:run')->assertSuccessful();
+        }
+        // B 10:00 soatida ikki marta tumandan ~1,1 km tashqaridan urindi (rad etildi)
+        foreach (['10:20', '10:25'] as $t) {
+            $this->travelTo(today()->setTimeFromTimeString($t));
+            \App\Models\LocationRejection::create(['staff_id' => $b->id, 'source' => 'checkin', 'reason' => 'out_of_district', 'lat' => 41.32, 'lng' => 69.25, 'accuracy' => 10]);
+        }
+
+        $h = \App\Telegram\Support\CheckinReport::hourly(today(), '10:00');
+        $this->assertStringContainsString('Hududdan tashqarida: <b>1</b>', $h['caption']);
+        $this->assertStringContainsString('Javob bermadi: <b>1</b>', $h['caption']); // A — haqiqatan javob bermadi
+        $h11 = \App\Telegram\Support\CheckinReport::hourly(today(), '11:00');   // 11:00 da urinmagan — oddiy «javob bermadi»
+        $this->assertStringNotContainsString('Hududdan', $h11['caption']);
+        $this->assertSame(['10:00'], array_keys(\App\Telegram\Support\CheckinReport::outsideBySlot(today())[$b->id]));
+        $o = \App\Telegram\Support\CheckinReport::outsideBySlot(today())[$b->id]['10:00'];
+        $this->assertSame('41.32, 69.25 · ~1,1 km uzoqda (2 marta)', \App\Telegram\Support\AttendanceReport::outsideNote($o));
+
+        $daily = \App\Telegram\Support\CheckinReport::daily(today(), today()->setTime(12, 0));
+        $this->assertStringContainsString('«hudud»', $daily['caption']);
+        $this->assertStringContainsString('<b>1</b> marta', $daily['caption']);
+    }
 }

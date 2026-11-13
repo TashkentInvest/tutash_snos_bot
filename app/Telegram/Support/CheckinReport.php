@@ -32,11 +32,36 @@ class CheckinReport
         return Attendance::whereDate('date', $day)->where('status', Attendance::ABSENT)->pluck('staff_id')->all();
     }
 
+    /**
+     * Soatlik qaydni tuman hududidan tashqaridan yuborib, qabul qilinmaganlar: [staff_id][slot] => joyi, vaqti, urinishlar, masofa.
+     * Urinish qaysi soatga tegishli — so'rov oynasi bo'yicha (slot boshlanishi … muddati).
+     */
+    public static function outsideBySlot(Carbon $day): array
+    {
+        $windows = collect(Checkin::slots())->mapWithKeys(fn ($s) => [$s => [$day->copy()->setTimeFromTimeString($s), Checkin::deadlineFor($s, $day)]]);
+        $out = [];
+        \App\Models\LocationRejection::with('staff')->where('source', 'checkin')->where('reason', \App\Models\LocationRejection::OUT_OF_DISTRICT)
+            ->whereDate('created_at', $day)->orderBy('id')->get()
+            ->each(function ($r) use ($windows, &$out) {
+                $slot = $windows->search(fn ($w) => $r->created_at->between($w[0], $w[1]));
+                if ($slot === false || ! $r->staff) {
+                    return;
+                }
+                $prev = $out[$r->staff_id][$slot]['tries'] ?? 0;
+                $o = \App\Support\Gps::outsideDistricts($r->staff, $r->lat, $r->lng, $r->accuracy);
+                $out[$r->staff_id][$slot] = ['lat' => round($r->lat, 5), 'lng' => round($r->lng, 5), 'at' => $r->created_at,
+                    'tries' => $prev + 1, 'meters' => $o['distance'] ?? null, 'districts' => $o['districts'] ?? null];
+            });
+
+        return $out;
+    }
+
     /** @return array{0: string, 1: ?string} [holat matni, rang] */
-    private static function state(?Checkin $c, bool $absent): array
+    private static function state(?Checkin $c, bool $absent, bool $away = false): array
     {
         return match (true) {
             $c?->status === Checkin::PRESENT => ['Qayd etildi', 'green'],
+            $away => ['Hududdan tashqarida', 'red'],
             $absent => ['Ishda emas (sabab)', 'orange'],
             $c && in_array('undeliverable', $c->flags ?? [], true) => ['Xabar yetmadi', 'orange'],
             $c !== null => ['Javob bermadi', 'red'],
@@ -51,24 +76,29 @@ class CheckinReport
         $absent = self::absentIds($day);
         $rows = Checkin::whereDate('date', $day)->where('slot', $slot)->whereIn('staff_id', $staff->pluck('id'))->get()->keyBy('staff_id');
         $present = $rows->where('status', Checkin::PRESENT)->count();
-        $missed = $staff->filter(fn (Staff $s) => self::state($rows[$s->id] ?? null, in_array($s->id, $absent, true))[1] === 'red')->count();
+        $outside = self::outsideBySlot($day);
+        $awayOf = fn (Staff $s) => ($rows[$s->id] ?? null)?->status !== Checkin::PRESENT ? ($outside[$s->id][$slot] ?? null) : null;
+        $away = $staff->filter(fn (Staff $s) => $awayOf($s) !== null)->count();
+        $missed = $staff->filter(fn (Staff $s) => self::state($rows[$s->id] ?? null, in_array($s->id, $absent, true))[1] === 'red')->count() - $away;
 
         $table = [['cells' => ['', 'Jami', "{$present} / {$staff->count()}", '', ''], 'sum' => true, 'colors' => []]];
         foreach ($staff->values() as $i => $s) {
             $c = $rows[$s->id] ?? null;
-            [$label, $color] = self::state($c, in_array($s->id, $absent, true));
+            $o = $awayOf($s);
+            [$label, $color] = self::state($c, in_array($s->id, $absent, true), $o !== null);
             $table[] = [
                 'cells' => [(string) ($i + 1), Str::limit((string) $s->full_name, 30), $label,
-                    $c?->status === Checkin::PRESENT ? (string) $c->responded_at?->format('H:i') : '', Str::limit((string) $c?->comment, 42)],
+                    $c?->status === Checkin::PRESENT ? (string) $c->responded_at?->format('H:i') : ($o ? $o['at']->format('H:i') : ''),
+                    Str::limit($o ? AttendanceReport::outsideNote($o) : (string) $c?->comment, 50)],
                 'sum' => false,
                 'colors' => $color ? [2 => $color] : [],
             ];
         }
 
         $t = fn (string $s) => Script::apply($s);
-        $png = Svod::table('Soatlik qayd — '.$slot.' · '.$day->format('d.m.Y'), ['№', 'Xodim', 'Holat', 'Vaqt', 'Izoh'], [44, 250, 190, 80, 380], $table, $t);
+        $png = Svod::table('Soatlik qayd — '.$slot.' · '.$day->format('d.m.Y'), ['№', 'Xodim', 'Holat', 'Vaqt', 'Izoh'], [44, 250, 220, 80, 440], $table, $t);
         $caption = "🕐 <b>Soatlik qayd — {$slot}</b> ({$day->format('d.m.Y')})\n✅ Qayd etdi: <b>{$present}</b> / {$staff->count()}"
-            .($missed ? " · ❌ Javob bermadi: <b>{$missed}</b>" : '');
+            .($missed ? " · ❌ Javob bermadi: <b>{$missed}</b>" : '').($away ? " · 📍 Hududdan tashqarida: <b>{$away}</b>" : '');
 
         return ['png' => $png, 'caption' => $caption, 'total' => $staff->count()];
     }
@@ -82,6 +112,9 @@ class CheckinReport
         $absent = self::absentIds($day);
         $checkins = Checkin::whereDate('date', $day)->whereIn('staff_id', $staff->pluck('id'))->get()->groupBy('staff_id');
         $attendance = Attendance::whereDate('date', $day)->whereIn('staff_id', $staff->pluck('id'))->get()->keyBy('staff_id');
+        $outside = self::outsideBySlot($day);                       // soatlik: tumandan tashqaridan yuborganlar
+        $attOutside = AttendanceReport::outsideAttempts($day);       // ertalabki davomat: xuddi shunday
+        $awayCount = 0;
 
         $perSlot = array_fill_keys($slots, 0);
         $done = 0;
@@ -94,7 +127,7 @@ class CheckinReport
             [$cells[], $aColor] = match ($a?->status) {
                 Attendance::PRESENT => [(string) $a->responded_at?->format('H:i'), 'green'],
                 Attendance::ABSENT => ['sabab', 'orange'],
-                Attendance::MISSED => ['yo‘q', 'red'],
+                Attendance::MISSED => [$attOutside->has($s->id) ? 'hudud' : 'yo‘q', 'red'],
                 null => ['—', null],
                 default => ['…', null],
             };
@@ -103,10 +136,12 @@ class CheckinReport
             $count = 0;
             foreach ($slots as $j => $slot) {
                 $c = $mine[$slot] ?? null;
-                [$label, $color] = self::state($c, in_array($s->id, $absent, true));
+                $away = $c?->status !== Checkin::PRESENT && isset($outside[$s->id][$slot]);
+                $away && $awayCount++;
+                [$label, $color] = self::state($c, in_array($s->id, $absent, true), $away);
                 $cells[] = match ($color) {
                     'green' => (string) $c->responded_at?->format('H:i'),
-                    'red' => '—',
+                    'red' => $away ? 'hudud' : '—',
                     'orange' => 'yo‘q',
                     default => '',
                 };
@@ -129,7 +164,9 @@ class CheckinReport
         $png = Svod::table('Soatlik qayd — kun yakuni · '.$day->format('d.m.Y'),
             ['№', 'Xodim', 'Davomat', ...$slots, 'Jami'], [44, 230, 92, ...array_fill(0, count($slots), 74), 86], [$sum, ...$body], $t);
         $caption = "📊 <b>Soatlik qayd — kun yakuni</b> ({$day->format('d.m.Y')})\nQayd etildi: <b>{$done}</b> / {$possible}"
-            ." · barcha soatlarda qayd etgan: <b>{$full}</b> / {$staff->count()}";
+            ." · barcha soatlarda qayd etgan: <b>{$full}</b> / {$staff->count()}"
+            .($awayCount ? "
+📍 «hudud» — joylashuv yuborgan, lekin o‘z tumanidan tashqaridan: <b>{$awayCount}</b> marta" : '');
 
         return ['png' => $png, 'caption' => $caption, 'total' => $staff->count()];
     }
