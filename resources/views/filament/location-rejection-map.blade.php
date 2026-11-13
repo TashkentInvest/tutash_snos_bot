@@ -8,7 +8,7 @@
         'distance' => \App\Filament\Resources\LocationRejectionResource::meters($r->distance_m),
         // davomat / soatlik qayd: xodimga biriktirilgan tuman hududlari (obyektlar o'rami)
         'areas' => $r->source === 'inspection' || ! $r->staff ? [] : $r->staff->districts()->get(['districts.id', 'districts.name'])
-            ->map(fn ($d) => ['name' => $d->name, 'pts' => \App\Support\Gps::districtArea($d->id)])->filter(fn ($a) => count($a['pts']) >= 3)->values()->all(),
+            ->flatMap(fn ($d) => collect(\App\Support\Gps::districtRings($d->id)['rings'])->map(fn ($r) => ['name' => $d->name, 'pts' => $r]))->values()->all(),
         'district' => $r->source !== 'inspection',
     ];
 @endphp

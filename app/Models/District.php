@@ -10,7 +10,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class District extends Model
 {
-    protected $fillable = ['name', 'responsible_name', 'phone'];
+    protected $fillable = ['name', 'responsible_name', 'phone', 'boundary'];
+
+    /** Haqiqiy chegara: halqalar ro'yxati [[[lat, lng], ...], ...] (bir nechta bo'lagi bo'lishi mumkin). */
+    protected $casts = ['boundary' => 'array'];
 
     protected static function booted(): void
     {

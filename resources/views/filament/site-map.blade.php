@@ -9,13 +9,16 @@
     $rejected = \App\Models\LocationRejection::where('site_id', $site->id)->where('source', 'inspection')->with('staff')->latest('id')->limit(15)->get()
         ->map(fn ($r) => ['p' => [$r->lat, $r->lng], 'c' => '#dc2626',
             't' => 'Rad etilgan · '.($r->staff?->full_name ?? '').' · '.$r->created_at?->format('d.m.Y H:i').' · '.\App\Filament\Resources\LocationRejectionResource::meters($r->distance_m)])->values();
-    $data = ['site' => $site->lat ? [$site->lat, $site->lng] : null, 'radius' => $radius, 'points' => $visits->concat($rejected)->all()];
+    $area = $site->district_id ? \App\Support\Gps::districtRings($site->district_id) : ['rings' => [], 'real' => false];
+    $data = ['site' => $site->lat ? [$site->lat, $site->lng] : null, 'radius' => $radius, 'points' => $visits->concat($rejected)->all(),
+        'boundary' => $area['real'] ? $area['rings'] : [], 'district' => $site->district?->name];
 @endphp
 @if (! $data['site'])
     <div style="font-size:14px;color:#dc2626;">Obyektga koordinata kiritilmagan — «Tahrirlash» orqali kenglik va uzunlikni kiriting.</div>
 @else
     <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:13px;margin-bottom:8px;">
         <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#2563eb;vertical-align:middle;"></span> Obyekt ({{ round($site->lat, 6) }}, {{ round($site->lng, 6) }}) — doira: tekshiruv ruxsat etilgan {{ $radius }} m</span>
+        @if ($data['boundary'])<span style="opacity:.8;">┅ {{ $data['district'] }} chegarasi</span>@endif
         @if ($visits->isNotEmpty())<span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#16a34a;vertical-align:middle;"></span> Tekshiruvlar ({{ $visits->count() }})</span>@endif
         @if ($rejected->isNotEmpty())<span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#dc2626;vertical-align:middle;"></span> Rad etilgan urinishlar ({{ $rejected->count() }})</span>@endif
     </div>
@@ -26,6 +29,8 @@
             const streets = esri('World_Street_Map').addTo(map);
             const sat = L.layerGroup([esri('World_Imagery'), esri('Reference/World_Boundaries_and_Places'), esri('Reference/World_Transportation')]);
             L.control.layers({ 'Xarita': streets, 'Sun’iy yo’ldosh': sat }).addTo(map);
+            // tuman chegarasi (KMZ / NGIS) — obyekt shu tuman ichidami, ko'rinib tursin
+            (d.boundary || []).forEach(r => L.polygon(r, { color: '#64748b', weight: 2, dashArray: '5 5', fill: false, interactive: false }).addTo(map));
             const ring = L.circle(d.site, { radius: d.radius, color: '#2563eb', weight: 1, fillOpacity: .1 }).addTo(map);
             const pts = [d.site];
             d.points.forEach(x => { pts.push(x.p); L.circleMarker(x.p, { radius: 7, color: '#fff', weight: 2, fillColor: x.c, fillOpacity: 1 }).addTo(map).bindTooltip(x.t); });

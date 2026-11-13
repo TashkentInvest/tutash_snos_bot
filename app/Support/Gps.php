@@ -48,8 +48,24 @@ class Gps
     }
 
     /**
-     * Tuman hududi: tuman obyektlarini o'rab turgan qobiq (convex hull), [[lat, lng], ...]. Chegaralar bazada yo'q —
-     * obyektlar butun tumanga tarqalgani uchun ular o'rami tuman hududiga yaqin; chetlariga zaxira masofa qo'shiladi.
+     * Tuman hududi: haqiqiy chegara (districts.boundary — KMZ / NGIS) bo'lsa o'sha, aks holda obyektlar o'rami.
+     * @return array{rings: list<list<array{0: float, 1: float}>>, real: bool}
+     */
+    public static function districtRings(int $districtId): array
+    {
+        $boundary = \App\Models\District::whereKey($districtId)->value('boundary');
+        $rings = is_string($boundary) ? json_decode($boundary, true) : $boundary;
+        if (is_array($rings) && $rings !== []) {
+            return ['rings' => $rings, 'real' => true];
+        }
+        $hull = self::districtArea($districtId);
+
+        return ['rings' => count($hull) >= 3 ? [$hull] : [], 'real' => false];
+    }
+
+    /**
+     * Chegarasi yo'q tuman uchun zaxira: tuman obyektlarini o'rab turgan qobiq (convex hull), [[lat, lng], ...] —
+     * obyektlar butun tumanga tarqalgani uchun ular o'rami tuman hududiga yaqin; chetlariga kattaroq zaxira masofa qo'shiladi.
      */
     public static function districtArea(int $districtId): array
     {
@@ -120,8 +136,8 @@ class Gps
 
     /**
      * Davomat / soatlik qayd: xodim biriktirilgan tuman(lar)i hududidan tashqaridami. Ichida bo'lsa — null, aks holda
-     * ['distance' => tuman hududigacha metr, 'districts' => nomlari]. Barcha tumanlarga biriktirilganlar va tumani yo'qlar tekshirilmaydi.
-     * Ruxsat: tuman chetidan zaxira masofa + GPS aniqligi (ko'pi bilan 500 m) — bino ichida GPS adashsa ham bloklanmasin.
+     * ['distance' => tuman chegarasigacha metr, 'districts' => nomlari]. Barcha tumanlarga biriktirilganlar va tumani yo'qlar tekshirilmaydi.
+     * Ruxsat: chegaradan zaxira (haqiqiy chegara — 300 m, obyektlar o'rami — 1500 m) + GPS aniqligi (ko'pi bilan 500 m).
      */
     public static function outsideDistricts(Staff $staff, float $lat, float $lng, ?float $accuracy): ?array
     {
@@ -129,19 +145,24 @@ class Gps
             return null;
         }
         $districts = $staff->districts()->get(['districts.id', 'districts.name']);
-        // hududni aniqlash uchun kamida 3 ta har xil nuqta kerak; obyekti kam tuman tekshirilmaydi (xato bloklamaslik uchun)
-        $areas = $districts->map(fn ($d) => self::districtArea($d->id));
-        if ($areas->contains(fn ($a) => count($a) < 3)) {
+        if ($districts->isEmpty()) {
             return null;
         }
-        $distances = $areas->map(fn ($a) => self::distanceToArea($lat, $lng, $a));
-        if ($distances->isEmpty()) {
-            return null;
+        $slack = min(max((float) $accuracy, 0), 500); // GPS aniqligi hisobga olinadi
+        $over = []; // har tuman: chegaradan ruxsatdan ortiq necha metr tashqarida
+        $dist = [];
+        foreach ($districts as $d) {
+            ['rings' => $rings, 'real' => $real] = self::districtRings($d->id);
+            if ($rings === []) {
+                return null; // hududi aniqlanmagan tuman — xato bloklamaslik uchun tekshirilmaydi
+            }
+            $m = min(array_map(fn ($r) => self::distanceToArea($lat, $lng, $r) ?? INF, $rings));
+            $buffer = (int) config($real ? 'tutash.attendance.boundary_buffer_m' : 'tutash.attendance.district_buffer_m');
+            $over[] = $m - $buffer - $slack;
+            $dist[] = $m;
         }
-        $allowed = (int) config('tutash.attendance.district_buffer_m') + min(max((float) $accuracy, 0), 500);
-        $distance = $distances->min();
 
-        return $distance <= $allowed ? null : ['distance' => (int) round($distance), 'districts' => $districts->pluck('name')->join(', ')];
+        return min($over) <= 0 ? null : ['distance' => (int) round(min($dist)), 'districts' => $districts->pluck('name')->join(', ')];
     }
 
     /** Xodimga biriktirilgan tumanlardagi eng yaqin obyekt (xaritada ko'rsatish uchun). */

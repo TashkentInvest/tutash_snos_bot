@@ -44,6 +44,8 @@ return [
         'max_distance_m' => (int) env('ATTENDANCE_MAX_DISTANCE_M', 5000),
         // davomat faqat biriktirilgan tuman hududidan: tuman obyektlari o'ramidan shu masofagacha (+ GPS aniqligi) ruxsat
         'district_buffer_m' => (int) env('ATTENDANCE_DISTRICT_BUFFER_M', 1500),
+        // haqiqiy tuman chegarasi (KMZ / NGIS) bo'lsa — chegaradan shu masofagacha (+ GPS aniqligi) ruxsat
+        'boundary_buffer_m' => (int) env('ATTENDANCE_BOUNDARY_BUFFER_M', 300),
         // Eski sozlama: hisobot oluvchilar endi admin panelda («Hisobot oladi»); faqat birinchi migratsiyada o'qiladi.
         'report_phones' => env('ATTENDANCE_REPORT_PHONES', ''),
     ],

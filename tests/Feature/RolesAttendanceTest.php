@@ -560,6 +560,31 @@ class RolesAttendanceTest extends TestCase
         $this->assertNull(\App\Support\Gps::outsideDistricts($staff->refresh(), 41.40, 69.25, 20));
     }
 
+    /** Haqiqiy tuman chegarasi (KMZ/NGIS) bo'lsa — shu bo'yicha: chegaradan 300 m + GPS aniqligi ichida qabul, undan tashqarida rad. */
+    public function test_attendance_uses_real_district_boundary(): void
+    {
+        // ~2.2 km × 2.5 km kvadrat (41.29–41.31, 69.24–69.27)
+        $this->district->update(['boundary' => [[[41.29, 69.24], [41.31, 69.24], [41.31, 69.27], [41.29, 69.27], [41.29, 69.24]]]]);
+        $staff = $this->registerEmployee();
+        $staff->refresh();
+        $gps = fn ($lat, $lng, $acc = 10) => \App\Support\Gps::outsideDistricts($staff, $lat, $lng, $acc);
+
+        $this->assertNull($gps(41.30, 69.25));                       // ichida
+        $this->assertNull($gps(41.3118, 69.25));                     // chegaradan ~200 m tashqarida — zaxira ichida
+        $out = $gps(41.32, 69.25);                                   // ~1.1 km tashqarida — rad
+        $this->assertNotNull($out);
+        $this->assertEqualsWithDelta(1106, $out['distance'], 30);
+        $this->assertNull($gps(41.315, 69.25, 400));                 // ~550 m, lekin GPS ±400 m — qabul
+        $this->assertNotNull($gps(41.30, 69.33));                    // ~5 km sharqda (obyektlar o'rami 1500 m bo'lganda o'tib ketardi)
+
+        // davomat oynasi: tashqaridan — 422, ichidan — qabul
+        $this->artisan('attendance:send')->assertSuccessful();
+        $this->bot()->hearCallbackQueryData('at:1')->reply();
+        $init = $this->initData(self::UID);
+        $this->postJson('/tg/attendance-location', ['initData' => $init, 'lat' => 41.32, 'lng' => 69.25, 'accuracy' => 10])->assertStatus(422);
+        $this->postJson('/tg/attendance-location', ['initData' => $init, 'lat' => 41.30, 'lng' => 69.25, 'accuracy' => 10])->assertOk();
+    }
+
     public function test_attendance_location_near_site_is_not_flagged(): void
     {
         $staff = $this->registerEmployee();
