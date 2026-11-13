@@ -26,6 +26,22 @@ use SergiX44\Nutgram\Nutgram;
  */
 class Dashboard extends BaseDashboard
 {
+    /** «Faqat soatlik qayd» foydalanuvchisi bosh sahifa o'rniga to'g'ri o'z jadvaliga o'tadi. */
+    public function mount(): void
+    {
+        User::currentIsCheckinsOnly() && $this->redirect(CheckinBoard::getUrl());
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return ! User::currentIsCheckinsOnly();
+    }
+
+    public function getWidgets(): array
+    {
+        return User::currentIsCheckinsOnly() ? [] : parent::getWidgets();
+    }
+
     use HasFiltersForm;
 
     // sahifa har ochilganda joriy davr ko'rsatiladi (eski tanlov sessiyada saqlanib qolmaydi)

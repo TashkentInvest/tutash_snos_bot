@@ -40,7 +40,7 @@ class CheckinBoard extends Page
 
     public static function canAccess(): bool
     {
-        return User::currentIsAdmin();
+        return User::currentIsAdmin() || User::currentIsCheckinsOnly();
     }
 
     public function mount(): void
@@ -55,6 +55,7 @@ class CheckinBoard extends Page
             Action::make('list')->label('Barcha qaydlar')->icon('heroicon-o-list-bullet')->color('gray')
                 ->url(fn () => \App\Filament\Resources\CheckinResource::getUrl()),
             Action::make('remind')->label(fn () => 'Eslatma yuborish ('.CheckinReminder::pending()->count().' ta javob kutilmoqda)')
+                ->visible(fn () => User::currentIsAdmin())
                 ->icon('heroicon-o-bell-alert')->color('warning')
                 ->modalHeading('Soatlik qayd xodimlariga eslatma')->modalSubmitActionLabel('Yuborish')
                 ->form([

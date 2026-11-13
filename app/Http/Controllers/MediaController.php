@@ -23,7 +23,7 @@ class MediaController extends Controller
 
     public function attendanceVideo(Attendance $attendance)
     {
-        abort_unless(auth()->user()?->is_admin, 403);
+        abort_unless(auth()->user()?->is_admin || auth()->user()?->checkins_only, 403); // soatlik qayd ko'ruvchisi ham
 
         $path = request()->boolean('face') ? $attendance->face_video_path : $attendance->video_path;
 
@@ -39,7 +39,7 @@ class MediaController extends Controller
     /** Shartnoma xodimining soatlik qayd videosi (faqat admin). */
     public function checkinVideo(\App\Models\Checkin $checkin)
     {
-        abort_unless(auth()->user()?->is_admin, 403);
+        abort_unless(auth()->user()?->is_admin || auth()->user()?->checkins_only, 403); // soatlik qayd ko'ruvchisi ham
 
         $path = request()->boolean('face') ? $checkin->face_video_path : $checkin->video_path;
         $disk = Storage::disk(config('tutash.media_disk'));

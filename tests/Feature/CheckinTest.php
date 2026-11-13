@@ -349,4 +349,23 @@ class CheckinTest extends TestCase
         $this->assertStringContainsString('«hudud»', $daily['caption']);
         $this->assertStringContainsString('<b>1</b> marta', $daily['caption']);
     }
+
+    /** «Faqat soatlik qayd» web foydalanuvchisi: kirganda jadvalga o'tadi, boshqa bo'limlar va amallar yopiq. */
+    public function test_checkins_only_panel_user_sees_only_the_hourly_board(): void
+    {
+        $this->artisan('panel:user', ['email' => 'sarvar@snos.uz', '--name' => 'Sarvar', '--checkins' => true, '--generate' => true])
+            ->expectsOutputToContain('faqat soatlik qayd')->expectsOutputToContain('Parol:')->assertSuccessful();
+        $u = User::where('email', 'sarvar@snos.uz')->first();
+        $this->assertTrue($u->checkins_only);
+        $this->assertFalse((bool) $u->is_admin);
+        $this->actingAs($u);
+
+        $this->get('/admin')->assertRedirect(\App\Filament\Pages\CheckinBoard::getUrl());
+        $this->get(\App\Filament\Pages\CheckinBoard::getUrl())->assertOk()->assertSee('Soatlik qayd')->assertDontSee('Eslatma yuborish')
+            ->assertDontSee('/admin/sites')->assertDontSee('/admin/staff')->assertDontSee('/admin/inspections');
+        $this->get(\App\Filament\Resources\CheckinResource::getUrl())->assertOk();
+        foreach (['/admin/sites', '/admin/inspections', '/admin/staff', '/admin/districts', '/admin/location-rejections', '/admin/report-settings', '/admin/attendances'] as $url) {
+            $this->assertContains($this->get($url)->status(), [403, 404], $url);
+        }
+    }
 }

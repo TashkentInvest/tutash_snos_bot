@@ -17,7 +17,7 @@ class CheckinResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return User::currentIsAdmin();
+        return User::currentIsAdmin() || User::currentIsCheckinsOnly();
     }
 
     // menyuda yo'q: «Soatlik qayd» jadvalidagi «Barcha qaydlar» tugmasi orqali ochiladi

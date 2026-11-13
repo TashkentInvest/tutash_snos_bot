@@ -28,11 +28,20 @@ class User extends Authenticatable implements FilamentUser
         'password' => 'hashed',
         'is_admin' => 'boolean',
         'is_viewer' => 'boolean',
+        'checkins_only' => 'boolean',
     ];
 
     public function canAccessPanel(Panel $panel): bool
     {
-        return (bool) $this->is_admin || (bool) $this->is_viewer;
+        return (bool) $this->is_admin || (bool) $this->is_viewer || (bool) $this->checkins_only;
+    }
+
+    /** Joriy foydalanuvchi faqat «Soatlik qayd» jadvalini ko'radi (boshqa bo'limlar yopiq, amallar yo'q). */
+    public static function currentIsCheckinsOnly(): bool
+    {
+        $u = auth()->user();
+
+        return $u && ! $u->is_admin && (bool) $u->checkins_only;
     }
 
     /** Joriy foydalanuvchi to'liq admin (kuzatuvchi emas) — boshqaruv amallari, davomat va sozlamalar faqat unga. */

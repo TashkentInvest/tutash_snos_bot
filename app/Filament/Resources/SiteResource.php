@@ -20,6 +20,12 @@ class SiteResource extends Resource
     protected static ?string $model = Site::class;
 
     // Kuzatuvchi obyektlarni ko'radi va yangi obyekt qo'sha oladi; tahrirlash va o'chirish — faqat admin.
+    // «Faqat soatlik qayd» foydalanuvchisi obyektlarni ko'rmaydi.
+    public static function canViewAny(): bool
+    {
+        return User::currentIsAdmin() || (bool) auth()->user()?->is_viewer;
+    }
+
     public static function canCreate(): bool
     {
         return User::currentIsAdmin() || (bool) auth()->user()?->is_viewer;
