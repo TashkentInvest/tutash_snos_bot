@@ -596,6 +596,34 @@ class RolesAttendanceTest extends TestCase
         $this->postJson('/tg/attendance-location', ['initData' => $init, 'lat' => 41.30, 'lng' => 69.25, 'accuracy' => 10])->assertOk();
     }
 
+    /** Hududdan tashqaridan urinib, davomat qabul qilinmagan xodim hisobotda «Javob bermadi» emas — joyi va masofasi bilan. */
+    public function test_report_shows_out_of_district_attempt_instead_of_no_answer(): void
+    {
+        $this->district->update(['boundary' => [[[41.29, 69.24], [41.31, 69.24], [41.31, 69.27], [41.29, 69.27], [41.29, 69.24]]]]);
+        $staff = $this->registerEmployee();
+        $this->artisan('attendance:send')->assertSuccessful();
+        $this->bot()->hearCallbackQueryData('at:1')->reply();
+        $init = $this->initData(self::UID);
+        $this->travelTo(today()->setTime(8, 58));
+        $this->postJson('/tg/attendance-location', ['initData' => $init, 'lat' => 41.32, 'lng' => 69.25, 'accuracy' => 10])->assertStatus(422);
+        $this->postJson('/tg/attendance-location', ['initData' => $init, 'lat' => 41.3201, 'lng' => 69.2501, 'accuracy' => 10])->assertStatus(422);
+        $this->travelTo(today()->setTime(9, 4));
+        $this->artisan('attendance:close')->assertSuccessful();
+        $this->assertSame(Attendance::MISSED, Attendance::where('staff_id', $staff->id)->first()->status);
+
+        $text = implode("\n", \App\Telegram\Support\AttendanceReport::chunks(today()));
+        $this->assertStringContainsString('Hududdan tashqarida (1)', $text);
+        $this->assertStringContainsString('41.3201, 69.2501', $text);
+        $this->assertStringContainsString('chegaradan ~1,1 km', $text);
+        $this->assertStringContainsString('(2 marta)', $text);
+        $this->assertStringNotContainsString('Javob bermadi (', $text);
+        $image = \App\Telegram\Support\AttendanceReport::image(today());
+        $this->assertStringContainsString('Hududdan tashqarida: <b>1</b>', $image['caption']);
+        $this->assertStringNotContainsString('Javob bermadi', $image['caption']);
+        $this->assertStringContainsString('41.3201, 69.2501 · ~1,1 km uzoqda (2 marta)', \App\Telegram\Support\AttendanceReport::outsideNote(
+            \App\Telegram\Support\AttendanceReport::outsideAttempts(today())[$staff->id]));
+    }
+
     public function test_attendance_location_near_site_is_not_flagged(): void
     {
         $staff = $this->registerEmployee();
