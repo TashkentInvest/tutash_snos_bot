@@ -542,6 +542,17 @@ class RolesAttendanceTest extends TestCase
         $rej = \App\Models\LocationRejection::sole();
         $this->assertSame(['attendance', 'out_of_district', $staff->id], [$rej->source, $rej->reason, $rej->staff_id]);
         $this->assertStringContainsString('Yunusobod tumani', $rej->note);
+        // xodimning o'ziga botda: hududda emassiz, qaysi hududda bo'lishi kerak
+        $sent = collect($this->bot()->getRequestHistory())->map(fn ($r) => json_decode((string) array_values($r)[0]->getBody(), true)['text'] ?? '')->implode("
+");
+        $this->assertStringContainsString('Siz biriktirilgan hududda emassiz', $sent);
+        $this->assertStringContainsString('Yunusobod tumani', $sent);
+        // qayta urinsa — 10 daqiqa ichida bot xabari takrorlanmaydi
+        $this->postJson('/tg/attendance-location', ['initData' => $init, 'lat' => 41.40, 'lng' => 69.25, 'accuracy' => 20])->assertStatus(422);
+        $again = collect($this->bot()->getRequestHistory())->map(fn ($r) => json_decode((string) array_values($r)[0]->getBody(), true)['text'] ?? '')->implode("
+");
+        $this->assertSame(1, substr_count($again, 'Siz biriktirilgan hududda emassiz'));
+        $this->assertSame(2, \App\Models\LocationRejection::count());
         $this->assertNotNull($rej->site_id); // xaritada eng yaqin obyekt bilan
 
         // tuman chetidan ~1,1 km (zaxira ichida) va GPS ±300 m bo'lsa ham — qabul

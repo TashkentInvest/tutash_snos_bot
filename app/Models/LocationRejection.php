@@ -54,6 +54,32 @@ class LocationRejection extends Model
         } catch (\Throwable $e) {
             report($e);
         }
+        self::tellStaff($staff, $source, $outside, $site ?? null);
+    }
+
+    /**
+     * Xodimning o'ziga botda: hududda emassiz, quyidagi hududlarda bo'lishingiz kerak (eng yaqin obyekt — xaritada).
+     * Qayta-qayta urinsa ham 10 daqiqada bir marta (bot spam bo'lmasin; Mini App'dagi xato matni har safar chiqadi).
+     */
+    public static function tellStaff(Staff $staff, string $source, array $outside, ?Site $site): void
+    {
+        if (! $staff->telegram_id || ! \Illuminate\Support\Facades\Cache::add("out-of-district:{$staff->id}:{$source}", 1, now()->addMinutes(10))) {
+            return;
+        }
+        $what = $source === 'checkin' ? 'Soatlik qayd' : 'Davomat';
+        $text = "📍 <b>Siz biriktirilgan hududda emassiz</b>\n\n{$what} faqat o‘z hududingizdan qabul qilinadi. Siz quyidagi hudud(lar)da bo‘lishingiz kerak:\n<b>"
+            .\App\Telegram\Support\Ui::e($outside['districts']).'</b>'
+            ."\n\nHozirgi joyingiz chegaradan taxminan <b>".\App\Filament\Resources\LocationRejectionResource::meters($outside['distance']).'</b> tashqarida. '
+            .'Hududingizga borib, qayta yuboring. Hududingiz noto‘g‘ri belgilangan bo‘lsa — tuman mas’uli yoki administratorga murojaat qiling.';
+        try {
+            app(\SergiX44\Nutgram\Nutgram::class)->sendMessage(\App\Telegram\Support\Script::apply($text), array_filter([
+                'chat_id' => $staff->telegram_id, 'parse_mode' => \SergiX44\Nutgram\Telegram\Attributes\ParseMode::HTML,
+                'reply_markup' => $site?->lat ? \App\Telegram\Support\Ui::markup([[\SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton::make(
+                    \App\Telegram\Support\Ui::t('🗺 Hududingizdagi eng yaqin obyekt'), url: \App\Support\Maps::url($site->lat, $site->lng))]]) : null,
+            ]));
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     /** Yozish hech qachon tekshiruvni buzmasin. */
