@@ -12,6 +12,7 @@
         'district' => $r->source !== 'inspection',
     ];
 @endphp
+<style>.leaflet-container .leaflet-interactive:focus,.leaflet-container path:focus{outline:none}</style>
 <div>
     <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:13px;margin-bottom:8px;">
         <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#dc2626;vertical-align:middle;"></span> Xodim yuborgan joy</span>

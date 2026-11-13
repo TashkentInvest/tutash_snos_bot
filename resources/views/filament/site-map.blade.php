@@ -13,6 +13,7 @@
     $data = ['site' => $site->lat ? [$site->lat, $site->lng] : null, 'radius' => $radius, 'points' => $visits->concat($rejected)->all(),
         'boundary' => $area['real'] ? $area['rings'] : [], 'district' => $site->district?->name];
 @endphp
+<style>.leaflet-container .leaflet-interactive:focus,.leaflet-container path:focus{outline:none}</style>
 @if (! $data['site'])
     <div style="font-size:14px;color:#dc2626;">Obyektga koordinata kiritilmagan — «Tahrirlash» orqali kenglik va uzunlikni kiriting.</div>
 @else
