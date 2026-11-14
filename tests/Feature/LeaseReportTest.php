@@ -68,6 +68,7 @@ class LeaseReportTest extends TestCase
         $this->assertSame(1, substr_count($this->sent(), 'sendPhoto'));
 
         $this->artisan('leases:report --force')->assertSuccessful(); // qo'lda — jadvalsiz
+        fwrite(STDERR, collect(app(Nutgram::class)->getRequestHistory())->map(fn ($r) => (string) array_values($r)[0]->getUri()." :: ".mb_substr(preg_replace("/[^\pL\pN :]+/u", " ", (string) array_values($r)[0]->getBody()), 0, 0).(str_contains((string) array_values($r)[0]->getBody(), "Ijara") ? "GASTRO" : (str_contains((string) array_values($r)[0]->getBody(), "uzilish") ? "BUZILISH" : "OTHER")))->implode(PHP_EOL).PHP_EOL);
         $this->assertSame(2, substr_count($this->sent(), 'sendPhoto'));
         Carbon::setTestNow();
     }
@@ -103,5 +104,16 @@ class LeaseReportTest extends TestCase
         Livewire::test(LeaseSvodPage::class)
             ->callAction('sendTelegram', ['onsite' => false, 'recipients' => [(string) $this->boss->id]])->assertHasNoActionErrors();
         $this->assertSame(1, substr_count($this->sent(), 'sendPhoto'));
+
+        // dashboard → «Buzilish hisobotini yuborish»: gastronomik svod ham tanlanadi (alohida xabar).
+        // rasmlar ro'yxati to'liq almashtiriladi (callAction standart qiymat bilan indeks bo'yicha birlashtirardi)
+        $send = fn (array $images) => Livewire::test(\App\Filament\Pages\Dashboard::class)->mountAction('sendInspectionReport')
+            ->set('mountedActionsData.0.images', $images)->set('mountedActionsData.0.recipients', [(string) $this->boss->id])->callMountedAction();
+        $send(['gastro'])->assertHasNoActionErrors()->assertNotified('Yuborildi: 1 ta xabar');
+        $this->assertSame(2, substr_count($this->sent(), 'sendPhoto'));
+        $this->assertSame(2, substr_count($this->sent(), 'Ijara shartnomalari svodi'));
+        $send(['svod', 'gastro'])->assertNotified('Yuborildi: 2 ta xabar');
+        $this->assertSame(4, substr_count($this->sent(), 'sendPhoto')); // svod (bitta rasm) + gastronomik
+        $send([])->assertHasActionErrors(['images']);
     }
 }

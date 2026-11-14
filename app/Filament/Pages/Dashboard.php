@@ -83,17 +83,35 @@ class Dashboard extends BaseDashboard
                 ->modalHeading(fn () => 'Buzilish hisoboti — '.$this->period()->day->format('d.m.Y'))->modalWidth('3xl')->modalSubmitActionLabel('Yuborish')
                 ->visible(fn () => User::currentIsAdmin())
                 ->form(fn () => [
-                    \Filament\Forms\Components\CheckboxList::make('images')->label('Rasmlar')->options(InspectionReport::IMAGES)
-                        ->default(array_keys(InspectionReport::IMAGES))->columns(2)->live(),
+                    // gastronomik svod — alohida xabar (o'z izohi bilan) buzilish hisobotidan keyin
+                    \Filament\Forms\Components\CheckboxList::make('images')->label('Rasmlar')
+                        ->options(InspectionReport::IMAGES + ['gastro' => 'Gastronomik ko‘chalar — ijara svodi'])
+                        ->default(array_keys(InspectionReport::IMAGES))->columns(2)->live()->required()
+                        ->validationMessages(['required' => 'Kamida bitta rasmni belgilang.']),
                     self::recipientsField(ReportSetting::SVOD),
                     \Filament\Forms\Components\Placeholder::make('preview')->label('Botda shunday ko‘rinadi')
-                        ->content(fn (\Filament\Forms\Get $get) => self::previewHtml(
-                            array_map(fn ($img) => route('admin.svod.png', array_filter(['day' => $this->period()->day->toDateString(), 'type' => $img === 'bajarilish' ? 'progress' : null])),
-                                array_values(array_intersect(array_keys(InspectionReport::IMAGES), $get('images') ?? []))),
-                            Script::apply(InspectionReport::caption($this->period()->day)))),
+                        ->content(function (\Filament\Forms\Get $get) {
+                            $images = $get('images') ?? [];
+                            $day = $this->period()->day;
+                            $inspection = array_values(array_intersect(array_keys(InspectionReport::IMAGES), $images));
+                            $html = $inspection ? self::previewHtml(array_map(fn ($img) => route('admin.svod.png', array_filter(['day' => $day->toDateString(),
+                                'type' => $img === 'bajarilish' ? 'progress' : null])), $inspection), Script::apply(InspectionReport::caption($day)))->toHtml() : '';
+                            $onsite = ReportSetting::gastroOptions()['onsite'];
+                            in_array('gastro', $images, true) && $html .= '<div style="height:.75rem"></div>'.self::previewHtml(
+                                [route('admin.lease-svod.png', ['day' => $day->toDateString(), 'onsite' => $onsite ? 1 : 0])],
+                                Script::apply(\App\Telegram\Support\LeaseReport::caption($day, $onsite)))->toHtml();
+
+                            return new \Illuminate\Support\HtmlString($html);
+                        }),
                 ])
-                ->action(fn (array $data) => $this->report('inspection',
-                    fn (Nutgram $bot) => InspectionReport::send($bot, $this->period()->day, self::people($data['recipients'] ?? []), $data['images'] ?? []))),
+                ->action(fn (array $data) => $this->report('inspection', function (Nutgram $bot) use ($data) {
+                    $images = $data['images'] ?? [];
+                    $to = self::people($data['recipients'] ?? []);
+                    $inspection = array_values(array_intersect(array_keys(InspectionReport::IMAGES), $images));
+                    $sent = $inspection ? InspectionReport::send($bot, $this->period()->day, $to, $inspection) : 0;
+
+                    return $sent + (in_array('gastro', $images, true) ? \App\Telegram\Support\LeaseReport::send($bot, $this->period()->day, $to) : 0);
+                })),
 
             // davomat hisobotlari: ertalabki davomat, soatlik qayd (soat tanlanadi) yoki kun yakuni — hammasi rasm
             Action::make('sendAttendanceReport')->label('Davomat hisobotini yuborish')->icon('heroicon-o-clipboard-document-list')->color('gray')
