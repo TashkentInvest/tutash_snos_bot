@@ -57,9 +57,11 @@ class Dashboard extends BaseDashboard
         return $form->schema([
             Section::make()->schema([
                 DatePicker::make('day')->label('Kun')->native(false)->displayFormat('d.m.Y')
-                    ->default($current->day->toDateString())->maxDate($current->day->toDateString())
+                    // bugungi sana 00:00 gacha; 18:00 dan keyin ertangi davrni (yangi natijalar) ham tanlash mumkin
+                    ->default($current->day->toDateString())->maxDate(ReportPeriod::latest()->day->toDateString())
                     ->live()
-                    ->helperText(fn ($state) => 'Hisobot davri: '.ReportPeriod::fromFilter($state)->label().' (har kuni 18:00 da yangi kun boshlanadi)'),
+                    ->helperText(fn ($state) => 'Hisobot davri: '.ReportPeriod::fromFilter($state)->label()
+                        .(ReportPeriod::latest()->day->isTomorrow() ? ' · 18:00 dan keyingi natijalar ertangi sanada' : ' (har kuni 18:00 da yopiladi)')),
             ])->columns(3),
         ]);
     }

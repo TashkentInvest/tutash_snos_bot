@@ -667,7 +667,7 @@ class BotFlowTest extends TestCase
         $this->assertSame(Site::EXEMPT, $this->site->refresh()->status);
         $this->assertSame($totalBefore - 1, Site::countable()->count());
         $this->assertFalse(Site::pending()->whereKey($this->site->id)->exists());
-        $this->assertStringContainsString('Sud qarori bekor: <b>1</b>', \App\Telegram\Support\InspectionReport::caption(\App\Support\ReportPeriod::current()->day));
+        $this->assertStringContainsString('Sud qarori bekor: <b>1</b>', \App\Telegram\Support\InspectionReport::caption(\App\Support\ReportPeriod::latest()->day));
     }
 
     /** Joylashuv -> rasm -> video -> izoh: izohsiz natija yuborilmaydi, qisqa izoh qabul qilinmaydi, izoh saqlanadi. */
@@ -725,7 +725,7 @@ class BotFlowTest extends TestCase
         $this->assertNotNull($in->mediaOf(InspectionMedia::AFTER_PHOTO));
         $this->assertNotNull($in->mediaOf(InspectionMedia::AFTER_VIDEO));
         $this->assertSame('Buzilgan (kelganda)', \App\Filament\Resources\InspectionResource::result($in));
-        $this->assertStringContainsString('Buzilgan: <b>1</b>', \App\Telegram\Support\InspectionReport::caption(\App\Support\ReportPeriod::current()->day));
+        $this->assertStringContainsString('Buzilgan: <b>1</b>', \App\Telegram\Support\InspectionReport::caption(\App\Support\ReportPeriod::latest()->day));
     }
 
     public function test_black_media_is_rejected_and_device_is_recorded(): void

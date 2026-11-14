@@ -23,8 +23,17 @@ class ReportPeriod
         return new self($day, $to->subDay(), $to);
     }
 
-    /** Joriy davr: hisobot vaqti o'tgan bo'lsa — ertangi kun davri (hisoblagichlar 0 dan boshlanadi). */
+    /**
+     * Joriy davr — kalendar bo'yicha bugungi kun (00:00 gacha bugun qoladi, 18:00 dan keyin ham).
+     * 18:00 dan keyingi natijalar ertangi davrga yoziladi — ularni ko'rish uchun dashboard'da ertangi sanani tanlash mumkin (latest()).
+     */
     public static function current(): self
+    {
+        return self::for(today());
+    }
+
+    /** Natija yozilayotgan (ochiq) davr: 18:00 gacha — bugun, undan keyin — ertangi kun. */
+    public static function latest(): self
     {
         $today = self::for(today());
 

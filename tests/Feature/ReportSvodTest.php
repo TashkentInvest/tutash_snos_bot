@@ -81,10 +81,15 @@ class ReportSvodTest extends TestCase
         $this->assertSame([2, 0.2, 0, 0.0, 0.1], Svod::cells(Svod::data(today())['total']));
         $this->assertSame([2, 0.2, 1, 0.1, 0.1], Svod::cells(Svod::data($yesterday)['total']));
 
-        // 18:00 dan keyin joriy davr — ertangi kun, hisoblagichlar 0
-        $this->travelTo(today()->setTime(18, 0, 1));
-        $this->assertTrue(\App\Support\ReportPeriod::current()->day->isTomorrow());
-        $this->assertSame(0, \App\Support\ReportPeriod::current()->summary()['inspections']);
+        // 18:00 dan keyin ham dashboard sanasi — bugun (00:00 gacha); yangi natijalar ertangi (ochiq) davrga yoziladi
+        $this->travelTo(today()->setTime(20, 51));
+        $this->assertTrue(\App\Support\ReportPeriod::current()->day->isToday());
+        $this->assertTrue(\App\Support\ReportPeriod::latest()->day->isTomorrow());
+        $this->assertSame(0, \App\Support\ReportPeriod::latest()->summary()['inspections']);
+        $this->travelTo(today()->addDay()->setTime(0, 0, 1)); // yarim tundan keyin — yangi sana
+        $this->assertTrue(\App\Support\ReportPeriod::current()->day->isToday());
+        $this->travelBack();
+        $this->travelTo(today()->setTime(20, 51));
 
         // dashboard: kun tanlanadi — vidjet o'sha kun sonlarini ko'rsatadi
         $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
@@ -101,7 +106,7 @@ class ReportSvodTest extends TestCase
             ->filterTable('period', ['day' => $yesterday->toDateString()])->assertCanSeeTableRecords([$inA])->assertCanNotSeeTableRecords([$inB])
             ->filterTable('period', ['day' => today()->toDateString()])->assertCanSeeTableRecords([$inB])->assertCanNotSeeTableRecords([$inA]);
         $dash = \Livewire\Livewire::test(\App\Filament\Pages\Dashboard::class)->assertOk();
-        $this->assertTrue(\App\Support\ReportPeriod::fromFilter($dash->get('filters.day'))->day->isTomorrow()); // 18:00 dan keyin — ertangi davr
+        $this->assertTrue(\App\Support\ReportPeriod::fromFilter($dash->get('filters.day'))->day->isToday()); // 18:00 dan keyin ham — bugungi sana (00:00 gacha)
         $this->get('/admin-svod.xlsx?day='.$yesterday->toDateString())->assertOk()->assertHeader('Content-Disposition', 'attachment; filename="svod-'.$yesterday->format('Y-m-d').'.xlsx"');
     }
 
