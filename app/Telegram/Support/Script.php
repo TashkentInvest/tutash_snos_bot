@@ -33,6 +33,12 @@ class Script
         return implode('', $parts);
     }
 
+    /** Har doim yangi alifbo (ş, ç, ö, ğ) — sozlamadan qat'i nazar: ijara shartnomasi namunalari shu imloda. */
+    public static function toNewAlphabet(?string $text): string
+    {
+        return self::newAlphabet((string) $text);
+    }
+
     private static function classic(string $s): string
     {
         $s = str_replace(['&#039;', '&#39;', '&apos;'], "'", $s);

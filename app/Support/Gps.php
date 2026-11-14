@@ -95,6 +95,32 @@ class Gps
         });
     }
 
+    /** Nuqtadan chiziqqacha (ko'cha o'qi, [[lat, lng], ...]) eng qisqa masofa, metr; chiziq bo'sh bo'lsa null. */
+    public static function distanceToLine(float $lat, float $lng, array $line): ?float
+    {
+        $n = count($line);
+        if ($n === 0) {
+            return null;
+        }
+        $kx = cos(deg2rad($lat)) * 111_320;
+        $ky = 110_574;
+        $xy = array_map(fn ($p) => [($p[1] - $lng) * $kx, ($p[0] - $lat) * $ky], $line);
+        if ($n === 1) {
+            return hypot($xy[0][0], $xy[0][1]);
+        }
+        $min = INF;
+        for ($i = 0; $i < $n - 1; $i++) {
+            [$ax, $ay] = $xy[$i];
+            [$bx, $by] = $xy[$i + 1];
+            $dx = $bx - $ax;
+            $dy = $by - $ay;
+            $t = ($dx || $dy) ? max(0, min(1, -($ax * $dx + $ay * $dy) / ($dx * $dx + $dy * $dy))) : 0;
+            $min = min($min, hypot($ax + $t * $dx, $ay + $t * $dy));
+        }
+
+        return $min;
+    }
+
     /** Nuqtadan hududgacha masofa (metr): ichida bo'lsa 0; hudud bo'sh bo'lsa null. */
     public static function distanceToArea(float $lat, float $lng, array $area): ?float
     {

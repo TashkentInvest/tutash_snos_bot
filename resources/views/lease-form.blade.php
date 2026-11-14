@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="uz">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>Ijara shartnomasi</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <style>
+        body { margin: 0; padding: 16px; font-family: -apple-system, Roboto, sans-serif; background: var(--tg-theme-bg-color, #fff); color: var(--tg-theme-text-color, #111); }
+        h1 { font-size: 19px; margin: 4px 0 4px; text-align: center; }
+        h2 { font-size: 15px; margin: 22px 0 2px; padding-top: 12px; border-top: 1px solid rgba(127,127,127,.25); }
+        .sub { text-align: center; color: var(--tg-theme-hint-color, #777); font-size: 14px; margin-bottom: 8px; }
+        label { display: block; font-size: 14px; font-weight: 600; margin: 12px 0 6px; }
+        label small, .hint { font-weight: 400; color: var(--tg-theme-hint-color, #888); font-size: 13px; }
+        input, select { width: 100%; box-sizing: border-box; padding: 12px; font-size: 16px; border-radius: 10px; font-family: inherit;
+            border: 1px solid var(--tg-theme-hint-color, #ccc); background: var(--tg-theme-secondary-bg-color, #f5f5f5); color: inherit; }
+        .row { display: flex; gap: 8px; } .row > * { flex: 1; min-width: 0; }
+        button { width: 100%; padding: 14px; border: 0; border-radius: 10px; font-size: 17px; margin-top: 18px;
+            background: var(--tg-theme-button-color, #2481cc); color: var(--tg-theme-button-text-color, #fff); }
+        button.secondary { background: transparent; color: var(--tg-theme-link-color, #2481cc); border: 1px solid currentColor; margin-top: 8px; padding: 11px; font-size: 15px; }
+        button:disabled { opacity: .6; }
+        #msg { margin-top: 14px; font-size: 15px; text-align: center; } .err { color: #d33; } .ok { color: #2a9d4a; }
+        .hidden { display: none !important; }
+        #map { height: 300px; border-radius: 10px; border: 1px solid var(--tg-theme-hint-color, #ccc); }
+        .pin { font-size: 30px; line-height: 30px; text-align: center; filter: drop-shadow(0 2px 2px rgba(0,0,0,.4)); }
+        .leaflet-container .leaflet-interactive:focus { outline: none; }
+        #coords { margin-top: 6px; }
+        .seg { display: flex; gap: 8px; }
+        .seg label { flex: 1; margin: 0; padding: 12px; text-align: center; border-radius: 10px; font-weight: 600;
+            border: 1px solid var(--tg-theme-hint-color, #ccc); background: var(--tg-theme-secondary-bg-color, #f5f5f5); }
+        .seg input { display: none; }
+        .seg label.on { background: var(--tg-theme-button-color, #2481cc); color: var(--tg-theme-button-text-color, #fff); border-color: transparent; }
+        .preview { margin-top: 8px; font-size: 13px; color: var(--tg-theme-hint-color, #777); }
+        details summary { margin-top: 16px; font-size: 14px; color: var(--tg-theme-link-color, #2481cc); }
+    </style>
+</head>
+<body>
+<h1>📄 Ijara shartnomasi</h1>
+<div class="sub">Gastronomik ko‘chadagi obyektga tutash hudud. Tayyor Word fayl botga keladi — chop etib, imzolanadi.</div>
+
+<form id="f" class="hidden" autocomplete="off">
+    <h2>1. Joy</h2>
+    <label>Tuman</label>
+    <select id="district" required></select>
+    <label>Gastronomik ko‘cha</label>
+    <select id="street" required></select>
+    <label>Obyekt joyi <small>(xaritada bosing, belgini surib aniqlashtiring)</small></label>
+    <div id="map"></div>
+    <div id="coords" class="hint">Joy tanlanmagan</div>
+    <button type="button" id="goLoc" class="secondary">📍 Turgan joyimni olish</button>
+    <div class="row">
+        <div><label>MFY</label><input id="mfy" list="mfyList" required minlength="3" maxlength="150" placeholder="masalan: Oybek"><datalist id="mfyList"></datalist></div>
+        <div><label>Uy <small>(raqami)</small></label><input id="house" maxlength="100" placeholder="21A"></div>
+    </div>
+    <div class="row">
+        <div><label>Kadastr raqami</label><input id="cadastre" required minlength="5" maxlength="60" placeholder="10:11:40:02:01:0612"></div>
+        <div><label>Maydon, m²</label><input id="area" type="number" inputmode="decimal" min="0.5" step="0.01" required placeholder="58.5"></div>
+    </div>
+    <label>Faoliyat turi</label>
+    <select id="activity"></select>
+    <input id="activityOther" class="hidden" maxlength="150" placeholder="Faoliyat turini yozing" style="margin-top:8px;">
+
+    <h2>2. Ijarachi</h2>
+    <div class="seg">
+        <label class="on"><input type="radio" name="party" value="legal" checked> Yuridik shaxs</label>
+        <label><input type="radio" name="party" value="individual"> Jismoniy shaxs</label>
+    </div>
+    <div data-party="legal">
+        <label>Tashkilot nomi <small>(masalan: “GLOBAL PROPERTY DEVELOPMENT” MChJ)</small></label>
+        <input id="orgName" maxlength="255">
+        <label>Tashkilot manzili</label>
+        <input id="orgAddress" maxlength="500" placeholder="Toshkent shahri, Mirobod tumani, Taras Shevchenko ko‘chasi, 21A-uy">
+        <label>Direktor F.I.SH <small>(familiya, ism, otasining ismi)</small></label>
+        <input id="director" maxlength="150" placeholder="Yermatov Vali Rustamovich">
+        <label>Hisob raqami (x/r)</label>
+        <input id="account" inputmode="numeric" maxlength="40">
+        <div class="row">
+            <div><label>STIR</label><input id="inn" inputmode="numeric" maxlength="20"></div>
+            <div><label>MFO</label><input id="mfo" inputmode="numeric" maxlength="10"></div>
+        </div>
+    </div>
+    <div data-party="individual" class="hidden">
+        <label>F.I.SH <small>(familiya, ism, otasining ismi)</small></label>
+        <input id="personName" maxlength="255" placeholder="Kadirov Abduraxmon Abdugafurovich">
+        <label>Yashash manzili <small>(ixtiyoriy)</small></label>
+        <input id="personAddress" maxlength="500" placeholder="Shayxontohur tumani, … ko‘chasi, …-uy">
+        <div class="row">
+            <div><label>Pasport</label><input id="passport" maxlength="20" placeholder="AD 7739566"></div>
+            <div><label>JShShIR</label><input id="jshshir" inputmode="numeric" maxlength="20"></div>
+        </div>
+        <div class="row">
+            <div><label>Kim bergan <small>(ixtiyoriy)</small></label><input id="passportIssuer" maxlength="200"></div>
+            <div><label>Yili</label><input id="passportYear" inputmode="numeric" maxlength="10" placeholder="2020"></div>
+        </div>
+    </div>
+    <label>Telefon</label>
+    <input id="phone" inputmode="tel" maxlength="30" placeholder="+998 90 123 45 67">
+
+    <h2>3. Muddat va to‘lov</h2>
+    <div class="row">
+        <div><label>Boshlanishi</label><input id="start" type="date" required></div>
+        <div><label>Tugashi</label><input id="end" type="date" required></div>
+    </div>
+    <label>Joriy yil uchun ijara to‘lovi, so‘m <small>(QQS bilan, baholovchi hisobotidan)</small></label>
+    <input id="amount" type="number" inputmode="decimal" min="1" step="0.01" required placeholder="21787682.67">
+    <div id="schedule" class="preview"></div>
+
+    <details>
+        <summary>Ariza raqami va sanasi (ixtiyoriy)</summary>
+        <div class="row">
+            <div><label>Ariza raqami</label><input id="appNo" maxlength="40"></div>
+            <div><label>Ariza sanasi</label><input id="appDate" type="date"></div>
+        </div>
+    </details>
+
+    <button type="submit" id="goSave">Shartnomani tayyorlash</button>
+</form>
+<div id="msg"></div>
+
+<script src="/js/tg-location.js?v=4"></script>
+<script>
+const tg = window.Telegram && window.Telegram.WebApp;
+tg && (tg.ready(), tg.expand(), tg.disableVerticalSwipes && tg.disableVerticalSwipes());
+const $ = id => document.getElementById(id), msg = $('msg');
+const say = (t, c) => { msg.textContent = t; msg.className = c || ''; };
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const initData = () => (tg ? tg.initData : '');
+let districts = [], radius = 300, busy = false, map = null, marker = null, point = null, layers = [];
+
+async function api(path, body) {
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 60000);
+    try {
+        const r = await fetch('/tg/lease-form/' + path, { method: 'POST', signal: ctl.signal,
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: initData(), ...body }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok && j.errors) j.message = Object.values(j.errors)[0][0];
+        return { ok: r.ok && j.ok, j };
+    } finally { clearTimeout(timer); }
+}
+
+const district = () => districts.find(d => String(d.id) === $('district').value) || { streets: [], mahallas: [], boundary: [] };
+const street = () => district().streets.find(s => String(s.id) === $('street').value);
+
+// ko'chagacha masofa (metr) — server ham xuddi shunday tekshiradi
+function distToLine(lat, lng, line) {
+    const kx = Math.cos(lat * Math.PI / 180) * 111320, ky = 110574;
+    const xy = line.map(p => [(p[1] - lng) * kx, (p[0] - lat) * ky]);
+    let min = Infinity;
+    for (let i = 0; i < xy.length - 1; i++) {
+        const [ax, ay] = xy[i], [bx, by] = xy[i + 1], dx = bx - ax, dy = by - ay;
+        const t = (dx || dy) ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / (dx * dx + dy * dy))) : 0;
+        min = Math.min(min, Math.hypot(ax + t * dx, ay + t * dy));
+    }
+    return min;
+}
+function showPoint() {
+    if (!point) return;
+    const s = street(), d = s ? Math.round(distToLine(point.lat, point.lng, s.line)) : null;
+    $('coords').textContent = d === null ? '✅ Joy tanlandi' : (d <= radius ? `✅ Ko‘chadan ~${d} m — mos` : `⚠️ Ko‘chadan ~${d} m uzoq (ruxsat: ${radius} m)`);
+    $('coords').className = 'hint ' + (d === null || d <= radius ? 'ok' : 'err');
+}
+function setPoint(lat, lng, zoom) {
+    point = { lat: +lat, lng: +lng };
+    if (map) {
+        if (!marker) {
+            marker = L.marker([point.lat, point.lng], { icon: L.divIcon({ className: 'pin', html: '📍', iconSize: [30, 30], iconAnchor: [15, 28] }), draggable: true }).addTo(map);
+            marker.on('dragend', () => { const p = marker.getLatLng(); setPoint(p.lat, p.lng); });
+        } else marker.setLatLng([point.lat, point.lng]);
+        zoom && map.setView([point.lat, point.lng], Math.max(map.getZoom(), zoom));
+    }
+    showPoint();
+}
+function drawDistrict() {
+    if (!map) return;
+    layers.forEach(l => map.removeLayer(l)); layers = [];
+    const d = district(), sel = $('street').value, all = [];
+    (d.boundary || []).forEach(r => { all.push(...r); layers.push(L.polygon(r, { color: '#64748b', weight: 1, dashArray: '4 4', fill: false, interactive: false }).addTo(map)); });
+    d.streets.forEach(s => {
+        const on = String(s.id) === sel;
+        layers.push(L.polyline(s.line, { color: on ? '#dc2626' : '#f59e0b', weight: on ? 7 : 4, opacity: on ? .95 : .7 }).addTo(map).bindTooltip(s.name, { sticky: true })
+            .on('click', () => { $('street').value = String(s.id); drawDistrict(); showPoint(); }));
+    });
+    const s = street();
+    s ? map.fitBounds(s.line, { padding: [40, 40], maxZoom: 17 }) : all.length && map.fitBounds(all, { padding: [20, 20] });
+}
+function fillDistrict() {
+    const d = district();
+    $('street').innerHTML = d.streets.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+    $('mfyList').innerHTML = d.mahallas.map(m => `<option value="${esc(m)}">`).join('');
+    drawDistrict(); showPoint();
+}
+$('district').onchange = fillDistrict;
+$('street').onchange = () => { drawDistrict(); showPoint(); };
+
+$('goLoc').onclick = async () => {
+    $('goLoc').disabled = true; say('Joylashuv aniqlanmoqda…');
+    try { const p = await TgLoc.get(); setPoint(p.lat, p.lng, 17); say(''); }
+    catch (e) { say(e.message || 'Joylashuv aniqlanmadi.', 'err'); }
+    $('goLoc').disabled = false;
+};
+
+// yuridik / jismoniy
+const party = () => document.querySelector('input[name=party]:checked').value;
+document.querySelectorAll('input[name=party]').forEach(i => i.addEventListener('change', () => {
+    document.querySelectorAll('.seg label').forEach(l => l.classList.toggle('on', l.querySelector('input').checked));
+    document.querySelectorAll('[data-party]').forEach(b => b.classList.toggle('hidden', b.dataset.party !== party()));
+}));
+$('activity').onchange = () => $('activityOther').classList.toggle('hidden', $('activity').value !== 'other');
+
+// muddat: boshlanishdan 1 yil; to'lov jadvali — boshlanish oyidan dekabrgacha teng bo'linadi
+const MONTHS = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentyabr', 'oktyabr', 'noyabr', 'dekabr'];
+function schedule() {
+    const s = $('start').value, a = Number(($('amount').value || '').replace(',', '.'));
+    if (!s || !a) return $('schedule').textContent = '';
+    const m = new Date(s).getMonth(), n = 12 - m, each = Math.floor(a / n * 100) / 100;
+    $('schedule').textContent = `To‘lov jadvali: ${MONTHS[m]} – dekabr, ${n} oy × ${each.toLocaleString('ru-RU', { minimumFractionDigits: 2 })} so‘m`;
+}
+$('start').onchange = () => {
+    if ($('start').value) { const d = new Date($('start').value); d.setFullYear(d.getFullYear() + 1); d.setDate(d.getDate() - 1); $('end').value = d.toISOString().slice(0, 10); }
+    schedule();
+};
+$('amount').oninput = schedule;
+
+$('f').onsubmit = async ev => {
+    ev.preventDefault();
+    if (busy) return;
+    if (!point) { $('map').scrollIntoView({ behavior: 'smooth', block: 'center' }); return say('Xaritada obyekt joyini belgilang.', 'err'); }
+    const legal = party() === 'legal', v = id => $(id).value.trim() || null;
+    const activity = $('activity').value === 'other' ? v('activityOther') : $('activity').value;
+    if (!activity) return say('Faoliyat turini yozing.', 'err');
+    if (!(legal ? v('orgName') : v('personName'))) return say(legal ? 'Tashkilot nomini yozing.' : 'F.I.SH ni yozing.', 'err');
+    busy = true; $('goSave').disabled = true; say('Shartnoma tayyorlanmoqda…');
+    try {
+        const { ok, j } = await api('save', {
+            party: party(), district_id: Number($('district').value), gastro_street_id: Number($('street').value), lat: point.lat, lng: point.lng,
+            tenant_name: legal ? v('orgName') : v('personName'), tenant_address: legal ? v('orgAddress') : v('personAddress'),
+            director: legal ? v('director') : null, account: legal ? v('account') : null, inn: legal ? v('inn') : null, mfo: legal ? v('mfo') : null,
+            passport: legal ? null : v('passport'), jshshir: legal ? null : v('jshshir'), passport_issuer: legal ? null : v('passportIssuer'),
+            passport_year: legal ? null : v('passportYear'), phone: v('phone'),
+            mfy: v('mfy'), house: v('house'), cadastre: v('cadastre'), area_m2: Number(($('area').value || '').replace(',', '.')), activity,
+            start_date: v('start'), end_date: v('end'), annual_amount: Number(($('amount').value || '').replace(',', '.')),
+            application_number: v('appNo'), application_date: v('appDate'),
+        });
+        if (ok) {
+            $('f').classList.add('hidden');
+            say(j.sent ? '✅ Shartnoma tayyor — Word fayl botga yuborildi.' : '✅ Shartnoma saqlandi, lekin botga yuborib bo‘lmadi — administratorga murojaat qiling.', j.sent ? 'ok' : 'err');
+            j.sent && setTimeout(() => tg && tg.close(), 1800);
+            return;
+        }
+        say(j.message || 'Tayyorlab bo‘lmadi. Qayta urinib ko‘ring.', 'err');
+    } catch (e) { say('Aloqa xatosi. Qayta urinib ko‘ring.', 'err'); }
+    busy = false; $('goSave').disabled = false;
+};
+
+(async () => {
+    say('Yuklanmoqda…');
+    try {
+        const { ok, j } = await api('state', {});
+        if (!ok) return say(j.message || 'Telegram ichida oching.', 'err');
+        districts = j.districts || []; radius = j.radius || 300;
+        if (!districts.length) return say('Sizga ijara shartnomasi uchun tuman biriktirilmagan.', 'err');
+        $('district').innerHTML = districts.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
+        $('activity').innerHTML = j.activities.map(a => `<option>${esc(a)}</option>`).join('') + '<option value="other">Boshqa — o‘zim yozaman</option>';
+        const today = new Date().toISOString().slice(0, 10); $('start').value = today; $('start').onchange();
+        say(''); $('f').classList.remove('hidden');
+        if (window.L) {
+            map = L.map('map').setView([41.31, 69.27], 12);
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: '© Esri' }).addTo(map);
+            map.on('click', e => setPoint(e.latlng.lat, e.latlng.lng));
+            const fit = () => map.invalidateSize(); setTimeout(fit, 300); window.addEventListener('resize', fit); tg && tg.onEvent && tg.onEvent('viewportChanged', fit);
+        } else $('coords').textContent = 'Xarita yuklanmadi — «Turgan joyimni olish» tugmasini bosing.';
+        fillDistrict();
+    } catch (e) { say('Aloqa xatosi. Qayta oching.', 'err'); }
+})();
+</script>
+</body>
+</html>

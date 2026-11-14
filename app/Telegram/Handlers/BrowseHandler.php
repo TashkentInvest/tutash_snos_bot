@@ -78,6 +78,26 @@ class BrowseHandler
         return InlineKeyboardButton::make(Ui::t($label), web_app: new WebAppInfo($url));
     }
 
+    /** Ijara shartnomasi oynasi (Mini App) — «Gastronomik ko'chalar → Mas'ullar»da tuman berilgan xodimlar uchun. */
+    public static function leaseFormButton(string $label = '📄 Ijara shartnomasi tuzish'): InlineKeyboardButton
+    {
+        return InlineKeyboardButton::make(Ui::t($label), web_app: new WebAppInfo(rtrim((string) config('app.url'), '/').'/tg/lease-form'));
+    }
+
+    /** Shartnoma mas'uli bo'lsa — bosh sahifadagi tugmalar va qisqa izoh. @return array{0: list<array>, 1: string} */
+    public static function leaseRows(Staff $staff): array
+    {
+        $ids = \App\Models\GastroResponsible::districtIdsFor($staff);
+        if (! $ids) {
+            return [[], ''];
+        }
+        $names = \App\Models\District::whereIn('id', $ids)->orderBy('name')->pluck('name')->join(', ');
+
+        return [[[self::leaseFormButton()]], "
+
+📄 <b>Ijara shartnomalari</b> (gastronomik ko‘chalar): ".Ui::e($names)];
+    }
+
     /** "📋 Men qo'shgan obyektlar" ("cad:mine"): holati, rad etilganining sababi va tahrirlash tugmalari. */
     public function mySites(Nutgram $bot): void
     {
@@ -139,6 +159,7 @@ class BrowseHandler
     {
         $answered || ! $bot->callbackQuery() || $bot->answerCallbackQuery();
         $button = self::checkinButton($staff);
+        [$leaseRows, $leaseText] = self::leaseRows($staff);
         $done = $staff->checkins()->whereDate('date', today())->where('status', \App\Models\Checkin::PRESENT)->pluck('slot')->sort()->join(', ');
         $att = $staff->attendances()->whereDate('date', today())->value('status');
 
@@ -153,7 +174,8 @@ class BrowseHandler
                 null => 'so‘rov hali yuborilmagan',
                 default => 'javob kutilmoqda',
             }.'; soatlik qaydlar — '.($done ?: 'hali yo‘q').'.'
-            .($button ? "\n\n⏳ Hozir javob kutilmoqda — pastdagi tugmani bosing." : ''), $button ? Ui::markup([[$button]]) : null);
+            .($button ? "\n\n⏳ Hozir javob kutilmoqda — pastdagi tugmani bosing." : '').$leaseText,
+            ($button || $leaseRows) ? Ui::markup([...($button ? [[$button]] : []), ...$leaseRows]) : null);
     }
 
     public function home(Nutgram $bot): void
@@ -174,23 +196,26 @@ class BrowseHandler
 
         // ikkinchi vazifa (soatlik qayd) bo'lsa — holati va javob tugmasi tumanlar ro'yxati ustida
         $hourly = $staff->isActive() && $staff->doesHourlyCheckin();
+        // ijara shartnomasi mas'uli (masalan roli «Xodim» bo'lgan) — tugma tumanlar ustida
+        [$leaseRows, $leaseText] = $staff->isActive() ? self::leaseRows($staff) : [[], ''];
 
         if ($districts->isEmpty() && ! $staff->isCitizen()) {
             // masalan tuman telefoni o'zgartirilgan — bo'sh ro'yxat o'rniga tushuntirish
             $bot->callbackQuery() && $bot->answerCallbackQuery();
-            Ui::show($bot, '👋 <b>'.Ui::e($staff->full_name)."</b>\n\nSizga hozircha hudud biriktirilmagan. Tuman mas’uli yoki administratorga murojaat qiling."
-                .($hourly ? "\n\n".self::checkinText($staff) : ''),
-                ($hourly && ($button = self::checkinButton($staff))) ? Ui::markup([[$button]]) : null);
+            $button = $hourly ? self::checkinButton($staff) : null;
+            Ui::show($bot, '👋 <b>'.Ui::e($staff->full_name).'</b>'.($leaseRows ? '' : "\n\nSizga hozircha hudud biriktirilmagan. Tuman mas’uli yoki administratorga murojaat qiling.")
+                .($hourly ? "\n\n".self::checkinText($staff) : '').$leaseText,
+                ($button || $leaseRows) ? Ui::markup([...($button ? [[$button]] : []), ...$leaseRows]) : null);
 
             return;
         }
-        if ($districts->count() === 1 && ! $hourly && ! $staff->isCadastre()) {
+        if ($districts->count() === 1 && ! $hourly && ! $staff->isCadastre() && ! $leaseRows) {
             $this->district($bot, (string) $districts->first()->id);
 
             return;
         }
 
-        $rows = $districts->map(fn ($d) => [Ui::btn("{$d->name} · {$d->sites_count}/{$d->demolished_count}", "d:{$d->id}")])->all();
+        $rows = [...$leaseRows, ...$districts->map(fn ($d) => [Ui::btn("{$d->name} · {$d->sites_count}/{$d->demolished_count}", "d:{$d->id}")])->all()];
         if ($staff->isCadastre()) {
             array_unshift($rows, [self::siteFormButton('➕ Obyekt qo‘shish')], [Ui::btn('📋 Men qo‘shgan obyektlar', 'cad:mine')]);
         }
@@ -205,6 +230,7 @@ class BrowseHandler
             ($button = self::checkinButton($staff)) && array_unshift($rows, [$button]);
             $head .= "\n\n".self::checkinText($staff)."\n";
         }
+        $head .= $leaseText ? $leaseText."\n" : '';
         Ui::show($bot, $head."\nTumanni tanlang. Tugmada: <i>jami obyektlar / shundan buzilganlari</i>.", Ui::markup($rows));
     }
 

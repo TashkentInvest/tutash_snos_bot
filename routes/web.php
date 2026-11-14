@@ -70,6 +70,15 @@ Route::get('/admin-attendance-report.png', function (\Illuminate\Http\Request $r
     return response(\App\Telegram\Support\AttendanceReport::image($day)['png'], 200, ['Content-Type' => 'image/png', 'Cache-Control' => 'private, no-store']);
 })->middleware(['auth'])->name('admin.attendance-report.png');
 Route::get('/admin-checkin/{checkin}', [MediaController::class, 'checkinVideo'])->middleware(['auth'])->name('admin.checkin-video');
+// ijara shartnomasi fayli (faqat admin)
+Route::get('/admin-lease/{contract}/{format}', function (\App\Models\LeaseContract $contract, string $format) {
+    abort_unless(auth()->user()?->is_admin, 403);
+    $path = $format === 'pdf' ? $contract->pdf_path : $contract->docx_path;
+    $disk = \Illuminate\Support\Facades\Storage::disk('local');
+    abort_unless($path && $disk->exists($path), 404);
+
+    return response()->download($disk->path($path), 'ijara-shartnoma-'.$contract->id.'.'.($format === 'pdf' ? 'pdf' : 'docx'));
+})->whereIn('format', ['docx', 'pdf'])->middleware(['auth'])->name('admin.lease-file');
 Route::get('/admin-attendance/{attendance}',[MediaController::class, 'attendanceVideo'])->middleware(['auth'])->name('admin.attendance-video');
 
 // Davomat joylashuvi (Telegram Mini App). Imzo (initData) controllerda tekshiriladi.
@@ -88,6 +97,10 @@ Route::post('/tg/checkin-video', [\App\Http\Controllers\CheckinController::class
 // Obyekt tekshiruvi (Telegram Mini App).
 // Kadastr xodimi: obyekt qo'shish / tahrirlash (admin tasdiqlaydi)
 Route::get('/tg/site-form', [\App\Http\Controllers\SiteFormController::class, 'page']);
+// ijara shartnomasi (gastronomik ko'chalar mas'ullari)
+Route::get('/tg/lease-form', [\App\Http\Controllers\LeaseFormController::class, 'page']);
+Route::post('/tg/lease-form/state', [\App\Http\Controllers\LeaseFormController::class, 'state'])->middleware('throttle:tg-app');
+Route::post('/tg/lease-form/save', [\App\Http\Controllers\LeaseFormController::class, 'save'])->middleware('throttle:tg-app');
 Route::post('/tg/site-form/state', [\App\Http\Controllers\SiteFormController::class, 'state'])->middleware('throttle:tg-app');
 Route::post('/tg/site-form/save', [\App\Http\Controllers\SiteFormController::class, 'save'])->middleware('throttle:tg-app');
 
