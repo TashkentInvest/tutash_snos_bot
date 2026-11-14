@@ -64,6 +64,7 @@ class LeaseFormController extends Controller
         return response()->json([
             'ok' => true,
             'radius' => (int) config('tutash.max_distance_m'),
+            'max_accuracy' => (int) config('tutash.max_gps_accuracy_m'),
             'activities' => LeaseContract::ACTIVITIES,
             'districts' => District::whereIn('id', $ids)->orderBy('name')->get(['id', 'name', 'boundary'])->map(fn ($d) => [
                 'id' => $d->id, 'name' => $d->name, 'boundary' => $d->boundary ?? [],
@@ -83,6 +84,7 @@ class LeaseFormController extends Controller
             'gastro_street_id' => 'required|integer',
             'lat' => 'required|numeric|between:37,46',
             'lng' => 'required|numeric|between:55,74',
+            'accuracy' => 'required|numeric|min:0', // faqat telefon GPS'i — xodim obyekt oldida
             'tenant_name' => 'required|string|min:3|max:255',
             'tenant_address' => ($legal ? 'required' : 'nullable').'|string|max:500',
             'director' => ($legal ? 'required' : 'nullable').'|string|min:5|max:150',
@@ -120,11 +122,15 @@ class LeaseFormController extends Controller
         if (! $street) {
             return $this->fail('Ko‘chani ro‘yxatdan tanlang.');
         }
+        // GPS aniqligi — tekshiruvlardagi kabi
+        if ($message = Gps::accuracyError((float) $data['accuracy'])) {
+            return $this->fail($message);
+        }
         // faqat gastronomik ko'chadagi obyekt: tanlangan ko'cha chizig'idan ruxsat etilgan masofa ichida (obyektlardagi kabi)
         $radius = (int) config('tutash.max_distance_m');
         $distance = (int) round(Gps::distanceToLine((float) $data['lat'], (float) $data['lng'], $street->line) ?? INF);
         if ($distance > $radius) {
-            return $this->fail("Obyekt «{$street->name}» ko‘chasidan taxminan {$distance} m uzoqda. Shartnoma faqat gastronomik ko‘chadagi obyektlarga tuziladi (ko‘chadan {$radius} m ichida). Xaritada obyekt joyini to‘g‘ri belgilang.");
+            return $this->fail("Siz «{$street->name}» ko‘chasidan taxminan {$distance} m uzoqdasiz. Shartnoma faqat gastronomik ko‘chadagi obyektlarga tuziladi (ko‘chadan {$radius} m ichida) — obyekt oldiga borib, joylashuvni qayta oling.");
         }
 
         $clean = fn ($k) => filled($data[$k] ?? null) ? trim((string) $data[$k]) : null;
@@ -168,7 +174,7 @@ class LeaseFormController extends Controller
                 rewind($fh);
                 $bot->sendDocument(InputFile::make($fh, basename($path)), array_filter([
                     'chat_id' => $chatId, 'parse_mode' => ParseMode::HTML, 'caption' => $i === 0 ? $caption : null,
-                    'reply_markup' => $i === 0 ? Ui::markup([[BrowseHandler::leaseFormButton('➕ Yana shartnoma')]]) : null,
+                    'reply_markup' => $i === 0 ? Ui::markup([[Ui::btn('➕ Yana shartnoma', 'ls')]]) : null,
                 ]));
             }
 

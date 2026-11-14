@@ -53,7 +53,7 @@ class LeaseContractTest extends TestCase
     {
         return $over + [
             'initData' => $this->initData(), 'party' => 'legal', 'district_id' => $this->district->id, 'gastro_street_id' => $this->street->id,
-            'lat' => 41.3000, 'lng' => 69.2702, // ko'chadan ~17 m
+            'lat' => 41.3000, 'lng' => 69.2702, 'accuracy' => 12, // ko'chadan ~17 m, telefon GPS'i
             'tenant_name' => '“GLOBAL PROPERTY DEVELOPMENT” MChJ', 'tenant_address' => 'Toshkent shahri, Mirobod tumani, Taras Shevchenko ko‘chasi, 21A-uy',
             'director' => 'Yermatov Vali Rustamovich', 'account' => '20208000005495269001', 'inn' => '309303138', 'mfo' => '00445', 'phone' => '+998997607007',
             'mfy' => 'Oybek', 'house' => '21A', 'cadastre' => '10:11:40:02:01:0612', 'area_m2' => 58.5, 'activity' => 'Umumiy ovqatlanish',
@@ -80,7 +80,10 @@ class LeaseContractTest extends TestCase
 
         // ko'chadan uzoq — rad (faqat gastronomik ko'chadagi obyektga)
         $this->postJson('/tg/lease-form/save', $this->legal(['lat' => 41.3000, 'lng' => 69.2800]))->assertStatus(422)
-            ->assertJsonPath('message', fn ($m) => str_contains($m, 'uzoqda') && str_contains($m, '300 m'));
+            ->assertJsonPath('message', fn ($m) => str_contains($m, 'uzoqdasiz') && str_contains($m, '300 m'));
+        // faqat GPS: aniqligi yo'q yoki past — rad
+        $this->postJson('/tg/lease-form/save', $this->legal(['accuracy' => null]))->assertStatus(422)->assertJsonValidationErrors('accuracy');
+        $this->postJson('/tg/lease-form/save', $this->legal(['accuracy' => 400]))->assertStatus(422)->assertJsonPath('message', fn ($m) => str_contains($m, 'GPS aniqligi past'));
         $this->postJson('/tg/lease-form/save', $this->legal(['director' => null]))->assertStatus(422)->assertJsonValidationErrors('director');
         $this->assertSame(0, LeaseContract::count());
 
@@ -144,10 +147,21 @@ class LeaseContractTest extends TestCase
         $bot = app(Nutgram::class);
         $bot->setCommonUser(TgUser::make(id: self::UID, is_bot: false, first_name: 'R'));
         $bot->setCommonChat(Chat::make(id: self::UID, type: 'private'));
+        $sent = function () use ($bot) {
+            return collect($bot->getRequestHistory())->map(fn ($r) => (string) array_values($r)[0]->getBody())->implode("\n");
+        };
+        // obyektlar kabi tugmalar: bosh sahifa → (bitta tuman — darrov) ko'chalar → obyekt oldida to'ldirish
         $bot->hearText('/start')->reply();
-        $sent = collect($bot->getRequestHistory())->map(fn ($r) => (string) array_values($r)[0]->getBody())->implode("\n");
-        $this->assertStringContainsString('tg\/lease-form', $sent);
-        $this->assertStringContainsString('Mirobod tumani', $sent);
+        $this->assertStringContainsString('"callback_data":"ls"', $sent());
+        $this->assertStringContainsString('Mirobod tumani', $sent());
+        $bot->hearCallbackQueryData('ls')->reply();
+        $this->assertStringContainsString('"callback_data":"lst:'.$this->street->id.'"', $sent());
+        $bot->hearCallbackQueryData('lst:'.$this->street->id)->reply();
+        $this->assertStringContainsString('tg\/lease-form?street='.$this->street->id, $sent());
+        // begona ko'cha — javob yo'q
+        $other = GastroStreet::create(['district_id' => District::create(['name' => 'Yakkasaroy tumani', 'phone' => '901000009'])->id, 'name' => 'Shota Rustaveli', 'line' => [[41.29, 69.26], [41.291, 69.26]]]);
+        $bot->hearCallbackQueryData('lst:'.$other->id)->reply();
+        $this->assertStringNotContainsString('street='.$other->id, $sent());
 
         $this->postJson('/tg/lease-form/save', $this->legal())->assertOk();
         $c = LeaseContract::sole();

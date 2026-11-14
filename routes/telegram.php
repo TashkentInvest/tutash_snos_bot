@@ -37,6 +37,10 @@ $bot->onCallbackQueryData('near:{id}', [BrowseHandler::class, 'askNear']);
 $bot->onCallbackQueryData('noop', fn (Nutgram $bot) => $bot->answerCallbackQuery());
 // Kadastr: o'zi qo'shgan obyektlar (yangi obyekt qo'shish — Mini App /tg/site-form)
 $bot->onCallbackQueryData('cad:mine', [BrowseHandler::class, 'mySites']);
+// ijara shartnomasi: tuman → gastronomik ko'cha → obyekt oldida to'ldirish
+$bot->onCallbackQueryData('ls', [\App\Telegram\Handlers\LeaseHandler::class, 'start']);
+$bot->onCallbackQueryData('ld:{id}', [\App\Telegram\Handlers\LeaseHandler::class, 'district']);
+$bot->onCallbackQueryData('lst:{id}', [\App\Telegram\Handlers\LeaseHandler::class, 'street']);
 
 // Tekshiruv
 $bot->onCallbackQueryData('go:{id}', [InspectionHandler::class, 'begin']);

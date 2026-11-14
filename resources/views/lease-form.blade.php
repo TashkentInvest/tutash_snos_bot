@@ -38,18 +38,17 @@
 </head>
 <body>
 <h1>📄 Ijara shartnomasi</h1>
-<div class="sub">Gastronomik ko‘chadagi obyektga tutash hudud. Tayyor Word fayl botga keladi — chop etib, imzolanadi.</div>
+<div class="sub">Obyekt oldida to‘ldiring. Tayyor Word fayl botga keladi — chop etib, imzolanadi.</div>
 
 <form id="f" class="hidden" autocomplete="off">
     <h2>1. Joy</h2>
-    <label>Tuman</label>
-    <select id="district" required></select>
-    <label>Gastronomik ko‘cha</label>
-    <select id="street" required></select>
-    <label>Obyekt joyi <small>(xaritada bosing, belgini surib aniqlashtiring)</small></label>
+    <div id="place" style="font-size:16px;font-weight:600;"></div>
+    <select id="district" class="hidden"></select>
+    <select id="street" class="hidden"></select>
+    <label>Obyekt joyi <small>(obyekt oldida turing — telefon GPS'idan olinadi)</small></label>
     <div id="map"></div>
-    <div id="coords" class="hint">Joy tanlanmagan</div>
-    <button type="button" id="goLoc" class="secondary">📍 Turgan joyimni olish</button>
+    <div id="coords" class="hint">Joylashuv aniqlanmoqda…</div>
+    <button type="button" id="goLoc" class="secondary">📍 Joylashuvni qayta olish</button>
     <div class="row">
         <div><label>MFY</label><input id="mfy" list="mfyList" required minlength="3" maxlength="150" placeholder="masalan: Oybek"><datalist id="mfyList"></datalist></div>
         <div><label>Uy <small>(raqami)</small></label><input id="house" maxlength="100" placeholder="21A"></div>
@@ -127,7 +126,8 @@ const $ = id => document.getElementById(id), msg = $('msg');
 const say = (t, c) => { msg.textContent = t; msg.className = c || ''; };
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const initData = () => (tg ? tg.initData : '');
-let districts = [], radius = 300, busy = false, map = null, marker = null, point = null, layers = [];
+let districts = [], radius = 300, maxAcc = 150, busy = false, map = null, marker = null, point = null, layers = [];
+const streetParam = new URLSearchParams(location.search).get('street');
 
 async function api(path, body) {
     const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 60000);
@@ -155,18 +155,27 @@ function distToLine(lat, lng, line) {
     }
     return min;
 }
+// joy mosmi: GPS aniqligi va ko'chagacha masofa (server ham xuddi shunday tekshiradi)
+function placeOk() {
+    if (!point) return false;
+    const s = street();
+    return (point.acc == null || point.acc <= maxAcc) && (!s || distToLine(point.lat, point.lng, s.line) <= radius);
+}
 function showPoint() {
     if (!point) return;
     const s = street(), d = s ? Math.round(distToLine(point.lat, point.lng, s.line)) : null;
-    $('coords').textContent = d === null ? '✅ Joy tanlandi' : (d <= radius ? `✅ Ko‘chadan ~${d} m — mos` : `⚠️ Ko‘chadan ~${d} m uzoq (ruxsat: ${radius} m)`);
-    $('coords').className = 'hint ' + (d === null || d <= radius ? 'ok' : 'err');
+    const acc = point.acc != null ? ` · aniqlik ±${Math.round(point.acc)} m` : '';
+    $('coords').textContent = point.acc != null && point.acc > maxAcc
+        ? `⚠️ GPS aniqligi past (±${Math.round(point.acc)} m). Ochiq joyga chiqib, qayta oling (talab: ±${maxAcc} m).`
+        : (d === null ? '✅ Joylashuv olindi' + acc : (d <= radius ? `✅ Ko‘chadan ~${d} m — mos${acc}` : `⚠️ Ko‘chadan ~${d} m uzoq (ruxsat: ${radius} m). Obyekt oldiga boring va qayta oling.`));
+    $('coords').className = 'hint ' + (placeOk() ? 'ok' : 'err');
 }
-function setPoint(lat, lng, zoom) {
-    point = { lat: +lat, lng: +lng };
+// faqat GPS: xodim obyekt oldida turadi — xaritada qo'lda belgilab bo'lmaydi
+function setPoint(lat, lng, zoom, acc) {
+    point = { lat: +lat, lng: +lng, acc: acc == null ? null : +acc };
     if (map) {
         if (!marker) {
-            marker = L.marker([point.lat, point.lng], { icon: L.divIcon({ className: 'pin', html: '📍', iconSize: [30, 30], iconAnchor: [15, 28] }), draggable: true }).addTo(map);
-            marker.on('dragend', () => { const p = marker.getLatLng(); setPoint(p.lat, p.lng); });
+            marker = L.marker([point.lat, point.lng], { icon: L.divIcon({ className: 'pin', html: '📍', iconSize: [30, 30], iconAnchor: [15, 28] }), interactive: false }).addTo(map);
         } else marker.setLatLng([point.lat, point.lng]);
         zoom && map.setView([point.lat, point.lng], Math.max(map.getZoom(), zoom));
     }
@@ -179,11 +188,10 @@ function drawDistrict() {
     (d.boundary || []).forEach(r => { all.push(...r); layers.push(L.polygon(r, { color: '#64748b', weight: 1, dashArray: '4 4', fill: false, interactive: false }).addTo(map)); });
     d.streets.forEach(s => {
         const on = String(s.id) === sel;
-        layers.push(L.polyline(s.line, { color: on ? '#dc2626' : '#f59e0b', weight: on ? 7 : 4, opacity: on ? .95 : .7 }).addTo(map).bindTooltip(s.name, { sticky: true })
-            .on('click', () => { $('street').value = String(s.id); drawDistrict(); showPoint(); }));
+        layers.push(L.polyline(s.line, { color: on ? '#dc2626' : '#f59e0b', weight: on ? 7 : 4, opacity: on ? .95 : .7 }).addTo(map).bindTooltip(s.name, { sticky: true }));
     });
     const s = street();
-    s ? map.fitBounds(s.line, { padding: [40, 40], maxZoom: 17 }) : all.length && map.fitBounds(all, { padding: [20, 20] });
+    point ? map.setView([point.lat, point.lng], 17) : (s ? map.fitBounds(s.line, { padding: [40, 40], maxZoom: 17 }) : all.length && map.fitBounds(all, { padding: [20, 20] }));
 }
 function fillDistrict() {
     const d = district();
@@ -194,12 +202,13 @@ function fillDistrict() {
 $('district').onchange = fillDistrict;
 $('street').onchange = () => { drawDistrict(); showPoint(); };
 
-$('goLoc').onclick = async () => {
-    $('goLoc').disabled = true; say('Joylashuv aniqlanmoqda…');
-    try { const p = await TgLoc.get(); setPoint(p.lat, p.lng, 17); say(''); }
-    catch (e) { say(e.message || 'Joylashuv aniqlanmadi.', 'err'); }
+async function locate() {
+    $('goLoc').disabled = true; $('coords').textContent = 'Joylashuv aniqlanmoqda…'; $('coords').className = 'hint';
+    try { const p = await TgLoc.get(); setPoint(p.lat, p.lng, 17, p.accuracy); }
+    catch (e) { $('coords').textContent = e.message || 'Joylashuv aniqlanmadi. Telefonda GPS (joylashuv) yoqilganini tekshiring.'; $('coords').className = 'hint err'; }
     $('goLoc').disabled = false;
-};
+}
+$('goLoc').onclick = locate;
 
 // yuridik / jismoniy
 const party = () => document.querySelector('input[name=party]:checked').value;
@@ -226,7 +235,7 @@ $('amount').oninput = schedule;
 $('f').onsubmit = async ev => {
     ev.preventDefault();
     if (busy) return;
-    if (!point) { $('map').scrollIntoView({ behavior: 'smooth', block: 'center' }); return say('Xaritada obyekt joyini belgilang.', 'err'); }
+    if (!placeOk()) { $('map').scrollIntoView({ behavior: 'smooth', block: 'center' }); return say(point ? 'Joylashuv mos emas — obyekt oldiga boring va «Joylashuvni qayta olish» tugmasini bosing.' : 'Joylashuv hali olinmadi — «Joylashuvni qayta olish» tugmasini bosing.', 'err'); }
     const legal = party() === 'legal', v = id => $(id).value.trim() || null;
     const activity = $('activity').value === 'other' ? v('activityOther') : $('activity').value;
     if (!activity) return say('Faoliyat turini yozing.', 'err');
@@ -234,7 +243,7 @@ $('f').onsubmit = async ev => {
     busy = true; $('goSave').disabled = true; say('Shartnoma tayyorlanmoqda…');
     try {
         const { ok, j } = await api('save', {
-            party: party(), district_id: Number($('district').value), gastro_street_id: Number($('street').value), lat: point.lat, lng: point.lng,
+            party: party(), district_id: Number($('district').value), gastro_street_id: Number($('street').value), lat: point.lat, lng: point.lng, accuracy: point.acc,
             tenant_name: legal ? v('orgName') : v('personName'), tenant_address: legal ? v('orgAddress') : v('personAddress'),
             director: legal ? v('director') : null, account: legal ? v('account') : null, inn: legal ? v('inn') : null, mfo: legal ? v('mfo') : null,
             passport: legal ? null : v('passport'), jshshir: legal ? null : v('jshshir'), passport_issuer: legal ? null : v('passportIssuer'),
@@ -259,19 +268,25 @@ $('f').onsubmit = async ev => {
     try {
         const { ok, j } = await api('state', {});
         if (!ok) return say(j.message || 'Telegram ichida oching.', 'err');
-        districts = j.districts || []; radius = j.radius || 300;
+        districts = j.districts || []; radius = j.radius || 300; maxAcc = j.max_accuracy || 150;
         if (!districts.length) return say('Sizga ijara shartnomasi uchun tuman biriktirilmagan.', 'err');
+        // tuman va ko'cha botdagi tugmalar bilan tanlanadi (…/tg/lease-form?street=ID)
+        const d0 = districts.find(d => d.streets.some(s => String(s.id) === streetParam));
+        if (!d0) return say('Botda «📄 Ijara shartnomasi tuzish» → tuman → ko‘chani tanlab, so‘ng «Shartnoma to‘ldirish» tugmasini bosing.', 'err');
         $('district').innerHTML = districts.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
+        $('district').value = String(d0.id);
         $('activity').innerHTML = j.activities.map(a => `<option>${esc(a)}</option>`).join('') + '<option value="other">Boshqa — o‘zim yozaman</option>';
         const today = new Date().toISOString().slice(0, 10); $('start').value = today; $('start').onchange();
         say(''); $('f').classList.remove('hidden');
         if (window.L) {
             map = L.map('map').setView([41.31, 69.27], 12);
             L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: '© Esri' }).addTo(map);
-            map.on('click', e => setPoint(e.latlng.lat, e.latlng.lng));
             const fit = () => map.invalidateSize(); setTimeout(fit, 300); window.addEventListener('resize', fit); tg && tg.onEvent && tg.onEvent('viewportChanged', fit);
         } else $('coords').textContent = 'Xarita yuklanmadi — «Turgan joyimni olish» tugmasini bosing.';
         fillDistrict();
+        $('street').value = streetParam; drawDistrict();
+        $('place').textContent = '📍 ' + d0.name + ' · ' + street().name;
+        locate(); // obyekt oldida — darhol GPS
     } catch (e) { say('Aloqa xatosi. Qayta oching.', 'err'); }
 })();
 </script>

@@ -78,13 +78,13 @@ class BrowseHandler
         return InlineKeyboardButton::make(Ui::t($label), web_app: new WebAppInfo($url));
     }
 
-    /** Ijara shartnomasi oynasi (Mini App) — «Gastronomik ko'chalar → Mas'ullar»da tuman berilgan xodimlar uchun. */
-    public static function leaseFormButton(string $label = '📄 Ijara shartnomasi tuzish'): InlineKeyboardButton
+    /** Ijara shartnomasi oynasi (Mini App) — ko'cha tanlangan holda ochiladi. */
+    public static function leaseFormButton(string $label = '📝 Shartnoma to‘ldirish', ?int $streetId = null): InlineKeyboardButton
     {
-        return InlineKeyboardButton::make(Ui::t($label), web_app: new WebAppInfo(rtrim((string) config('app.url'), '/').'/tg/lease-form'));
+        return InlineKeyboardButton::make(Ui::t($label), web_app: new WebAppInfo(rtrim((string) config('app.url'), '/').'/tg/lease-form'.($streetId ? '?street='.$streetId : '')));
     }
 
-    /** Shartnoma mas'uli bo'lsa — bosh sahifadagi tugmalar va qisqa izoh. @return array{0: list<array>, 1: string} */
+    /** Shartnoma mas'uli bo'lsa — bosh sahifadagi tugma va qisqa izoh. @return array{0: list<array>, 1: string} */
     public static function leaseRows(Staff $staff): array
     {
         $ids = \App\Models\GastroResponsible::districtIdsFor($staff);
@@ -93,7 +93,7 @@ class BrowseHandler
         }
         $names = \App\Models\District::whereIn('id', $ids)->orderBy('name')->pluck('name')->join(', ');
 
-        return [[[self::leaseFormButton()]], "
+        return [[[Ui::btn('📄 Ijara shartnomasi tuzish', 'ls')]], "
 
 📄 <b>Ijara shartnomalari</b> (gastronomik ko‘chalar): ".Ui::e($names)];
     }

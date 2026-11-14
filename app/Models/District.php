@@ -81,4 +81,9 @@ class District extends Model
 
         return '+998 '.substr($this->phone, 0, 2).' '.substr($this->phone, 2, 3).' '.substr($this->phone, 5, 2).' '.substr($this->phone, 7, 2);
     }
+
+    public function gastroStreets(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(GastroStreet::class);
+    }
 }
