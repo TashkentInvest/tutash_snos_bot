@@ -232,20 +232,32 @@ class LeaseContractDocument
         return [$a, $b, substr($xml, $a, $b - $a)];
     }
 
-    /** LibreOffice (soffice) o'rnatilgan bo'lsa — PDF; bo'lmasa null (Word fayl baribir tayyor). */
+    /**
+     * PDF — faqat .env da SOFFICE_BIN berilgan bo'lsa (asosiy natija Word). Har qanday xato (open_basedir, soffice yo'q,
+     * konvertatsiya muvaffaqiyatsiz) shartnomani to'xtatmaydi — null qaytadi, Word fayl baribir yuboriladi.
+     */
     public static function toPdf(string $docxPath): ?string
     {
         $bin = config('tutash.soffice_bin');
-        if (! $bin || ! is_executable($bin)) {
+        if (! $bin) {
             return null;
         }
-        $home = sys_get_temp_dir().'/lo-profile';
-        @mkdir($home, 0775, true);
-        $p = new Process([$bin, '--headless', '--convert-to', 'pdf', '--outdir', dirname($docxPath), $docxPath], null, ['HOME' => $home]);
-        $p->setTimeout(90);
-        $p->run();
-        $pdf = preg_replace('/\.docx$/', '.pdf', $docxPath);
+        try {
+            if (! @is_executable($bin)) {
+                return null;
+            }
+            $home = sys_get_temp_dir().'/lo-profile';
+            @mkdir($home, 0775, true);
+            $p = new Process([$bin, '--headless', '--convert-to', 'pdf', '--outdir', dirname($docxPath), $docxPath], null, ['HOME' => $home]);
+            $p->setTimeout(90);
+            $p->run();
+            $pdf = preg_replace('/\.docx$/', '.pdf', $docxPath);
 
-        return $p->isSuccessful() && is_file($pdf) ? $pdf : null;
+            return $p->isSuccessful() && is_file($pdf) ? $pdf : null;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return null;
+        }
     }
 }

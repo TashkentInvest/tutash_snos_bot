@@ -3,7 +3,7 @@
 return [
     // Xodim obyektdan shu masofadan (metr) uzoqda bo'lsa tekshiruv "shubhali" deb belgilanadi.
     // ijara shartnomasi: Word -> PDF (LibreOffice). Yo'q bo'lsa faqat Word beriladi.
-    'soffice_bin' => env('SOFFICE_BIN', '/usr/bin/soffice'),
+    'soffice_bin' => env('SOFFICE_BIN'), // PDF ixtiyoriy: bo'sh — faqat Word (serverda open_basedir soffice'ni bloklaydi)
 
     'max_distance_m' => (int) env('INSPECTION_MAX_DISTANCE_M', 300),
 

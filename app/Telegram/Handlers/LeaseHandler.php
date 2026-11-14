@@ -71,9 +71,12 @@ class LeaseHandler
         if (! $street || ! in_array($street->district_id, GastroResponsible::districtIdsFor($staff), true)) {
             return;
         }
+        // cheklov admin panelda («Hisobotlar» → «Joylashuv cheklovlari») o'chirilgan bo'lsa — uzoqdan ham mumkin
+        $where = \App\Support\Limits::leaseCheck()
+            ? "Obyekt oldiga boring va tugmani bosing — joylashuv telefon GPS'idan olinadi (ko‘chadan ".\App\Support\Limits::leaseRadius().' m ichida bo‘lishi kerak).'
+            : 'Tugmani bosing — joylashuv cheklovi hozir o‘chirilgan, shartnomani uzoqdan ham to‘ldirish mumkin. Xaritada hududni shu ko‘cha yonida chizing.';
         Ui::show($bot, '📄 <b>'.Ui::e($street->district->name).' · '.Ui::e($street->name)."</b>\n\n"
-            ."Obyekt oldiga boring va tugmani bosing — joylashuv telefon GPS'idan olinadi (ko‘chadan "
-            .\App\Support\Limits::leaseRadius().' m ichida bo‘lishi kerak). Keyin ijarachi va obyekt ma’lumotlarini kiriting.',
+            .$where.' Keyin ijarachi va obyekt ma’lumotlarini kiriting.',
             Ui::markup([[BrowseHandler::leaseFormButton('📝 Shartnoma to‘ldirish', $street->id)], [Ui::btn('⬅️ Orqaga', "ld:{$street->district_id}")]]));
     }
 }

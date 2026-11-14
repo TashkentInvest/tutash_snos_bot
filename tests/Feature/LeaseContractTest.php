@@ -182,6 +182,33 @@ class LeaseContractTest extends TestCase
         $this->assertSame(0, LeaseContract::count());
     }
 
+    /** Production xatosi: soffice'ga ruxsat yo'q (open_basedir) — PDF bo'lmaydi, Word baribir yuboriladi. */
+    public function test_unavailable_pdf_converter_does_not_break_contract(): void
+    {
+        config(['tutash.soffice_bin' => '/nonexistent/soffice']);
+        $this->save($this->legal())->assertOk()->assertJsonPath('sent', true);
+        $c = LeaseContract::sole();
+        $this->assertNotNull($c->docx_path);
+        $this->assertNull($c->pdf_path);
+    }
+
+    /** Word yasalmasa — yarim saqlangan shartnoma va rasmlar qolmaydi (qayta urinishda dublikat ham bo'lmaydi). */
+    public function test_failed_render_leaves_no_half_saved_contract(): void
+    {
+        $tpl = resource_path('contracts/lease-legal.docx');
+        rename($tpl, $tpl.'.bak');
+        try {
+            $this->save($this->legal())->assertStatus(500)->assertJsonPath('message', fn ($m) => str_contains($m, 'tayyorlab bo‘lmadi'));
+        } finally {
+            rename($tpl.'.bak', $tpl);
+        }
+        $this->assertSame(0, LeaseContract::count());
+        $this->assertSame([], Storage::disk('local')->allFiles('contracts'));
+
+        $this->save($this->legal())->assertOk(); // namuna joyida — ishlaydi
+        $this->assertSame(1, LeaseContract::count());
+    }
+
     /** Admin «Faqat ko'cha yonida» cheklovini o'chirsa — shartnoma uzoqdan (onlayn) ham to'ldiriladi. */
     public function test_lease_location_limit_can_be_turned_off(): void
     {
@@ -230,6 +257,12 @@ class LeaseContractTest extends TestCase
         $this->assertStringContainsString('"callback_data":"lst:'.$this->street->id.'"', $sent());
         $bot->hearCallbackQueryData('lst:'.$this->street->id)->reply();
         $this->assertStringContainsString('tg\/lease-form?street='.$this->street->id, $sent());
+        $this->assertStringContainsString('300 m ichida', $sent());
+        // cheklov o'chirilsa — botdagi yozuv ham shunga mos
+        \App\Support\Limits::save(['lease_check' => false]);
+        $bot->hearCallbackQueryData('lst:'.$this->street->id)->reply();
+        $this->assertStringContainsString('uzoqdan ham', $sent());
+        \App\Support\Limits::save(['lease_check' => true]);
         // begona ko'cha — javob yo'q
         $other = GastroStreet::create(['district_id' => District::create(['name' => 'Yakkasaroy tumani', 'phone' => '901000009'])->id, 'name' => 'Shota Rustaveli', 'line' => [[41.29, 69.26], [41.291, 69.26]]]);
         $bot->hearCallbackQueryData('lst:'.$other->id)->reply();

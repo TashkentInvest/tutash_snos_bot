@@ -165,31 +165,44 @@ class LeaseFormController extends Controller
         $amounts = LeaseContract::amounts((float) $data['area_m2'], $tariff, \Illuminate\Support\Carbon::parse($data['start_date']));
 
         $clean = fn ($k) => filled($data[$k] ?? null) ? trim((string) $data[$k]) : null;
-        $contract = LeaseContract::create([
-            'district_id' => (int) $data['district_id'], 'gastro_street_id' => $street->id, 'staff_id' => $staff->id,
-            'party' => $data['party'], 'lat' => (float) $data['lat'], 'lng' => (float) $data['lng'], 'street_distance_m' => $distance,
-            'gps_accuracy' => (float) $data['accuracy'], 'polygon' => $polygon, 'polygon_area_m2' => $polygonArea,
-            'area_m2' => (float) $data['area_m2'], 'annual_amount' => $amounts['annual'], 'tariff' => $tariff,
-            'start_date' => $data['start_date'], 'end_date' => $data['end_date'], 'application_date' => $data['application_date'] ?? null,
-            ...collect(['tenant_name', 'tenant_address', 'director', 'account', 'inn', 'mfo', 'phone', 'passport', 'passport_issuer',
-                'passport_year', 'jshshir', 'mfy', 'house', 'cadastre', 'activity', 'application_number'])
-                ->mapWithKeys(fn ($k) => [$k => $clean($k)])->all(),
-        ]);
-        if (! $legal) { // yuridik shaxsga xos maydonlar jismoniyda saqlanmaydi (va aksincha)
-            $contract->update(['director' => null, 'account' => null, 'inn' => null, 'mfo' => null]);
-        } else {
-            $contract->update(['passport' => null, 'passport_issuer' => null, 'passport_year' => null, 'jshshir' => null]);
-        }
+        // bitta butun amal: fayl yasalmasa — yozuv va rasmlar o'chiriladi (yarim saqlangan shartnoma qolmaydi,
+        // xodim qayta urinsa dublikat ham bo'lmaydi)
+        $contract = null;
+        try {
+            $contract = LeaseContract::create([
+                'district_id' => (int) $data['district_id'], 'gastro_street_id' => $street->id, 'staff_id' => $staff->id,
+                'party' => $data['party'], 'lat' => (float) $data['lat'], 'lng' => (float) $data['lng'], 'street_distance_m' => $distance,
+                'gps_accuracy' => (float) $data['accuracy'], 'polygon' => $polygon, 'polygon_area_m2' => $polygonArea,
+                'area_m2' => (float) $data['area_m2'], 'annual_amount' => $amounts['annual'], 'tariff' => $tariff,
+                'start_date' => $data['start_date'], 'end_date' => $data['end_date'], 'application_date' => $data['application_date'] ?? null,
+                ...collect(['tenant_name', 'tenant_address', 'director', 'account', 'inn', 'mfo', 'phone', 'passport', 'passport_issuer',
+                    'passport_year', 'jshshir', 'mfy', 'house', 'cadastre', 'activity', 'application_number'])
+                    ->mapWithKeys(fn ($k) => [$k => $clean($k)])->all(),
+            ]);
+            if (! $legal) { // yuridik shaxsga xos maydonlar jismoniyda saqlanmaydi (va aksincha)
+                $contract->update(['director' => null, 'account' => null, 'inn' => null, 'mfo' => null]);
+            } else {
+                $contract->update(['passport' => null, 'passport_issuer' => null, 'passport_year' => null, 'jshshir' => null]);
+            }
 
-        // joyida olingan rasmlar — shartnoma papkasiga
-        $photos = [];
-        foreach (array_values($request->file('photos')) as $i => $file) {
-            $photos[] = $file->storeAs("contracts/{$contract->id}", 'rasm-'.($i + 1).'.'.($file->extension() === 'png' ? 'png' : 'jpg'), 'local');
-        }
-        $contract->update(['photos' => $photos]);
+            // joyida olingan rasmlar — shartnoma papkasiga
+            $photos = [];
+            foreach (array_values($request->file('photos')) as $i => $file) {
+                $photos[] = $file->storeAs("contracts/{$contract->id}", 'rasm-'.($i + 1).'.'.($file->extension() === 'png' ? 'png' : 'jpg'), 'local');
+            }
+            $contract->update(['photos' => $photos]);
 
-        [$docx, $pdf] = LeaseContractDocument::render($contract->refresh());
-        $contract->update(['docx_path' => $docx, 'pdf_path' => $pdf]);
+            [$docx, $pdf] = LeaseContractDocument::render($contract->refresh());
+            $contract->update(['docx_path' => $docx, 'pdf_path' => $pdf]);
+        } catch (\Throwable $e) {
+            if ($contract) {
+                Storage::disk('local')->deleteDirectory("contracts/{$contract->id}");
+                $contract->delete();
+            }
+            report($e);
+
+            return $this->fail('Shartnoma faylini tayyorlab bo‘lmadi — birozdan so‘ng qayta urinib ko‘ring. Xato administratorga yuborildi.', 500);
+        }
         AuditLog::record('lease.created', $staff->telegram_id, ['contract' => $contract->id, 'district' => $contract->district_id]);
 
         $sent = self::sendFiles($bot, $contract, $staff->telegram_id);

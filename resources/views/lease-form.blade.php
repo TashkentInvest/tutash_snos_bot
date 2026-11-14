@@ -207,7 +207,7 @@ function showPoint() {
     const acc = point.acc != null ? ` · aniqlik ±${Math.round(point.acc)} m` : '';
     $('coords').textContent = point.acc != null && point.acc > maxAcc
         ? `⚠️ GPS aniqligi past (±${Math.round(point.acc)} m). Ochiq joyga chiqib, qayta oling (talab: ±${maxAcc} m).`
-        : (d === null ? '✅ Joylashuv olindi' + acc : (d <= radius ? `✅ Ko‘chadan ~${d} m — mos${acc}` : `⚠️ Ko‘chadan ~${d} m uzoq (ruxsat: ${radius} m). Obyekt oldiga boring va qayta oling.`));
+        : (d === null ? '✅ Joylashuv olindi' + acc : (d <= radius ? (radius === Infinity ? `✅ Ko‘chadan ~${d} m (joylashuv cheklovi o‘chirilgan)${acc}` : `✅ Ko‘chadan ~${d} m — mos${acc}`) : `⚠️ Ko‘chadan ~${d} m uzoq (ruxsat: ${radius} m). Obyekt oldiga boring va qayta oling.`));
     $('coords').className = 'hint ' + (placeOk() ? 'ok' : 'err');
 }
 // faqat GPS: xodim obyekt oldida turadi — xaritada qo'lda belgilab bo'lmaydi
@@ -354,7 +354,7 @@ $('f').onsubmit = async ev => {
     const activity = $('activity').value === 'other' ? v('activityOther') : $('activity').value;
     if (!activity) return say('Faoliyat turini yozing.', 'err');
     if (!(legal ? v('orgName') : v('personName'))) return say(legal ? 'Tashkilot nomini yozing.' : 'F.I.SH ni yozing.', 'err');
-    if (!polyOk()) { $('map').scrollIntoView({ behavior: 'smooth', block: 'center' }); return say('Xaritada tutash hududni chizing — burchaklarni ketma-ket bosing (ko‘chadan ' + radius + ' m ichida).', 'err'); }
+    if (!polyOk()) { $('map').scrollIntoView({ behavior: 'smooth', block: 'center' }); return say('Xaritada tutash hududni chizing — burchaklarni ketma-ket bosing' + (radius === Infinity ? '.' : ' (ko‘chadan ' + radius + ' m ichida).'), 'err'); }
     if (shots.some(s => !s)) { $('photoInfo').scrollIntoView({ behavior: 'smooth', block: 'center' }); return say('Joyida 4 ta rasm oling.', 'err'); }
     busy = true; $('goSave').disabled = true; say('Shartnoma tayyorlanmoqda… (rasmlar yuklanmoqda)');
     try {
