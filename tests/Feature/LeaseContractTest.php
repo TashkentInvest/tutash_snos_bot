@@ -182,6 +182,24 @@ class LeaseContractTest extends TestCase
         $this->assertSame(0, LeaseContract::count());
     }
 
+    /** Barcha tumanlarga biriktirilgan xodim ham mas'ul bo'lsa — tumanlar ro'yxati ustida shartnoma tugmasi. */
+    public function test_global_staff_who_is_responsible_sees_lease_button(): void
+    {
+        config(['tutash.all_districts_employee_phones' => '901756545']);
+        $xayit = Staff::create(['telegram_id' => 777503, 'full_name' => 'Xayit', 'phone' => '901756545', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true]);
+        District::create(['name' => 'Bektemir tumani', 'phone' => '901000005']);
+        GastroResponsible::where('district_id', $this->district->id)->sole()->staff()->attach($xayit);
+
+        /** @var FakeNutgram $bot */
+        $bot = app(Nutgram::class);
+        $bot->setCommonUser(TgUser::make(id: 777503, is_bot: false, first_name: 'X'));
+        $bot->setCommonChat(Chat::make(id: 777503, type: 'private'));
+        $bot->hearText('/start')->reply();
+        $sent = collect($bot->getRequestHistory())->map(fn ($r) => (string) array_values($r)[0]->getBody())->implode("\n");
+        $this->assertStringContainsString('"callback_data":"ls"', $sent);
+        $this->assertStringContainsString('Ijara shartnomalari', $sent);
+    }
+
     public function test_bot_home_shows_lease_button_and_admin_lists_downloads(): void
     {
         /** @var FakeNutgram $bot */
