@@ -70,6 +70,24 @@ Route::get('/admin-attendance-report.png', function (\Illuminate\Http\Request $r
     return response(\App\Telegram\Support\AttendanceReport::image($day)['png'], 200, ['Content-Type' => 'image/png', 'Cache-Control' => 'private, no-store']);
 })->middleware(['auth'])->name('admin.attendance-report.png');
 Route::get('/admin-checkin/{checkin}', [MediaController::class, 'checkinVideo'])->middleware(['auth'])->name('admin.checkin-video');
+// ijara shartnomalari svodi (Excel) — faqat admin; ?from=&to=YYYY-MM-DD, unique=1, onsite=1
+Route::get('/admin-lease-svod.xlsx', function (\Illuminate\Http\Request $request) {
+    abort_unless(\App\Models\User::currentIsAdmin(), 403);
+    $date = function (?string $v) {
+        try {
+            return filled($v) ? \Illuminate\Support\Carbon::parse($v) : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    };
+
+    return response(\App\Support\LeaseSvod::xlsx($date($request->query('from')), $date($request->query('to')),
+        $request->query('unique', '1') === '1', $request->query('onsite') === '1'), 200, [
+        'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition' => 'attachment; filename="ijara-svod-'.now()->format('Y-m-d').'.xlsx"',
+        'Cache-Control' => 'no-store',
+    ]);
+})->middleware(['auth'])->name('admin.lease-svod');
 // ijara shartnomasi rasmi (joyida olingan, faqat admin)
 Route::get('/admin-lease/{contract}/photo/{n}', function (\App\Models\LeaseContract $contract, int $n) {
     abort_unless(auth()->user()?->is_admin, 403);
