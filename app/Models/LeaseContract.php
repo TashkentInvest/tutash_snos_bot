@@ -24,15 +24,22 @@ class LeaseContract extends Model
     ];
 
     /**
-     * To'lov: 1 m² oylik tarif × maydon = oylik to'lov; joriy yil to'lovi = oylik × (boshlanish oyidan dekabrgacha oylar).
-     * @return array{monthly: float, months: int, annual: float}
+     * To'lov: 1 m² oylik tarif × maydon = oylik to'lov. Birinchi oy — kunlar bo'yicha: boshlanish kunidan oy oxirigacha
+     * (boshlanish kuni ham kiradi; 10-noyabr → 21/30 oy; 1-sanada — to'liq oy). Keyingi oylar — to'liq.
+     * Joriy yil to'lovi = birinchi oy + oylik × (dekabrgacha qolgan oylar).
+     * @return array{monthly: float, months: int, first: float, first_days: int, days_in_month: int, annual: float}
      */
     public static function amounts(float $area, float $tariff, \DateTimeInterface $start): array
     {
         $monthly = round($area * $tariff, 2);
-        $months = 13 - (int) $start->format('n');
+        $d = \Carbon\CarbonImmutable::instance($start);
+        $dim = $d->daysInMonth;
+        $days = $dim - $d->day + 1;
+        $first = $days === $dim ? $monthly : round($monthly * $days / $dim, 2);
+        $months = 13 - $d->month;
 
-        return ['monthly' => $monthly, 'months' => $months, 'annual' => round($monthly * $months, 2)];
+        return ['monthly' => $monthly, 'months' => $months, 'first' => $first, 'first_days' => $days, 'days_in_month' => $dim,
+            'annual' => round($first + $monthly * ($months - 1), 2)];
     }
 
     public const PHOTOS = 4; // joyida, kameradan — majburiy
@@ -62,13 +69,18 @@ class LeaseContract extends Model
     /**
      * To'lov jadvali: joriy yil to'lovi boshlanish oyidan dekabrgacha teng bo'linadi (namunadagi kabi:
      * 21 787 682,67 / 6 oy = 3 631 280,44). Tiyin farqi oxirgi oyga qo'shiladi.
-     * @return list<array{0: int, 1: float}> [oy raqami, summa]
+     * Tarif bo'yicha: birinchi oy kunlar bo'yicha (to'liq bo'lmasa 3-element — kunlar soni), qolganlari maydon × tarif.
+     * @return list<array{0: int, 1: float, 2?: int}> [oy raqami, summa, (kunlar)]
      */
     public function schedule(): array
     {
         $months = range($this->start_date->month, 12);
-        if ($this->tariff) { // tarif bo'yicha: har oy bir xil — maydon × tarif
-            return array_map(fn ($m) => [$m, round($this->area_m2 * $this->tariff, 2)], $months);
+        if ($this->tariff) {
+            $a = self::amounts($this->area_m2, $this->tariff, $this->start_date);
+
+            return array_map(fn ($m) => $m === $this->start_date->month && $a['first_days'] < $a['days_in_month']
+                ? [$m, $a['first'], $a['first_days']]
+                : [$m, $a['monthly']], $months);
         }
         $each = floor($this->annual_amount / count($months) * 100) / 100;
         $rows = array_map(fn ($m) => [$m, $each], $months);

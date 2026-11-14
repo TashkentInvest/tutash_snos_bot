@@ -192,6 +192,28 @@ class LeaseContractTest extends TestCase
         $this->assertSame(0, LeaseContract::count());
     }
 
+    /** Oy o'rtasida boshlansa: birinchi oy kunlar bo'yicha (boshlanish kuni ham kiradi), keyingilari to'liq. */
+    public function test_first_month_is_prorated_by_days(): void
+    {
+        $this->save($this->legal(['party' => 'individual', 'tenant_name' => 'Kadirov Abduraxmon', 'tenant_address' => null, 'director' => null,
+            'passport' => 'AD 7739566', 'jshshir' => '31912820020026', 'area_m2' => 20, 'start_date' => '2026-11-10', 'end_date' => '2027-11-09']))->assertOk();
+        $c = LeaseContract::sole();
+        // 20 m² × 62 073,19 = 1 241 463,80/oy; noyabr: 10..30 = 21 kun → 21/30; dekabr — to'liq
+        $this->assertSame(2110488.46, $c->annual_amount);
+        $this->assertSame([[11, 869024.66, 21], [12, 1241463.8]], $c->schedule());
+        $t = $this->docText($c);
+        $this->assertStringContainsString('Noyabr (21 kun)', $t);
+        $this->assertStringContainsString('869 024,66', $t);
+        $this->assertStringContainsString('1 241 463,80', $t);
+        $this->assertStringContainsString('2 110 488,46', $t);
+
+        // 1-sanada boshlansa — to'liq oy
+        $a = LeaseContract::amounts(20, 62073.19, \Carbon\Carbon::parse('2026-12-01'));
+        $this->assertSame([1241463.8, 31, 1241463.8], [$a['first'], $a['first_days'], $a['annual']]);
+        // oyning oxirgi kuni — 1 kun
+        $this->assertSame(1, LeaseContract::amounts(20, 62073.19, \Carbon\Carbon::parse('2026-02-28'))['first_days']);
+    }
+
     /** Xarita xizmati javob bermasa — sxema oq fonda chiziladi, shartnoma baribir tayyor. */
     public function test_scheme_falls_back_to_plain_background_when_map_service_fails(): void
     {

@@ -120,7 +120,8 @@ class LeaseContractDocument
                 for ($k = 1; $k <= 4; $k++) {
                     if (isset($chunk[$k - 1])) {
                         [$month, $sum] = $chunk[$k - 1];
-                        $m = str_replace('{{m'.$k.'}}', $esc(mb_convert_case(self::MONTHS[$month], MB_CASE_TITLE)), $m);
+                        $days = $chunk[$k - 1][2] ?? null; // to'liq bo'lmagan birinchi oy — «Noyabr (21 kun)»
+                        $m = str_replace('{{m'.$k.'}}', $esc(mb_convert_case(self::MONTHS[$month], MB_CASE_TITLE).($days ? " ({$days} kun)" : '')), $m);
                         $v = str_replace('{{v'.$k.'}}', $esc(self::money($sum)), $v);
                     } else { // qisqa oxirgi qator — ortiqcha kataklar olib tashlanadi (namunadagi kabi)
                         $m = self::without($m, '{{m'.$k.'}}');

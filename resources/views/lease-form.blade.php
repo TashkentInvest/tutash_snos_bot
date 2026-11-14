@@ -336,9 +336,14 @@ function schedule() {
     const t = district().tariff, s = $('start').value, area = Number(($('area').value || '').replace(',', '.'));
     if (!t) { $('schedule').textContent = '⚠️ Bu tuman uchun 1 m² tarifi kiritilmagan — administratorga murojaat qiling.'; return; }
     if (!s || !(area > 0)) { $('schedule').textContent = `Tarif: 1 m² — ${sum(t)} so‘m/oy. Maydonni kiriting.`; return; }
-    const m = new Date(s).getMonth(), n = 12 - m, monthly = Math.round(area * t * 100) / 100;
+    // birinchi oy — boshlanish kunidan oy oxirigacha (shu kun ham kiradi), keyingilari to'liq (serverdagi LeaseContract::amounts kabi)
+    const d = new Date(s), m = d.getMonth(), n = 12 - m, monthly = Math.round(area * t * 100) / 100;
+    const dim = new Date(d.getFullYear(), m + 1, 0).getDate(), days = dim - d.getDate() + 1;
+    const first = days === dim ? monthly : Math.round(monthly * days / dim * 100) / 100;
+    const annual = Math.round((first + monthly * (n - 1)) * 100) / 100;
     $('schedule').innerHTML = `${esc(String(area).replace('.', ','))} m² × ${sum(t)} = <b>${sum(monthly)} so‘m/oy</b><br>`
-        + `Joriy yil (${MONTHS[m]} – dekabr, ${n} oy): <b>${sum(Math.round(monthly * n * 100) / 100)} so‘m</b>`;
+        + (days < dim ? `${MONTHS[m][0].toUpperCase() + MONTHS[m].slice(1)}: ${days} kun (${days}/${dim} oy) = <b>${sum(first)} so‘m</b><br>` : '')
+        + `Joriy yil (${MONTHS[m]} – dekabr): <b>${sum(annual)} so‘m</b>`;
 }
 $('start').onchange = () => {
     if ($('start').value) { const d = new Date($('start').value); d.setFullYear(d.getFullYear() + 1); d.setDate(d.getDate() - 1); $('end').value = d.toISOString().slice(0, 10); }
