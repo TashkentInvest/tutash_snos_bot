@@ -42,6 +42,10 @@ return new class extends Migration
             $table->double('lat');
             $table->double('lng');
             $table->integer('street_distance_m')->nullable();
+            $table->double('gps_accuracy')->nullable();
+            $table->json('polygon')->nullable();                 // xodim chizgan tutash hudud: [[lat, lng], ...]
+            $table->decimal('polygon_area_m2', 10, 2)->nullable(); // chizmadan hisoblangan maydon (shartnomadagi qo'lda tuzatilishi mumkin)
+            $table->json('photos')->nullable();                  // joyida olingan 4 ta rasm (local disk yo'llari)
             $table->string('docx_path')->nullable();
             $table->string('pdf_path')->nullable();
             $table->timestamps();

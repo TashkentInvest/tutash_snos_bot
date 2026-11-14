@@ -95,6 +95,26 @@ class Gps
         });
     }
 
+    /** Ko'pburchak maydoni, m² ([[lat, lng], ...]; mahalliy tekis koordinatalarda, Gauss formulasi). */
+    public static function polygonArea(array $ring): float
+    {
+        $n = count($ring);
+        if ($n < 3) {
+            return 0.0;
+        }
+        [$lat0, $lng0] = [array_sum(array_column($ring, 0)) / $n, array_sum(array_column($ring, 1)) / $n];
+        $kx = cos(deg2rad($lat0)) * 111_320;
+        $ky = 110_574;
+        $sum = 0.0;
+        for ($i = 0; $i < $n; $i++) {
+            [$y1, $x1] = [($ring[$i][0] - $lat0) * $ky, ($ring[$i][1] - $lng0) * $kx];
+            [$y2, $x2] = [($ring[($i + 1) % $n][0] - $lat0) * $ky, ($ring[($i + 1) % $n][1] - $lng0) * $kx];
+            $sum += $x1 * $y2 - $x2 * $y1;
+        }
+
+        return abs($sum) / 2;
+    }
+
     /** Nuqtadan chiziqqacha (ko'cha o'qi, [[lat, lng], ...]) eng qisqa masofa, metr; chiziq bo'sh bo'lsa null. */
     public static function distanceToLine(float $lat, float $lng, array $line): ?float
     {

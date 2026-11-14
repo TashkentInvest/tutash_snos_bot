@@ -32,6 +32,7 @@ class LeaseContractDocument
             throw new \RuntimeException('Shablon ochilmadi: '.$tpl);
         }
         $xml = self::fill($zip->getFromName('word/document.xml'), self::values($c), $c->schedule());
+        $xml = self::annex($zip, $xml, $c); // 1-ilova: sxema, 2-ilova: fotosuratlar
         $zip->addFromString('word/document.xml', $xml);
         $zip->close();
         $disk->put($docx, file_get_contents($tmp));
@@ -42,11 +43,16 @@ class LeaseContractDocument
         return [$docx, $pdf ? "{$dir}/".basename($pdf) : null];
     }
 
+    /** Yangi alifbo, lekin namunadagi kabi «ko‘çasi» (o‘ saqlanadi). */
+    public static function script(?string $s): string
+    {
+        return preg_replace(['/köç/u', '/Köç/u'], ['ko‘ç', 'Ko‘ç'], Script::toNewAlphabet(trim((string) $s)));
+    }
+
     /** {{kalit}} => qiymat (yangi alifboda, XML uchun xavfsiz). */
     public static function values(LeaseContract $c): array
     {
-        // namunadagi kabi «ko‘çasi» (o‘ saqlanadi), qolgan joylarda yangi alifbo
-        $t = fn (?string $s) => preg_replace(['/köç/u', '/Köç/u'], ['ko‘ç', 'Ko‘ç'], Script::toNewAlphabet(trim((string) $s)));
+        $t = fn (?string $s) => self::script($s);
         $blank = fn (?string $s, string $line = '_____________') => filled($s) ? $t($s) : $line;
         $legal = $c->party === LeaseContract::LEGAL;
         $street = (string) $c->street?->name;
@@ -64,7 +70,7 @@ class LeaseContractDocument
                 ? $c->application_date->year.' yil '.$c->application_date->day.' '.self::MONTHS[$c->application_date->month].' da kelib tuşgan '.$t($c->application_number).'-son'
                 : '202__ yil ____ da kelib tuşgan ___-son',
             'cadastre' => $c->cadastre,
-            'area' => fmod($c->area_m2, 1.0) == 0.0 ? (string) (int) $c->area_m2 : number_format($c->area_m2, 2, ',', ''),
+            'area' => self::area($c->area_m2),
             'activity' => $t($c->activity),
             'period' => $date($c->start_date).' dan '.$date($c->end_date),
             'amount' => self::money($c->annual_amount),
@@ -127,6 +133,78 @@ class LeaseContractDocument
         }
 
         return preg_replace_callback('/\{\{(\w+)\}\}/', fn ($m) => $esc($values[$m[1]] ?? ''), $xml);
+    }
+
+    /**
+     * Shartnoma oxiriga ilovalar: 1-ilova — tutash hudud sxemasi (poligon, maydoni, burchak koordinatalari),
+     * 2-ilova — joyida olingan fotosuratlar. Rasmlar word/media ga qo'shiladi, bog'lanishlar va turlar ro'yxatga yoziladi.
+     */
+    public static function annex(\ZipArchive $zip, string $xml, LeaseContract $c): string
+    {
+        $disk = Storage::disk('local');
+        $t = fn (string $s) => htmlspecialchars(self::script($s), ENT_XML1 | ENT_QUOTES, 'UTF-8');
+        $rels = $zip->getFromName('word/_rels/document.xml.rels');
+        $types = $zip->getFromName('[Content_Types].xml');
+        $add = [];
+        $n = 0;
+        $image = function (string $bytes, string $ext, float $widthCm) use ($zip, &$rels, &$n): string {
+            $n++;
+            $name = "lease_{$n}.{$ext}";
+            $zip->addFromString("word/media/{$name}", $bytes);
+            $rid = "rIdLease{$n}";
+            $rels = str_replace('</Relationships>', '<Relationship Id="'.$rid.'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/'.$name.'"/></Relationships>', $rels);
+            $size = getimagesizefromstring($bytes) ?: [4, 3];
+            $cx = (int) ($widthCm * 360000);
+            $cy = (int) ($cx * $size[1] / max($size[0], 1));
+            $id = 9000 + $n;
+
+            return '<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="'.$cx.'" cy="'.$cy.'"/>'
+                .'<wp:docPr id="'.$id.'" name="Rasm '.$id.'"/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>'
+                .'<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+                .'<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="'.$id.'" name="'.$name.'"/><pic:cNvPicPr/></pic:nvPicPr>'
+                .'<pic:blipFill><a:blip r:embed="'.$rid.'"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+                .'<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'.$cx.'" cy="'.$cy.'"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>'
+                .'</a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
+        };
+        $p = fn (string $runs, string $jc = 'center') => '<w:p><w:pPr><w:jc w:val="'.$jc.'"/></w:pPr>'.$runs.'</w:p>';
+        $text = fn (string $s, bool $b = false, int $size = 24) => '<w:r><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/>'.($b ? '<w:b/>' : '').'<w:sz w:val="'.$size.'"/></w:rPr><w:t xml:space="preserve">'.$s.'</w:t></w:r>';
+        $break = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+
+        if (count($c->polygon ?? []) >= 3) {
+            $add[] = $break;
+            $add[] = $p($text($t('1-ilova'), true, 26), 'right');
+            $add[] = $p($text($t('Tutash hudud sxemasi'), true, 28));
+            $add[] = $p($text($t('Toshkent shahri, '.$c->district?->name.', '.$c->mfy.(preg_match('/MFY$/u', trim($c->mfy)) ? '' : ' MFY').', '.$c->street?->name.(filled($c->house) ? ', '.$c->house.'-uy' : ''))));
+            $add[] = $p($image(LeaseScheme::png($c), 'png', 16.5));
+            $add[] = $p($text($t('Tutash hudud maydoni (sxema bo‘yicha): '.number_format((float) $c->polygon_area_m2, 1, ',', ' ').' kv.m; shartnomada: '.self::area($c->area_m2).' kv.m'), false, 22), 'left');
+            $coords = collect($c->polygon)->map(fn ($v, $i) => ($i + 1).') '.number_format($v[0], 6, '.', '').', '.number_format($v[1], 6, '.', ''))->join(';  ');
+            $add[] = $p($text($t('Burchak nuqtalari (kenglik, uzunlik): ').$coords, false, 20), 'left');
+        }
+        $photos = array_values(array_filter($c->photos ?? [], fn ($f) => $disk->exists($f)));
+        if ($photos) {
+            $add[] = $break;
+            $add[] = $p($text($t('2-ilova'), true, 26), 'right');
+            $add[] = $p($text($t('Tutash hudud fotosuratlari (joyida olingan, '.$c->created_at?->format('d.m.Y H:i').')'), true, 26));
+            foreach (array_chunk($photos, 2) as $pair) {
+                $add[] = $p(implode($text('  '), array_map(fn ($f) => $image($disk->get($f), strtolower(pathinfo($f, PATHINFO_EXTENSION)) ?: 'jpg', 7.8), $pair)));
+            }
+        }
+        if (! $add) {
+            return $xml;
+        }
+        foreach (['png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg'] as $ext => $mime) {
+            str_contains($types, 'Extension="'.$ext.'"') || $types = str_replace('</Types>', '<Default Extension="'.$ext.'" ContentType="'.$mime.'"/></Types>', $types);
+        }
+        $zip->addFromString('word/_rels/document.xml.rels', $rels);
+        $zip->addFromString('[Content_Types].xml', $types);
+        $pos = strrpos($xml, '<w:sectPr'); // hujjat oxiridagi bo'lim sozlamalaridan oldin
+
+        return substr($xml, 0, $pos).implode('', $add).substr($xml, $pos);
+    }
+
+    public static function area(float $m2): string
+    {
+        return fmod($m2, 1.0) == 0.0 ? (string) (int) $m2 : number_format($m2, 2, ',', '');
     }
 
     /** $needle turgan katakni (<w:tc>) qatordan olib tashlaydi. */

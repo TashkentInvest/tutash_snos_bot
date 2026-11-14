@@ -9,6 +9,7 @@ use App\Models\LeaseContract;
 use App\Models\Staff;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Chat\Chat;
@@ -58,7 +59,22 @@ class LeaseContractTest extends TestCase
             'director' => 'Yermatov Vali Rustamovich', 'account' => '20208000005495269001', 'inn' => '309303138', 'mfo' => '00445', 'phone' => '+998997607007',
             'mfy' => 'Oybek', 'house' => '21A', 'cadastre' => '10:11:40:02:01:0612', 'area_m2' => 58.5, 'activity' => 'Umumiy ovqatlanish',
             'start_date' => '2026-07-01', 'end_date' => '2027-06-30', 'annual_amount' => 21787682.67,
+            // ko'cha yonidagi ~22 × 12,5 m to'rtburchak
+            'polygon' => json_encode([[41.2999, 69.27005], [41.3001, 69.27005], [41.3001, 69.2702], [41.2999, 69.2702]]),
+            'photos' => $this->photos(),
         ];
+    }
+
+    /** @return UploadedFile[] joyida olingan rasmlar */
+    private function photos(int $n = LeaseContract::PHOTOS): array
+    {
+        return array_map(fn ($i) => UploadedFile::fake()->image("rasm-{$i}.jpg", 800, 600), range(1, $n));
+    }
+
+    /** Mini App multipart (rasmlar bilan) yuboradi. */
+    private function save(array $data): \Illuminate\Testing\TestResponse
+    {
+        return $this->post('/tg/lease-form/save', $data, ['Accept' => 'application/json']);
     }
 
     private function docText(LeaseContract $c): string
@@ -79,19 +95,29 @@ class LeaseContractTest extends TestCase
             ->assertJsonPath('districts.0.name', 'Mirobod tumani')->assertJsonPath('districts.0.streets.0.name', 'Taras Shevchenko')->assertJsonPath('radius', 300);
 
         // ko'chadan uzoq — rad (faqat gastronomik ko'chadagi obyektga)
-        $this->postJson('/tg/lease-form/save', $this->legal(['lat' => 41.3000, 'lng' => 69.2800]))->assertStatus(422)
+        $this->save($this->legal(['lat' => 41.3000, 'lng' => 69.2800]))->assertStatus(422)
             ->assertJsonPath('message', fn ($m) => str_contains($m, 'uzoqdasiz') && str_contains($m, '300 m'));
         // faqat GPS: aniqligi yo'q yoki past — rad
-        $this->postJson('/tg/lease-form/save', $this->legal(['accuracy' => null]))->assertStatus(422)->assertJsonValidationErrors('accuracy');
-        $this->postJson('/tg/lease-form/save', $this->legal(['accuracy' => 400]))->assertStatus(422)->assertJsonPath('message', fn ($m) => str_contains($m, 'GPS aniqligi past'));
-        $this->postJson('/tg/lease-form/save', $this->legal(['director' => null]))->assertStatus(422)->assertJsonValidationErrors('director');
+        $this->save($this->legal(['accuracy' => null]))->assertStatus(422)->assertJsonValidationErrors('accuracy');
+        $this->save($this->legal(['accuracy' => 400]))->assertStatus(422)->assertJsonPath('message', fn ($m) => str_contains($m, 'GPS aniqligi past'));
+        $this->save($this->legal(['director' => null]))->assertStatus(422)->assertJsonValidationErrors('director');
+        // hudud chizilmagan / burchagi ko'chadan 300 m dan uzoq / rasm 4 tadan kam — rad
+        $this->save($this->legal(['polygon' => null]))->assertStatus(422)->assertJsonValidationErrors('polygon');
+        $this->save($this->legal(['polygon' => json_encode([[41.2999, 69.27005], [41.3001, 69.27005], [41.3001, 69.2760]])]))->assertStatus(422)
+            ->assertJsonPath('message', fn ($m) => str_contains($m, '300 m'));
+        $this->save($this->legal(['photos' => $this->photos(3)]))->assertStatus(422)->assertJsonValidationErrors('photos');
         $this->assertSame(0, LeaseContract::count());
 
-        $this->postJson('/tg/lease-form/save', $this->legal())->assertOk()->assertJsonPath('sent', true);
+        $this->save($this->legal())->assertOk()->assertJsonPath('sent', true);
         $c = LeaseContract::sole();
         $this->assertSame('309303138', $c->inn);
         $this->assertTrue(Storage::disk('local')->exists($c->docx_path));
         $this->assertNull($c->pdf_path);
+        $this->assertCount(4, $c->photos);
+        $this->assertEqualsWithDelta(278, $c->polygon_area_m2, 15);
+        foreach ($c->photos as $ph) {
+            $this->assertTrue(Storage::disk('local')->exists($ph));
+        }
 
         $t = $this->docText($c);
         $this->assertStringNotContainsString('{{', $t);
@@ -106,6 +132,15 @@ class LeaseContractTest extends TestCase
         $this->assertSame(5, substr_count($t, '3 631 280,44'));
         $this->assertStringContainsString('3 631 280,47', $t);
         $this->assertStringNotContainsString('Yanvar', $t);
+        // ilovalar: sxema (1-ilova) va joyida olingan rasmlar (2-ilova)
+        $this->assertStringContainsString('1-ilova', $t);
+        $this->assertStringContainsString('2-ilova', $t);
+        $zip = new \ZipArchive;
+        $zip->open(Storage::disk('local')->path($c->docx_path));
+        $media = collect(range(0, $zip->numFiles - 1))->map(fn ($i) => $zip->getNameIndex($i))->filter(fn ($n) => str_starts_with($n, 'word/media/lease'));
+        $this->assertCount(5, $media); // sxema + 4 rasm
+        $this->assertStringContainsString('rIdLease', $zip->getFromName('word/_rels/document.xml.rels'));
+        $zip->close();
 
         // botga Word fayl yuborildi
         $sent = collect(app(Nutgram::class)->getRequestHistory())->map(fn ($r) => (string) array_values($r)[0]->getUri())->implode(' ');
@@ -114,7 +149,7 @@ class LeaseContractTest extends TestCase
 
     public function test_individual_contract_uses_individual_template(): void
     {
-        $this->postJson('/tg/lease-form/save', $this->legal([
+        $this->save($this->legal([
             'party' => 'individual', 'tenant_name' => 'Kadirov Abduraxmon Abdugafurovich', 'tenant_address' => null, 'director' => null,
             'passport' => 'AD 7739566', 'jshshir' => '31912820020026', 'phone' => '998042075', 'area_m2' => 20, 'activity' => 'Savdo',
             'start_date' => '2026-08-01', 'end_date' => '2027-07-31', 'annual_amount' => 31657316.7,
@@ -134,7 +169,7 @@ class LeaseContractTest extends TestCase
     {
         $other = District::create(['name' => 'Yakkasaroy tumani', 'phone' => '901000002']);
         $s2 = GastroStreet::create(['district_id' => $other->id, 'name' => 'Shota Rustaveli', 'line' => [[41.29, 69.26], [41.291, 69.26]]]);
-        $this->postJson('/tg/lease-form/save', $this->legal(['district_id' => $other->id, 'gastro_street_id' => $s2->id, 'lat' => 41.2905, 'lng' => 69.2601]))->assertStatus(403);
+        $this->save($this->legal(['district_id' => $other->id, 'gastro_street_id' => $s2->id, 'lat' => 41.2905, 'lng' => 69.2601]))->assertStatus(403);
 
         Staff::create(['telegram_id' => 777502, 'full_name' => 'Begona', 'phone' => '900000502', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
         $this->postJson('/tg/lease-form/state', ['initData' => $this->initData(777502)])->assertStatus(403);
@@ -163,7 +198,7 @@ class LeaseContractTest extends TestCase
         $bot->hearCallbackQueryData('lst:'.$other->id)->reply();
         $this->assertStringNotContainsString('street='.$other->id, $sent());
 
-        $this->postJson('/tg/lease-form/save', $this->legal())->assertOk();
+        $this->save($this->legal())->assertOk();
         $c = LeaseContract::sole();
         $admin = (new User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
         $admin->save();
@@ -171,5 +206,8 @@ class LeaseContractTest extends TestCase
         $this->get('/admin/lease-contracts')->assertOk()->assertSee('GLOBAL PROPERTY DEVELOPMENT')->assertSee('Taras Shevchenko');
         $this->get(route('admin.lease-file', ['contract' => $c, 'format' => 'docx']))->assertOk()->assertDownload('ijara-shartnoma-'.$c->id.'.docx');
         $this->get(route('admin.lease-file', ['contract' => $c, 'format' => 'pdf']))->assertNotFound();
+        $this->get('/admin/lease-contracts/'.$c->id)->assertOk()->assertSee('Tutash hudud')->assertSee(route('admin.lease-photo', ['contract' => $c, 'n' => 1]), false);
+        $this->get(route('admin.lease-photo', ['contract' => $c, 'n' => 4]))->assertOk();
+        $this->get(route('admin.lease-photo', ['contract' => $c, 'n' => 5]))->assertNotFound();
     }
 }

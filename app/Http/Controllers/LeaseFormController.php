@@ -106,10 +106,16 @@ class LeaseFormController extends Controller
             'annual_amount' => 'required|numeric|min:1|max:100000000000',
             'application_number' => 'nullable|string|max:40',
             'application_date' => 'nullable|date',
+            'polygon' => 'required|json', // xodim xaritada chizgan tutash hudud: [[lat, lng], ...]
+            'photos' => 'required|array|size:'.LeaseContract::PHOTOS,
+            'photos.*' => 'required|file|image|mimes:jpeg,jpg,png|max:12288', // Word uchun jpeg/png (oyna kameradan olingan rasmni jpeg qilib yuboradi)
         ], [
             'tenant_address.required' => 'Tashkilot manzilini yozing.',
             'director.required' => 'Direktor F.I.SH ni yozing.',
             'end_date.after' => 'Tugash sanasi boshlanish sanasidan keyin bo‘lishi kerak.',
+            'polygon.required' => 'Xaritada tutash hududni chizing.',
+            'photos.required' => 'Joyida '.LeaseContract::PHOTOS.' ta rasm oling.',
+            'photos.size' => 'Joyida '.LeaseContract::PHOTOS.' ta rasm oling.',
         ]);
         [$staff, $ids, $error] = $this->staff($request);
         if ($error) {
@@ -132,11 +138,29 @@ class LeaseFormController extends Controller
         if ($distance > $radius) {
             return $this->fail("Siz «{$street->name}» ko‘chasidan taxminan {$distance} m uzoqdasiz. Shartnoma faqat gastronomik ko‘chadagi obyektlarga tuziladi (ko‘chadan {$radius} m ichida) — obyekt oldiga borib, joylashuvni qayta oling.");
         }
+        // chizilgan hudud: 3–60 burchak, har bir burchagi shu ko'chadan ruxsat etilgan masofa ichida
+        $polygon = json_decode($data['polygon'], true);
+        $valid = is_array($polygon) && count($polygon) >= 3 && count($polygon) <= 60
+            && collect($polygon)->every(fn ($p) => is_array($p) && count($p) === 2 && is_numeric($p[0]) && is_numeric($p[1])
+                && $p[0] >= 37 && $p[0] <= 46 && $p[1] >= 55 && $p[1] <= 74);
+        if (! $valid) {
+            return $this->fail('Xaritada tutash hududni chizing (kamida 3 ta nuqta).');
+        }
+        $polygon = array_map(fn ($p) => [round((float) $p[0], 7), round((float) $p[1], 7)], $polygon);
+        $far = (int) round(max(array_map(fn ($p) => Gps::distanceToLine($p[0], $p[1], $street->line), $polygon)));
+        if ($far > $radius) {
+            return $this->fail("Chizilgan hudud «{$street->name}» ko‘chasidan {$far} m gacha uzoqlashgan (ruxsat: {$radius} m). Hududni obyekt oldida, ko‘cha bo‘yida chizing.");
+        }
+        $polygonArea = round(Gps::polygonArea($polygon), 2);
+        if ($polygonArea < 0.5) {
+            return $this->fail('Chizilgan hudud juda kichik — burchaklarni qayta belgilang.');
+        }
 
         $clean = fn ($k) => filled($data[$k] ?? null) ? trim((string) $data[$k]) : null;
         $contract = LeaseContract::create([
             'district_id' => (int) $data['district_id'], 'gastro_street_id' => $street->id, 'staff_id' => $staff->id,
             'party' => $data['party'], 'lat' => (float) $data['lat'], 'lng' => (float) $data['lng'], 'street_distance_m' => $distance,
+            'gps_accuracy' => (float) $data['accuracy'], 'polygon' => $polygon, 'polygon_area_m2' => $polygonArea,
             'area_m2' => (float) $data['area_m2'], 'annual_amount' => round((float) $data['annual_amount'], 2),
             'start_date' => $data['start_date'], 'end_date' => $data['end_date'], 'application_date' => $data['application_date'] ?? null,
             ...collect(['tenant_name', 'tenant_address', 'director', 'account', 'inn', 'mfo', 'phone', 'passport', 'passport_issuer',
@@ -148,6 +172,13 @@ class LeaseFormController extends Controller
         } else {
             $contract->update(['passport' => null, 'passport_issuer' => null, 'passport_year' => null, 'jshshir' => null]);
         }
+
+        // joyida olingan rasmlar — shartnoma papkasiga
+        $photos = [];
+        foreach (array_values($request->file('photos')) as $i => $file) {
+            $photos[] = $file->storeAs("contracts/{$contract->id}", 'rasm-'.($i + 1).'.'.($file->extension() === 'png' ? 'png' : 'jpg'), 'local');
+        }
+        $contract->update(['photos' => $photos]);
 
         [$docx, $pdf] = LeaseContractDocument::render($contract->refresh());
         $contract->update(['docx_path' => $docx, 'pdf_path' => $pdf]);

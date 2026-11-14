@@ -70,6 +70,15 @@ Route::get('/admin-attendance-report.png', function (\Illuminate\Http\Request $r
     return response(\App\Telegram\Support\AttendanceReport::image($day)['png'], 200, ['Content-Type' => 'image/png', 'Cache-Control' => 'private, no-store']);
 })->middleware(['auth'])->name('admin.attendance-report.png');
 Route::get('/admin-checkin/{checkin}', [MediaController::class, 'checkinVideo'])->middleware(['auth'])->name('admin.checkin-video');
+// ijara shartnomasi rasmi (joyida olingan, faqat admin)
+Route::get('/admin-lease/{contract}/photo/{n}', function (\App\Models\LeaseContract $contract, int $n) {
+    abort_unless(auth()->user()?->is_admin, 403);
+    $path = ($contract->photos ?? [])[$n - 1] ?? null;
+    $disk = \Illuminate\Support\Facades\Storage::disk('local');
+    abort_unless($path && $disk->exists($path), 404);
+
+    return response()->file($disk->path($path), ['Cache-Control' => 'private, max-age=3600']);
+})->whereNumber('n')->middleware(['auth'])->name('admin.lease-photo');
 // ijara shartnomasi fayli (faqat admin)
 Route::get('/admin-lease/{contract}/{format}', function (\App\Models\LeaseContract $contract, string $format) {
     abort_unless(auth()->user()?->is_admin, 403);

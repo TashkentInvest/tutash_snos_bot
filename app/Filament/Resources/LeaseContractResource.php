@@ -6,6 +6,8 @@ use App\Filament\Resources\LeaseContractResource\Pages;
 use App\Models\LeaseContract;
 use App\Models\User;
 use App\Support\LeaseContractDocument;
+use Filament\Infolists;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -64,6 +66,7 @@ class LeaseContractResource extends Resource
                 Tables\Filters\SelectFilter::make('staff_id')->label('Tayyorlagan')->relationship('staff', 'full_name'),
             ])
             ->actions([
+                Tables\Actions\ViewAction::make()->label('Ko‘rish'),
                 Tables\Actions\Action::make('docx')->label('Word')->icon('heroicon-o-arrow-down-tray')
                     ->url(fn (LeaseContract $r) => route('admin.lease-file', ['contract' => $r, 'format' => 'docx'])),
                 Tables\Actions\Action::make('pdf')->label('PDF')->icon('heroicon-o-arrow-down-tray')->color('gray')
@@ -83,6 +86,33 @@ class LeaseContractResource extends Resource
 
     public static function getPages(): array
     {
-        return ['index' => Pages\ListLeaseContracts::route('/')];
+        return ['index' => Pages\ListLeaseContracts::route('/'), 'view' => Pages\ViewLeaseContract::route('/{record}')];
+    }
+
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        $e = fn (string $k, string $label) => Infolists\Components\TextEntry::make($k)->label($label)->placeholder('—');
+
+        return $infolist->schema([
+            Infolists\Components\Section::make()->columns(4)->schema([
+                $e('tenant_name', 'Ijarachi')->columnSpan(2),
+                $e('party', 'Turi')->formatStateUsing(fn ($state) => LeaseContract::PARTIES[$state] ?? $state),
+                $e('staff.full_name', 'Tayyorlagan'),
+                $e('district.name', 'Tuman'),
+                $e('street.name', 'Gastronomik ko‘cha'),
+                $e('mfy', 'MFY')->formatStateUsing(fn ($state, LeaseContract $record) => $state.(filled($record->house) ? ', '.$record->house.'-uy' : '')),
+                $e('cadastre', 'Kadastr raqami'),
+                $e('area_m2', 'Maydon (shartnomada)')->formatStateUsing(fn ($state) => rtrim(rtrim(number_format((float) $state, 2, ',', ' '), '0'), ',').' m²'),
+                $e('polygon_area_m2', 'Maydon (chizmadan)')->formatStateUsing(fn ($state) => number_format((float) $state, 1, ',', ' ').' m²'),
+                $e('activity', 'Faoliyat'),
+                $e('annual_amount', 'Joriy yil to‘lovi')->formatStateUsing(fn ($state) => LeaseContractDocument::money((float) $state).' so‘m'),
+                $e('start_date', 'Muddat')->formatStateUsing(fn (LeaseContract $record) => $record->start_date->format('d.m.Y').' – '.$record->end_date->format('d.m.Y')),
+                $e('street_distance_m', 'Xodim ko‘chadan')->formatStateUsing(fn ($state, LeaseContract $record) => $state.' m · GPS ±'.round((float) $record->gps_accuracy).' m'),
+                $e('created_at', 'Tayyorlangan')->dateTime('d.m.Y H:i'),
+            ]),
+            Infolists\Components\Section::make('Tutash hudud va joyida olingan rasmlar')->schema([
+                Infolists\Components\ViewEntry::make('map')->hiddenLabel()->view('filament.lease-contract-map'),
+            ]),
+        ]);
     }
 }

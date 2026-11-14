@@ -34,6 +34,14 @@
         .seg label.on { background: var(--tg-theme-button-color, #2481cc); color: var(--tg-theme-button-text-color, #fff); border-color: transparent; }
         .preview { margin-top: 8px; font-size: 13px; color: var(--tg-theme-hint-color, #777); }
         details summary { margin-top: 16px; font-size: 14px; color: var(--tg-theme-link-color, #2481cc); }
+        .photos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        .shot { position: relative; margin: 0; height: 120px; border-radius: 10px; border: 2px dashed var(--tg-theme-hint-color, #bbb);
+            display: flex; align-items: center; justify-content: center; overflow: hidden; font-weight: 600; background: var(--tg-theme-secondary-bg-color, #f5f5f5); }
+        .shot input { display: none; }
+        .shot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
+        .shot.done { border-style: solid; border-color: #2a9d4a; }
+        .shot.done img { display: block; }
+        .shot.done span { position: absolute; bottom: 4px; left: 4px; background: rgba(0,0,0,.55); color: #fff; padding: 2px 6px; border-radius: 6px; font-size: 12px; }
     </style>
 </head>
 <body>
@@ -45,9 +53,14 @@
     <div id="place" style="font-size:16px;font-weight:600;"></div>
     <select id="district" class="hidden"></select>
     <select id="street" class="hidden"></select>
-    <label>Obyekt joyi <small>(obyekt oldida turing — telefon GPS'idan olinadi)</small></label>
+    <label>Tutash hudud <small>(xaritada hudud burchaklarini ketma-ket bosing — ko‘k bo‘lib chiziladi)</small></label>
     <div id="map"></div>
     <div id="coords" class="hint">Joylashuv aniqlanmoqda…</div>
+    <div id="polyInfo" class="hint">Hudud chizilmagan — burchaklarni bosing</div>
+    <div class="row">
+        <button type="button" id="undo" class="secondary">↶ Oxirgi nuqta</button>
+        <button type="button" id="clearPoly" class="secondary">🗑 Qaytadan</button>
+    </div>
     <button type="button" id="goLoc" class="secondary">📍 Joylashuvni qayta olish</button>
     <div class="row">
         <div><label>MFY</label><input id="mfy" list="mfyList" required minlength="3" maxlength="150" placeholder="masalan: Oybek"><datalist id="mfyList"></datalist></div>
@@ -55,7 +68,7 @@
     </div>
     <div class="row">
         <div><label>Kadastr raqami</label><input id="cadastre" required minlength="5" maxlength="60" placeholder="10:11:40:02:01:0612"></div>
-        <div><label>Maydon, m²</label><input id="area" type="number" inputmode="decimal" min="0.5" step="0.01" required placeholder="58.5"></div>
+        <div><label>Maydon, m² <small>(chizmadan)</small></label><input id="area" type="number" inputmode="decimal" min="0.5" step="0.01" required placeholder="chizing"></div>
     </div>
     <label>Faoliyat turi</label>
     <select id="activity"></select>
@@ -106,6 +119,18 @@
     <input id="amount" type="number" inputmode="decimal" min="1" step="0.01" required placeholder="21787682.67">
     <div id="schedule" class="preview"></div>
 
+    <h2>4. Rasmlar <small class="hint">(joyida, kamera bilan — 4 ta)</small></h2>
+    <div class="photos">
+        @for ($i = 0; $i < 4; $i++)
+            <label class="shot" data-i="{{ $i }}">
+                <input type="file" accept="image/*" capture="environment">
+                <img alt="">
+                <span>📷 {{ $i + 1 }}-rasm</span>
+            </label>
+        @endfor
+    </div>
+    <div id="photoInfo" class="hint"></div>
+
     <details>
         <summary>Ariza raqami va sanasi (ixtiyoriy)</summary>
         <div class="row">
@@ -134,6 +159,21 @@ async function api(path, body) {
     try {
         const r = await fetch('/tg/lease-form/' + path, { method: 'POST', signal: ctl.signal,
             headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: initData(), ...body }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok && j.errors) j.message = Object.values(j.errors)[0][0];
+        return { ok: r.ok && j.ok, j };
+    } finally { clearTimeout(timer); }
+}
+
+// maydonlar + rasmlar bitta so'rovda (multipart)
+async function apiForm(path, body, files) {
+    const fd = new FormData();
+    fd.append('initData', initData());
+    Object.entries(body).forEach(([k, v]) => v === null || v === undefined || fd.append(k, v));
+    files.forEach((b, i) => fd.append('photos[]', b, `rasm-${i + 1}.jpg`));
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 120000);
+    try {
+        const r = await fetch('/tg/lease-form/' + path, { method: 'POST', signal: ctl.signal, headers: { 'Accept': 'application/json' }, body: fd });
         const j = await r.json().catch(() => ({}));
         if (!r.ok && j.errors) j.message = Object.values(j.errors)[0][0];
         return { ok: r.ok && j.ok, j };
@@ -191,7 +231,7 @@ function drawDistrict() {
         layers.push(L.polyline(s.line, { color: on ? '#dc2626' : '#f59e0b', weight: on ? 7 : 4, opacity: on ? .95 : .7 }).addTo(map).bindTooltip(s.name, { sticky: true }));
     });
     const s = street();
-    point ? map.setView([point.lat, point.lng], 17) : (s ? map.fitBounds(s.line, { padding: [40, 40], maxZoom: 17 }) : all.length && map.fitBounds(all, { padding: [20, 20] }));
+    point ? map.setView([point.lat, point.lng], 19) : (s ? map.fitBounds(s.line, { padding: [40, 40], maxZoom: 17 }) : all.length && map.fitBounds(all, { padding: [20, 20] }));
 }
 function fillDistrict() {
     const d = district();
@@ -204,11 +244,80 @@ $('street').onchange = () => { drawDistrict(); showPoint(); };
 
 async function locate() {
     $('goLoc').disabled = true; $('coords').textContent = 'Joylashuv aniqlanmoqda…'; $('coords').className = 'hint';
-    try { const p = await TgLoc.get(); setPoint(p.lat, p.lng, 17, p.accuracy); }
+    try { const p = await TgLoc.get(); setPoint(p.lat, p.lng, 19, p.accuracy); }
     catch (e) { $('coords').textContent = e.message || 'Joylashuv aniqlanmadi. Telefonda GPS (joylashuv) yoqilganini tekshiring.'; $('coords').className = 'hint err'; }
     $('goLoc').disabled = false;
 }
 $('goLoc').onclick = locate;
+
+// ---- tutash hudud: xaritada burchaklar ketma-ket bosiladi (maydoni avtomatik, kerak bo'lsa qo'lda tuzatiladi)
+let poly = [], polyLayers = [], areaTouched = false;
+function areaM2(r) {
+    if (r.length < 3) return 0;
+    const lat0 = r.reduce((s, p) => s + p[0], 0) / r.length, lng0 = r.reduce((s, p) => s + p[1], 0) / r.length;
+    const kx = Math.cos(lat0 * Math.PI / 180) * 111320, ky = 110574;
+    let sum = 0;
+    for (let i = 0; i < r.length; i++) {
+        const a = r[i], b = r[(i + 1) % r.length];
+        sum += (a[1] - lng0) * kx * (b[0] - lat0) * ky - (b[1] - lng0) * kx * (a[0] - lat0) * ky;
+    }
+    return Math.abs(sum) / 2;
+}
+const polyFar = () => { const s = street(); return s && poly.length ? Math.max(...poly.map(p => distToLine(p[0], p[1], s.line))) : 0; };
+const polyOk = () => poly.length >= 3 && polyFar() <= radius && areaM2(poly) >= 0.5;
+function drawPoly() {
+    if (!map) return;
+    polyLayers.forEach(l => map.removeLayer(l)); polyLayers = [];
+    if (poly.length >= 3) polyLayers.push(L.polygon(poly, { color: '#1d4ed8', weight: 3, fillOpacity: .3, interactive: false }).addTo(map));
+    else if (poly.length === 2) polyLayers.push(L.polyline(poly, { color: '#1d4ed8', weight: 3, interactive: false }).addTo(map));
+    poly.forEach(p => polyLayers.push(L.circleMarker(p, { radius: 6, color: '#fff', weight: 2, fillColor: '#1d4ed8', fillOpacity: 1, interactive: false }).addTo(map)));
+    const a = areaM2(poly), far = Math.round(polyFar());
+    if (poly.length < 3) {
+        $('polyInfo').textContent = poly.length ? `${poly.length} nuqta — yana bosing (kamida 3 ta burchak)` : 'Hudud chizilmagan — burchaklarni bosing';
+        $('polyInfo').className = 'hint';
+    } else {
+        $('polyInfo').textContent = far > radius ? `⚠️ Hudud ko‘chadan ${far} m gacha uzoq (ruxsat: ${radius} m)` : `✅ Hudud: ${poly.length} burchak · ${a.toFixed(1).replace('.', ',')} m²`;
+        $('polyInfo').className = 'hint ' + (far > radius ? 'err' : 'ok');
+        areaTouched || ($('area').value = a.toFixed(1));
+    }
+}
+$('undo').onclick = () => { poly.pop(); drawPoly(); };
+$('clearPoly').onclick = () => { poly = []; areaTouched = false; drawPoly(); };
+$('area').addEventListener('input', () => { areaTouched = true; });
+
+// ---- rasmlar: faqat kameradan, joyida (eski / galereya rasmi qabul qilinmaydi); yuborishdan oldin kichraytiriladi
+const shots = [null, null, null, null];
+async function shrink(file) {
+    const url = URL.createObjectURL(file);
+    try {
+        const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = url; });
+        const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        return await new Promise(res => c.toBlob(res, 'image/jpeg', 0.82));
+    } finally { URL.revokeObjectURL(url); }
+}
+function photoInfo(text, cls) {
+    const n = shots.filter(Boolean).length;
+    $('photoInfo').textContent = text || (n === 4 ? '✅ 4 ta rasm olindi' : `${n} / 4 rasm olindi`);
+    $('photoInfo').className = 'hint ' + (cls || (n === 4 ? 'ok' : ''));
+}
+document.querySelectorAll('.shot').forEach(el => {
+    const i = +el.dataset.i, input = el.querySelector('input');
+    input.addEventListener('change', async () => {
+        const f = input.files[0];
+        input.value = '';
+        if (!f) return;
+        if (Date.now() - f.lastModified > 15 * 60 * 1000) return photoInfo('⚠️ Rasm joyida, hozir olinishi kerak — galereyadagi eski rasm qabul qilinmaydi.', 'err');
+        try {
+            shots[i] = await shrink(f);
+            el.querySelector('img').src = URL.createObjectURL(shots[i]);
+            el.classList.add('done');
+            photoInfo();
+        } catch (e) { photoInfo('Rasmni o‘qib bo‘lmadi — qayta oling.', 'err'); }
+    });
+});
 
 // yuridik / jismoniy
 const party = () => document.querySelector('input[name=party]:checked').value;
@@ -240,9 +349,11 @@ $('f').onsubmit = async ev => {
     const activity = $('activity').value === 'other' ? v('activityOther') : $('activity').value;
     if (!activity) return say('Faoliyat turini yozing.', 'err');
     if (!(legal ? v('orgName') : v('personName'))) return say(legal ? 'Tashkilot nomini yozing.' : 'F.I.SH ni yozing.', 'err');
-    busy = true; $('goSave').disabled = true; say('Shartnoma tayyorlanmoqda…');
+    if (!polyOk()) { $('map').scrollIntoView({ behavior: 'smooth', block: 'center' }); return say('Xaritada tutash hududni chizing — burchaklarni ketma-ket bosing (ko‘chadan ' + radius + ' m ichida).', 'err'); }
+    if (shots.some(s => !s)) { $('photoInfo').scrollIntoView({ behavior: 'smooth', block: 'center' }); return say('Joyida 4 ta rasm oling.', 'err'); }
+    busy = true; $('goSave').disabled = true; say('Shartnoma tayyorlanmoqda… (rasmlar yuklanmoqda)');
     try {
-        const { ok, j } = await api('save', {
+        const { ok, j } = await apiForm('save', {
             party: party(), district_id: Number($('district').value), gastro_street_id: Number($('street').value), lat: point.lat, lng: point.lng, accuracy: point.acc,
             tenant_name: legal ? v('orgName') : v('personName'), tenant_address: legal ? v('orgAddress') : v('personAddress'),
             director: legal ? v('director') : null, account: legal ? v('account') : null, inn: legal ? v('inn') : null, mfo: legal ? v('mfo') : null,
@@ -250,8 +361,8 @@ $('f').onsubmit = async ev => {
             passport_year: legal ? null : v('passportYear'), phone: v('phone'),
             mfy: v('mfy'), house: v('house'), cadastre: v('cadastre'), area_m2: Number(($('area').value || '').replace(',', '.')), activity,
             start_date: v('start'), end_date: v('end'), annual_amount: Number(($('amount').value || '').replace(',', '.')),
-            application_number: v('appNo'), application_date: v('appDate'),
-        });
+            application_number: v('appNo'), application_date: v('appDate'), polygon: JSON.stringify(poly),
+        }, shots);
         if (ok) {
             $('f').classList.add('hidden');
             say(j.sent ? '✅ Shartnoma tayyor — Word fayl botga yuborildi.' : '✅ Shartnoma saqlandi, lekin botga yuborib bo‘lmadi — administratorga murojaat qiling.', j.sent ? 'ok' : 'err');
@@ -279,8 +390,12 @@ $('f').onsubmit = async ev => {
         const today = new Date().toISOString().slice(0, 10); $('start').value = today; $('start').onchange();
         say(''); $('f').classList.remove('hidden');
         if (window.L) {
-            map = L.map('map').setView([41.31, 69.27], 12);
-            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: '© Esri' }).addTo(map);
+            map = L.map('map', { doubleClickZoom: false }).setView([41.31, 69.27], 12);
+            // hududni aniq chizish uchun sun'iy yo'ldosh rasmi (tomlar, ayvonlar ko'rinadi); oddiy xarita ham bor
+            const esri = n => L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/${n}/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19, attribution: '© Esri' });
+            const sat = L.layerGroup([esri('World_Imagery'), esri('Reference/World_Transportation')]).addTo(map);
+            L.control.layers({ 'Sun’iy yo’ldosh': sat, 'Xarita': esri('World_Street_Map') }, null, { position: 'topright' }).addTo(map);
+            map.on('click', e => { poly.push([+e.latlng.lat.toFixed(7), +e.latlng.lng.toFixed(7)]); drawPoly(); });
             const fit = () => map.invalidateSize(); setTimeout(fit, 300); window.addEventListener('resize', fit); tg && tg.onEvent && tg.onEvent('viewportChanged', fit);
         } else $('coords').textContent = 'Xarita yuklanmadi — «Turgan joyimni olish» tugmasini bosing.';
         fillDistrict();
