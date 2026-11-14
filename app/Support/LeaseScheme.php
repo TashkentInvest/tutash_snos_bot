@@ -157,7 +157,7 @@ class LeaseScheme
         imagettftext($img, 15, 0, self::SIDE + $bar + 12, $by + 6, $ink, $font, $nice.' m');
         $map && imagettftext($img, 13, 0, $W - 420, $by + 6, $grey, $font, $t('Fon: sun’iy yo‘ldosh surati © Esri'));
 
-        imagettftext($img, 20, 0, self::SIDE, $H - 50, $ink, $bold, $t('Maydoni: '.number_format(Gps::polygonArea($ring), 1, ',', ' ').' m²').'   ·   '.$n.' '.$t('burchak'));
+        imagettftext($img, 20, 0, self::SIDE, $H - 50, $ink, $bold, $t('Maydoni: '.LeaseContractDocument::area((float) $c->area_m2).' m²').'   ·   '.$n.' '.$t('burchak'));
         imagettftext($img, 14, 0, self::SIDE, $H - 20, $grey, $font, $t('To‘q sariq — gastronomik ko‘cha o‘qi; ko‘k — ijaraga beriladigan tutash hudud; qizil raqamlar — burchak nuqtalari.')
 );
 

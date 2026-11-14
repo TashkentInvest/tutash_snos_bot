@@ -69,7 +69,7 @@
     </div>
     <div class="row">
         <div><label>Kadastr raqami</label><input id="cadastre" required minlength="5" maxlength="60" placeholder="10:11:40:02:01:0612"></div>
-        <div><label>Maydon, m² <small>(chizmadan; kerak bo‘lsa tuzating)</small></label><input id="area" type="number" inputmode="decimal" min="0.5" step="0.01" required placeholder="chizing"></div>
+        <div><label>Maydon, m² <small>(qo‘lda kiriting)</small></label><input id="area" type="number" inputmode="decimal" min="0.5" step="0.01" required placeholder="masalan 58.5"></div>
     </div>
     <label>Faoliyat turi</label>
     <select id="activity"></select>
@@ -251,7 +251,7 @@ async function locate() {
 $('goLoc').onclick = locate;
 
 // ---- tutash hudud: xaritada burchaklar ketma-ket bosiladi (maydoni avtomatik, kerak bo'lsa qo'lda tuzatiladi)
-let poly = [], polyLayers = [], areaTouched = false;
+let poly = [], polyLayers = [];
 function areaM2(r) {
     if (r.length < 3) return 0;
     const lat0 = r.reduce((s, p) => s + p[0], 0) / r.length, lng0 = r.reduce((s, p) => s + p[1], 0) / r.length;
@@ -268,23 +268,20 @@ const polyOk = () => poly.length >= 3 && polyFar() <= radius && areaM2(poly) >= 
 function drawPoly() {
     if (!map) return;
     polyLayers.forEach(l => map.removeLayer(l)); polyLayers = [];
-    if (poly.length >= 3) polyLayers.push(L.polygon(poly, { color: '#1d4ed8', weight: 3, fillOpacity: .3, interactive: false }).addTo(map));
+    if (poly.length >= 3) polyLayers.push(L.polygon(poly, { color: '#1d4ed8', weight: 3, fill: false, interactive: false }).addTo(map));
     else if (poly.length === 2) polyLayers.push(L.polyline(poly, { color: '#1d4ed8', weight: 3, interactive: false }).addTo(map));
     poly.forEach(p => polyLayers.push(L.circleMarker(p, { radius: 6, color: '#fff', weight: 2, fillColor: '#1d4ed8', fillOpacity: 1, interactive: false }).addTo(map)));
-    const a = areaM2(poly), far = Math.round(polyFar());
+    const far = Math.round(polyFar());
     if (poly.length < 3) {
         $('polyInfo').textContent = poly.length ? `${poly.length} nuqta — yana bosing (kamida 3 ta burchak)` : 'Hudud chizilmagan — burchaklarni bosing';
         $('polyInfo').className = 'hint';
     } else {
-        $('polyInfo').textContent = far > radius ? `⚠️ Hudud ko‘chadan ${far} m gacha uzoq (ruxsat: ${radius} m)` : `✅ Hudud: ${poly.length} burchak · ${a.toFixed(1).replace('.', ',')} m²`;
+        $('polyInfo').textContent = far > radius ? `⚠️ Hudud ko‘chadan ${far} m gacha uzoq (ruxsat: ${radius} m)` : `✅ Hudud chizildi: ${poly.length} burchak`;
         $('polyInfo').className = 'hint ' + (far > radius ? 'err' : 'ok');
-        areaTouched || ($('area').value = a.toFixed(1));
-        schedule();
     }
 }
 $('undo').onclick = () => { poly.pop(); drawPoly(); };
-$('clearPoly').onclick = () => { poly = []; areaTouched = false; $('area').value = ''; drawPoly(); schedule(); };
-$('area').addEventListener('input', () => { areaTouched = true; });
+$('clearPoly').onclick = () => { poly = []; drawPoly(); };
 
 // ---- rasmlar: faqat kameradan, joyida (eski / galereya rasmi qabul qilinmaydi); yuborishdan oldin kichraytiriladi
 const shots = [null, null, null, null];

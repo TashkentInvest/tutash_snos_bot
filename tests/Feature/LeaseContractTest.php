@@ -147,6 +147,9 @@ class LeaseContractTest extends TestCase
         // ilovalar: sxema (1-ilova) va joyida olingan rasmlar (2-ilova)
         $this->assertStringContainsString('1-ilova', $t);
         $this->assertStringContainsString('2-ilova', $t);
+        // maydon — xodim qo'lda kiritgani (chizmadan hisoblangani hujjatda yo'q)
+        $this->assertStringContainsString('hudud maydoni: 58,50 kv.m', $t);
+        $this->assertStringNotContainsString('sxema bo', $t);
         $zip = new \ZipArchive;
         $zip->open(Storage::disk('local')->path($c->docx_path));
         $media = collect(range(0, $zip->numFiles - 1))->map(fn ($i) => $zip->getNameIndex($i))->filter(fn ($n) => str_starts_with($n, 'word/media/lease'));
