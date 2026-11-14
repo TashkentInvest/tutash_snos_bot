@@ -33,6 +33,7 @@
         .seg input { display: none; }
         .seg label.on { background: var(--tg-theme-button-color, #2481cc); color: var(--tg-theme-button-text-color, #fff); border-color: transparent; }
         .preview { margin-top: 8px; font-size: 13px; color: var(--tg-theme-hint-color, #777); }
+        #schedule { font-size: 15px; line-height: 1.5; color: var(--tg-theme-text-color, #222); background: var(--tg-theme-secondary-bg-color, #f3f4f6); border-radius: 10px; padding: 10px 12px; }
         details summary { margin-top: 16px; font-size: 14px; color: var(--tg-theme-link-color, #2481cc); }
         .photos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
         .shot { position: relative; margin: 0; height: 120px; border-radius: 10px; border: 2px dashed var(--tg-theme-hint-color, #bbb);
@@ -68,7 +69,7 @@
     </div>
     <div class="row">
         <div><label>Kadastr raqami</label><input id="cadastre" required minlength="5" maxlength="60" placeholder="10:11:40:02:01:0612"></div>
-        <div><label>Maydon, m² <small>(chizmadan)</small></label><input id="area" type="number" inputmode="decimal" min="0.5" step="0.01" required placeholder="chizing"></div>
+        <div><label>Maydon, m² <small>(chizmadan; kerak bo‘lsa tuzating)</small></label><input id="area" type="number" inputmode="decimal" min="0.5" step="0.01" required placeholder="chizing"></div>
     </div>
     <label>Faoliyat turi</label>
     <select id="activity"></select>
@@ -115,9 +116,8 @@
         <div><label>Boshlanishi</label><input id="start" type="date" required></div>
         <div><label>Tugashi</label><input id="end" type="date" required></div>
     </div>
-    <label>Joriy yil uchun ijara to‘lovi, so‘m <small>(QQS bilan, baholovchi hisobotidan)</small></label>
-    <input id="amount" type="number" inputmode="decimal" min="1" step="0.01" required placeholder="21787682.67">
-    <div id="schedule" class="preview"></div>
+    <label>Ijara to‘lovi <small>(maydon × tuman tarifi — avtomatik)</small></label>
+    <div id="schedule" class="preview">Maydonni kiriting — to‘lov hisoblanadi.</div>
 
     <h2>4. Rasmlar <small class="hint">(joyida, kamera bilan — 4 ta)</small></h2>
     <div class="photos">
@@ -279,10 +279,11 @@ function drawPoly() {
         $('polyInfo').textContent = far > radius ? `⚠️ Hudud ko‘chadan ${far} m gacha uzoq (ruxsat: ${radius} m)` : `✅ Hudud: ${poly.length} burchak · ${a.toFixed(1).replace('.', ',')} m²`;
         $('polyInfo').className = 'hint ' + (far > radius ? 'err' : 'ok');
         areaTouched || ($('area').value = a.toFixed(1));
+        schedule();
     }
 }
 $('undo').onclick = () => { poly.pop(); drawPoly(); };
-$('clearPoly').onclick = () => { poly = []; areaTouched = false; drawPoly(); };
+$('clearPoly').onclick = () => { poly = []; areaTouched = false; $('area').value = ''; drawPoly(); schedule(); };
 $('area').addEventListener('input', () => { areaTouched = true; });
 
 // ---- rasmlar: faqat kameradan, joyida (eski / galereya rasmi qabul qilinmaydi); yuborishdan oldin kichraytiriladi
@@ -329,17 +330,21 @@ $('activity').onchange = () => $('activityOther').classList.toggle('hidden', $('
 
 // muddat: boshlanishdan 1 yil; to'lov jadvali — boshlanish oyidan dekabrgacha teng bo'linadi
 const MONTHS = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentyabr', 'oktyabr', 'noyabr', 'dekabr'];
+// to'lov = maydon × tuman tarifi (1 m², oyiga); serverda ham xuddi shunday hisoblanadi
+const sum = x => x.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function schedule() {
-    const s = $('start').value, a = Number(($('amount').value || '').replace(',', '.'));
-    if (!s || !a) return $('schedule').textContent = '';
-    const m = new Date(s).getMonth(), n = 12 - m, each = Math.floor(a / n * 100) / 100;
-    $('schedule').textContent = `To‘lov jadvali: ${MONTHS[m]} – dekabr, ${n} oy × ${each.toLocaleString('ru-RU', { minimumFractionDigits: 2 })} so‘m`;
+    const t = district().tariff, s = $('start').value, area = Number(($('area').value || '').replace(',', '.'));
+    if (!t) { $('schedule').textContent = '⚠️ Bu tuman uchun 1 m² tarifi kiritilmagan — administratorga murojaat qiling.'; return; }
+    if (!s || !(area > 0)) { $('schedule').textContent = `Tarif: 1 m² — ${sum(t)} so‘m/oy. Maydonni kiriting.`; return; }
+    const m = new Date(s).getMonth(), n = 12 - m, monthly = Math.round(area * t * 100) / 100;
+    $('schedule').innerHTML = `${esc(String(area).replace('.', ','))} m² × ${sum(t)} = <b>${sum(monthly)} so‘m/oy</b><br>`
+        + `Joriy yil (${MONTHS[m]} – dekabr, ${n} oy): <b>${sum(Math.round(monthly * n * 100) / 100)} so‘m</b>`;
 }
 $('start').onchange = () => {
     if ($('start').value) { const d = new Date($('start').value); d.setFullYear(d.getFullYear() + 1); d.setDate(d.getDate() - 1); $('end').value = d.toISOString().slice(0, 10); }
     schedule();
 };
-$('amount').oninput = schedule;
+$('area').addEventListener('input', schedule);
 
 $('f').onsubmit = async ev => {
     ev.preventDefault();
@@ -360,7 +365,7 @@ $('f').onsubmit = async ev => {
             passport: legal ? null : v('passport'), jshshir: legal ? null : v('jshshir'), passport_issuer: legal ? null : v('passportIssuer'),
             passport_year: legal ? null : v('passportYear'), phone: v('phone'),
             mfy: v('mfy'), house: v('house'), cadastre: v('cadastre'), area_m2: Number(($('area').value || '').replace(',', '.')), activity,
-            start_date: v('start'), end_date: v('end'), annual_amount: Number(($('amount').value || '').replace(',', '.')),
+            start_date: v('start'), end_date: v('end'),
             application_number: v('appNo'), application_date: v('appDate'), polygon: JSON.stringify(poly),
         }, shots);
         if (ok) {

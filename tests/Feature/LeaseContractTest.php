@@ -37,7 +37,7 @@ class LeaseContractTest extends TestCase
         // Taras Shevchenko ko'chasi bo'lagi (~41.300, 69.270 atrofida)
         $this->street = GastroStreet::create(['district_id' => $this->district->id, 'name' => 'Taras Shevchenko', 'line' => [[41.2990, 69.2700], [41.3010, 69.2700]]]);
         $this->staff = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Sagdullaev Rahmatjon', 'phone' => '993313441', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
-        GastroResponsible::create(['district_id' => $this->district->id, 'phone' => '993313441'])->staff()->attach($this->staff);
+        GastroResponsible::create(['district_id' => $this->district->id, 'phone' => '993313441', 'tariff' => 62073.19])->staff()->attach($this->staff);
     }
 
     private function initData(int $uid = self::UID): string
@@ -58,7 +58,7 @@ class LeaseContractTest extends TestCase
             'tenant_name' => '“GLOBAL PROPERTY DEVELOPMENT” MChJ', 'tenant_address' => 'Toshkent shahri, Mirobod tumani, Taras Shevchenko ko‘chasi, 21A-uy',
             'director' => 'Yermatov Vali Rustamovich', 'account' => '20208000005495269001', 'inn' => '309303138', 'mfo' => '00445', 'phone' => '+998997607007',
             'mfy' => 'Oybek', 'house' => '21A', 'cadastre' => '10:11:40:02:01:0612', 'area_m2' => 58.5, 'activity' => 'Umumiy ovqatlanish',
-            'start_date' => '2026-07-01', 'end_date' => '2027-06-30', 'annual_amount' => 21787682.67,
+            'start_date' => '2026-07-01', 'end_date' => '2027-06-30', 'annual_amount' => 1, // e'tiborga olinmaydi — serverda maydon × tarif
             // ko'cha yonidagi ~22 × 12,5 m to'rtburchak
             'polygon' => json_encode([[41.2999, 69.27005], [41.3001, 69.27005], [41.3001, 69.2702], [41.2999, 69.2702]]),
             'photos' => $this->photos(),
@@ -92,7 +92,8 @@ class LeaseContractTest extends TestCase
     {
         $this->get('/tg/lease-form')->assertOk()->assertSee('Ijara shartnomasi');
         $this->postJson('/tg/lease-form/state', ['initData' => $this->initData()])->assertOk()
-            ->assertJsonPath('districts.0.name', 'Mirobod tumani')->assertJsonPath('districts.0.streets.0.name', 'Taras Shevchenko')->assertJsonPath('radius', 300);
+            ->assertJsonPath('districts.0.name', 'Mirobod tumani')->assertJsonPath('districts.0.streets.0.name', 'Taras Shevchenko')->assertJsonPath('radius', 300)
+            ->assertJsonPath('districts.0.tariff', 62073.19);
 
         // ko'chadan uzoq — rad (faqat gastronomik ko'chadagi obyektga)
         $this->save($this->legal(['lat' => 41.3000, 'lng' => 69.2800]))->assertStatus(422)
@@ -106,6 +107,9 @@ class LeaseContractTest extends TestCase
         $this->save($this->legal(['polygon' => json_encode([[41.2999, 69.27005], [41.3001, 69.27005], [41.3001, 69.2760]])]))->assertStatus(422)
             ->assertJsonPath('message', fn ($m) => str_contains($m, '300 m'));
         $this->save($this->legal(['photos' => $this->photos(3)]))->assertStatus(422)->assertJsonValidationErrors('photos');
+        GastroResponsible::query()->update(['tariff' => null]);
+        $this->save($this->legal())->assertStatus(422)->assertJsonPath('message', fn ($m) => str_contains($m, 'tarifi kiritilmagan'));
+        GastroResponsible::query()->update(['tariff' => 62073.19]);
         $this->assertSame(0, LeaseContract::count());
 
         $this->save($this->legal())->assertOk()->assertJsonPath('sent', true);
@@ -122,15 +126,17 @@ class LeaseContractTest extends TestCase
         $t = $this->docText($c);
         $this->assertStringNotContainsString('{{', $t);
         foreach (['“GLOBAL PROPERTY DEVELOPMENT” MÇJ', 'Toşkent şahri, Mirobod tumani, Oybek MFY,', 'Taras Şevçenko ko‘çasi 21A-uy', '10:11:40:02:01:0612',
-            '58,50', 'Umumiy ovqatlaniş', '2026 yil “01” iyul dan 2027 yil “30” iyun', '21 787 682,67', '20208000005495269001', '309303138', 'V.R.Yermatov'] as $s) {
+            '58,50', 'Umumiy ovqatlaniş', '2026 yil “01” iyul dan 2027 yil “30” iyun', '21 787 689,72', '20208000005495269001', '309303138', 'V.R.Yermatov'] as $s) {
             $this->assertStringContainsString($s, $t, $s);
         }
         // to'lov jadvali: iyul–dekabr, 6 oy; jami summa saqlanadi (oxirgi oy farqi bilan)
         foreach (['Iyul', 'Avgust', 'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr'] as $m) {
             $this->assertStringContainsString($m, $t);
         }
-        $this->assertSame(5, substr_count($t, '3 631 280,44'));
-        $this->assertStringContainsString('3 631 280,47', $t);
+        // 58,5 m² × 62 073,19 (Mirobod tarifi) = 3 631 281,62 so'm/oy × 6 oy
+        $this->assertSame(6, substr_count($t, '3 631 281,62'));
+        $this->assertSame(21787689.72, $c->annual_amount);
+        $this->assertSame(62073.19, $c->tariff);
         $this->assertStringNotContainsString('Yanvar', $t);
         // ilovalar: sxema (1-ilova) va joyida olingan rasmlar (2-ilova)
         $this->assertStringContainsString('1-ilova', $t);
@@ -152,17 +158,17 @@ class LeaseContractTest extends TestCase
         $this->save($this->legal([
             'party' => 'individual', 'tenant_name' => 'Kadirov Abduraxmon Abdugafurovich', 'tenant_address' => null, 'director' => null,
             'passport' => 'AD 7739566', 'jshshir' => '31912820020026', 'phone' => '998042075', 'area_m2' => 20, 'activity' => 'Savdo',
-            'start_date' => '2026-08-01', 'end_date' => '2027-07-31', 'annual_amount' => 31657316.7,
+            'start_date' => '2026-08-01', 'end_date' => '2027-07-31', 'annual_amount' => 31657316.7, // e'tiborga olinmaydi
         ]))->assertOk();
         $c = LeaseContract::sole();
         $this->assertNull($c->inn);
         $t = $this->docText($c);
-        foreach (['KADIROV ABDURAXMON ABDUGAFUROVIÇ', 'yaşovçi fuqaro', 'AD 7739566', '31912820020026', 'A.A.Kadirov', 'hududdagi 20 kv.m', '“Savdo”', '31 657 316,70'] as $s) {
+        foreach (['KADIROV ABDURAXMON ABDUGAFUROVIÇ', 'yaşovçi fuqaro', 'AD 7739566', '31912820020026', 'A.A.Kadirov', 'hududdagi 20 kv.m', '“Savdo”', '6 207 319,00'] as $s) {
             $this->assertStringContainsString($s, $t, $s);
         }
         $this->assertStringContainsString('___________________________________da yaşovçi', $t); // manzil bo'sh — chiziq qoladi
         $this->assertStringNotContainsString('Iyul', $t); // avgust–dekabr (5 oy)
-        $this->assertSame(5, substr_count($t, '6 331 463,34')); // 31 657 316,70 / 5 — teng
+        $this->assertSame(5, substr_count($t, '1 241 463,80')); // 20 m² × 62 073,19, avgust–dekabr
     }
 
     public function test_only_responsibles_and_own_districts(): void

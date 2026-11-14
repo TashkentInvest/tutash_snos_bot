@@ -67,7 +67,7 @@ class LeaseFormController extends Controller
             'max_accuracy' => (int) config('tutash.max_gps_accuracy_m'),
             'activities' => LeaseContract::ACTIVITIES,
             'districts' => District::whereIn('id', $ids)->orderBy('name')->get(['id', 'name', 'boundary'])->map(fn ($d) => [
-                'id' => $d->id, 'name' => $d->name, 'boundary' => $d->boundary ?? [],
+                'id' => $d->id, 'name' => $d->name, 'boundary' => $d->boundary ?? [], 'tariff' => GastroResponsible::tariffFor($d->id),
                 'streets' => ($streets[$d->id] ?? collect())->map(fn ($s) => ['id' => $s->id, 'name' => $s->name, 'line' => $s->line])->values(),
                 'mahallas' => ($mahallas[$d->id] ?? collect())->pluck('name')->values(),
             ])->values(),
@@ -103,7 +103,6 @@ class LeaseFormController extends Controller
             'activity' => 'required|string|min:3|max:150',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
-            'annual_amount' => 'required|numeric|min:1|max:100000000000',
             'application_number' => 'nullable|string|max:40',
             'application_date' => 'nullable|date',
             'polygon' => 'required|json', // xodim xaritada chizgan tutash hudud: [[lat, lng], ...]
@@ -156,12 +155,19 @@ class LeaseFormController extends Controller
             return $this->fail('Chizilgan hudud juda kichik — burchaklarni qayta belgilang.');
         }
 
+        // to'lov serverda hisoblanadi: maydon (chizmadan, xodim tuzatgan bo'lishi mumkin) × tuman tarifi × oylar
+        $tariff = GastroResponsible::tariffFor((int) $data['district_id']);
+        if (! $tariff) {
+            return $this->fail('Bu tuman uchun 1 m² ijara tarifi kiritilmagan — administratorga murojaat qiling.');
+        }
+        $amounts = LeaseContract::amounts((float) $data['area_m2'], $tariff, \Illuminate\Support\Carbon::parse($data['start_date']));
+
         $clean = fn ($k) => filled($data[$k] ?? null) ? trim((string) $data[$k]) : null;
         $contract = LeaseContract::create([
             'district_id' => (int) $data['district_id'], 'gastro_street_id' => $street->id, 'staff_id' => $staff->id,
             'party' => $data['party'], 'lat' => (float) $data['lat'], 'lng' => (float) $data['lng'], 'street_distance_m' => $distance,
             'gps_accuracy' => (float) $data['accuracy'], 'polygon' => $polygon, 'polygon_area_m2' => $polygonArea,
-            'area_m2' => (float) $data['area_m2'], 'annual_amount' => round((float) $data['annual_amount'], 2),
+            'area_m2' => (float) $data['area_m2'], 'annual_amount' => $amounts['annual'], 'tariff' => $tariff,
             'start_date' => $data['start_date'], 'end_date' => $data['end_date'], 'application_date' => $data['application_date'] ?? null,
             ...collect(['tenant_name', 'tenant_address', 'director', 'account', 'inn', 'mfo', 'phone', 'passport', 'passport_issuer',
                 'passport_year', 'jshshir', 'mfy', 'house', 'cadastre', 'activity', 'application_number'])

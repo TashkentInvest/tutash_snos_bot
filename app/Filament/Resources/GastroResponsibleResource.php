@@ -55,6 +55,9 @@ class GastroResponsibleResource extends Resource
                 Tables\Columns\TextColumn::make('staff_list')->label('Mas’ul xodimlar (shartnomalar)')->badge()
                     ->state(fn (GastroResponsible $r) => $r->staff->map(fn (Staff $s) => $s->full_name.' · '.$s->phone)->all())
                     ->placeholder('— tanlanmagan —'),
+                // 1 m² uchun oylik ijara tarifi: shartnoma to'lovi = maydon × tarif × oylar (yangi shartnomalarga ta'sir qiladi)
+                Tables\Columns\TextInputColumn::make('tariff')->label('Tarif, 1 m² / oy (so‘m)')->type('number')->step('0.01')
+                    ->rules(['nullable', 'numeric', 'min:0', 'max:100000000'])->width('11rem'),
                 Tables\Columns\TextColumn::make('phone')->label('Jadvaldagi raqam')->placeholder('—')
                     ->description(fn (GastroResponsible $r) => $r->staff->isEmpty() && $r->phone ? 'botga hali kirmagan' : null)->toggleable(),
                 Tables\Columns\TextColumn::make('streets')->label('Ko‘chalar')

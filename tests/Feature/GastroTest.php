@@ -52,6 +52,9 @@ class GastroTest extends TestCase
         $page()->callTableAction('edit', $rUch, ['staff' => [$other->id]])->assertHasNoTableActionErrors();
         $this->assertSame([$chil->id, $uch->id], GastroResponsible::districtIdsFor($other));
         $this->assertSame([], GastroResponsible::districtIdsFor($late)); // xodim tanlangach jadvaldagi raqam endi ishlamaydi
+        // 1 m² tarifi jadvalning o'zida tahrirlanadi
+        $page()->call('updateTableColumnState', 'tariff', (string) $rChil->id, '37101.44');
+        $this->assertSame(37101.44, $rChil->refresh()->tariff);
         // olib tashlandi
         $page()->callTableAction('edit', $rChil, ['staff' => [$other->id]]);
         $this->assertSame([], GastroResponsible::districtIdsFor($sanjar));
@@ -83,6 +86,9 @@ class GastroTest extends TestCase
         $this->assertCount(12, $streets);
         $this->assertSame(42, collect($streets)->flatten(1)->count());
         $this->assertEmpty(array_diff(array_keys($streets), array_keys($bounds))); // tuman nomlari bir xil
+        // 1 m² tariflari: 12 tumanning har biri uchun, nomlari bir xil
+        $tariffs = (new \ReflectionClassConstant(require database_path('migrations/2026_11_15_000002_add_lease_tariff.php'), 'TARIFFS'))->getValue();
+        $this->assertEqualsCanonicalizing(array_keys($streets), array_keys($tariffs));
     }
 
     /** Migratsiya: KMZ ko'chalari va «Shartnoma tushum» jadvali tumanlar nomi/telefon bo'yicha yoziladi. */

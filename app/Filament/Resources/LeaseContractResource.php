@@ -109,6 +109,8 @@ class LeaseContractResource extends Resource
                 $e('polygon_area_m2', 'Maydon (chizmadan)')->formatStateUsing(fn ($state) => number_format((float) $state, 1, ',', ' ').' m²'),
                 $e('activity', 'Faoliyat'),
                 $e('annual_amount', 'Joriy yil to‘lovi')->formatStateUsing(fn ($state) => LeaseContractDocument::money((float) $state).' so‘m'),
+                $e('tariff', 'Tarif (1 m² / oy)')->formatStateUsing(fn ($state, LeaseContract $record) => LeaseContractDocument::money((float) $state).' so‘m · oyiga '
+                    .LeaseContractDocument::money(round($record->area_m2 * (float) $state, 2)).' so‘m'),
                 $e('start_date', 'Muddat')->formatStateUsing(fn (LeaseContract $record) => $record->start_date->format('d.m.Y').' – '.$record->end_date->format('d.m.Y')),
                 $e('street_distance_m', 'Xodim ko‘chadan')->formatStateUsing(fn ($state, LeaseContract $record) => $state.' m · GPS ±'.round((float) $record->gps_accuracy).' m'),
                 $e('created_at', 'Tayyorlangan')->dateTime('d.m.Y H:i'),

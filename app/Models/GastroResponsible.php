@@ -14,7 +14,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  */
 class GastroResponsible extends Model
 {
-    protected $fillable = ['district_id', 'phone'];
+    protected $fillable = ['district_id', 'phone', 'tariff'];
+
+    protected $casts = ['tariff' => 'float']; // 1 m² uchun oylik ijara tarifi, so'm
+
+    public static function tariffFor(int $districtId): ?float
+    {
+        $t = self::where('district_id', $districtId)->value('tariff');
+
+        return $t !== null && (float) $t > 0 ? (float) $t : null;
+    }
 
     public function district(): BelongsTo
     {
