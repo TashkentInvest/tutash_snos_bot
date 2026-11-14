@@ -63,8 +63,9 @@ class LeaseFormController extends Controller
 
         return response()->json([
             'ok' => true,
-            'radius' => (int) config('tutash.max_distance_m'),
-            'max_accuracy' => (int) config('tutash.max_gps_accuracy_m'),
+            'radius' => \App\Support\Limits::leaseRadius(),
+            'max_accuracy' => \App\Support\Limits::gpsAccuracy(),
+            'check' => \App\Support\Limits::leaseCheck(), // false — joylashuv cheklovi o'chirilgan (uzoqdan ham)
             'activities' => LeaseContract::ACTIVITIES,
             'districts' => District::whereIn('id', $ids)->orderBy('name')->get(['id', 'name', 'boundary'])->map(fn ($d) => [
                 'id' => $d->id, 'name' => $d->name, 'boundary' => $d->boundary ?? [], 'tariff' => GastroResponsible::tariffFor($d->id),
@@ -128,13 +129,14 @@ class LeaseFormController extends Controller
             return $this->fail('Ko‘chani ro‘yxatdan tanlang.');
         }
         // GPS aniqligi — tekshiruvlardagi kabi
-        if ($message = Gps::accuracyError((float) $data['accuracy'])) {
+        $check = \App\Support\Limits::leaseCheck();
+        if ($check && ($message = Gps::accuracyError((float) $data['accuracy']))) {
             return $this->fail($message);
         }
         // faqat gastronomik ko'chadagi obyekt: tanlangan ko'cha chizig'idan ruxsat etilgan masofa ichida (obyektlardagi kabi)
-        $radius = (int) config('tutash.max_distance_m');
+        $radius = \App\Support\Limits::leaseRadius();
         $distance = (int) round(Gps::distanceToLine((float) $data['lat'], (float) $data['lng'], $street->line) ?? INF);
-        if ($distance > $radius) {
+        if ($check && $distance > $radius) {
             return $this->fail("Siz «{$street->name}» ko‘chasidan taxminan {$distance} m uzoqdasiz. Shartnoma faqat gastronomik ko‘chadagi obyektlarga tuziladi (ko‘chadan {$radius} m ichida) — obyekt oldiga borib, joylashuvni qayta oling.");
         }
         // chizilgan hudud: 3–60 burchak, har bir burchagi shu ko'chadan ruxsat etilgan masofa ichida
@@ -147,7 +149,7 @@ class LeaseFormController extends Controller
         }
         $polygon = array_map(fn ($p) => [round((float) $p[0], 7), round((float) $p[1], 7)], $polygon);
         $far = (int) round(max(array_map(fn ($p) => Gps::distanceToLine($p[0], $p[1], $street->line), $polygon)));
-        if ($far > $radius) {
+        if ($check && $far > $radius) {
             return $this->fail("Chizilgan hudud «{$street->name}» ko‘chasidan {$far} m gacha uzoqlashgan (ruxsat: {$radius} m). Hududni obyekt oldida, ko‘cha bo‘yida chizing.");
         }
         $polygonArea = round(Gps::polygonArea($polygon), 2);

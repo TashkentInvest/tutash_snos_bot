@@ -385,6 +385,7 @@ $('f').onsubmit = async ev => {
         const { ok, j } = await api('state', {});
         if (!ok) return say(j.message || 'Telegram ichida oching.', 'err');
         districts = j.districts || []; radius = j.radius || 300; maxAcc = j.max_accuracy || 150;
+        if (j.check === false) { radius = Infinity; maxAcc = Infinity; } // admin joylashuv cheklovini o'chirgan — uzoqdan ham
         if (!districts.length) return say('Sizga ijara shartnomasi uchun tuman biriktirilmagan.', 'err');
         // tuman va ko'cha botdagi tugmalar bilan tanlanadi (…/tg/lease-form?street=ID)
         const d0 = districts.find(d => d.streets.some(s => String(s.id) === streetParam));

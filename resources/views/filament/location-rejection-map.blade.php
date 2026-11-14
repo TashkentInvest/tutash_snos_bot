@@ -4,7 +4,7 @@
         'staff' => [$r->lat, $r->lng],
         'site' => $r->site_lat ? [$r->site_lat, $r->site_lng] : null,
         'accuracy' => $r->accuracy,
-        'radius' => (int) config('tutash.max_distance_m'),
+        'radius' => \App\Support\Limits::inspectionRadius(),
         'distance' => \App\Filament\Resources\LocationRejectionResource::meters($r->distance_m),
         // davomat / soatlik qayd: xodimga biriktirilgan tuman hududlari (obyektlar o'rami)
         'areas' => $r->source === 'inspection' || ! $r->staff ? [] : $r->staff->districts()->get(['districts.id', 'districts.name'])

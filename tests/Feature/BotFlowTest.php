@@ -607,6 +607,31 @@ class BotFlowTest extends TestCase
         $this->assertTrue($in->refresh()->suspicious);
     }
 
+    /** Admin panelda (Hisobotlar → Joylashuv cheklovlari) o'zgartirilgan radius va o'chirilgan cheklov .env dan ustun. */
+    public function test_inspection_distance_limit_is_managed_from_admin_settings(): void
+    {
+        $this->register();
+        $in = $this->start();
+        config(['tutash.strict_distance' => true]);
+
+        \App\Support\Limits::save(['inspection_radius' => 100]);
+        $this->app('location', ['lat' => 41.5, 'lng' => 69.9])->assertStatus(422)->assertJsonPath('radius', 100);
+
+        \App\Support\Limits::save(['inspection_check' => false]); // cheklov o'chirildi — onlayn (uzoqdan, past aniqlik bilan ham)
+        $this->app('location', ['lat' => 41.5, 'lng' => 69.9, 'accuracy' => 900])->assertOk();
+        $this->assertContains('far_from_site', $in->refresh()->flags); // uzoqdan yuborilgani admin uchun belgilanadi
+    }
+
+    public function test_inspection_radius_from_admin_settings_allows_farther_location(): void
+    {
+        $this->register();
+        $in = $this->start();
+        config(['tutash.strict_distance' => true]);
+        \App\Support\Limits::save(['inspection_radius' => 100000]);
+        $this->app('location', ['lat' => 41.5, 'lng' => 69.9])->assertOk();
+        $this->assertNotContains('far_from_site', $in->refresh()->flags ?? []);
+    }
+
     public function test_court_cancelled_needs_documents_and_approval_removes_site_from_total(): void
     {
         $this->register();
@@ -935,6 +960,7 @@ class BotFlowTest extends TestCase
     {
         $this->register();
         $in = $this->start();
+        config(['tutash.strict_distance' => true]); // production kabi (joylashuv cheklovi yoqilgan)
 
         // aniqlik chegaradan yomon — rad, bosqich o'zgarmaydi
         $this->app('location', ['lat' => 41.3001, 'lng' => 69.2501, 'accuracy' => 900])->assertStatus(422)->assertJsonPath('ok', false);

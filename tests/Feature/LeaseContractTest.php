@@ -182,6 +182,19 @@ class LeaseContractTest extends TestCase
         $this->assertSame(0, LeaseContract::count());
     }
 
+    /** Admin «Faqat ko'cha yonida» cheklovini o'chirsa — shartnoma uzoqdan (onlayn) ham to'ldiriladi. */
+    public function test_lease_location_limit_can_be_turned_off(): void
+    {
+        $far = ['lat' => 41.3500, 'lng' => 69.3500, 'accuracy' => 900,
+            'polygon' => json_encode([[41.35, 69.35], [41.3502, 69.35], [41.3502, 69.3503]])];
+        $this->save($this->legal($far))->assertStatus(422);
+
+        \App\Support\Limits::save(['lease_check' => false]);
+        $this->postJson('/tg/lease-form/state', ['initData' => $this->initData()])->assertJsonPath('check', false);
+        $this->save($this->legal($far))->assertOk();
+        $this->assertGreaterThan(5000, LeaseContract::sole()->street_distance_m); // qayerdan yuborilgani saqlanadi
+    }
+
     /** Barcha tumanlarga biriktirilgan xodim ham mas'ul bo'lsa — tumanlar ro'yxati ustida shartnoma tugmasi. */
     public function test_global_staff_who_is_responsible_sees_lease_button(): void
     {

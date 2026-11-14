@@ -73,7 +73,7 @@ class LeaseHandler
         }
         Ui::show($bot, '📄 <b>'.Ui::e($street->district->name).' · '.Ui::e($street->name)."</b>\n\n"
             ."Obyekt oldiga boring va tugmani bosing — joylashuv telefon GPS'idan olinadi (ko‘chadan "
-            .(int) config('tutash.max_distance_m').' m ichida bo‘lishi kerak). Keyin ijarachi va obyekt ma’lumotlarini kiriting.',
+            .\App\Support\Limits::leaseRadius().' m ichida bo‘lishi kerak). Keyin ijarachi va obyekt ma’lumotlarini kiriting.',
             Ui::markup([[BrowseHandler::leaseFormButton('📝 Shartnoma to‘ldirish', $street->id)], [Ui::btn('⬅️ Orqaga', "ld:{$street->district_id}")]]));
     }
 }

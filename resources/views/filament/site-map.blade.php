@@ -1,7 +1,7 @@
 @php
     /** @var \App\Models\Site $site */
     $site = $getRecord();
-    $radius = (int) config('tutash.max_distance_m');
+    $radius = \App\Support\Limits::inspectionRadius();
     // xodimlar tekshiruvda turgan joylar (qabul qilingan) va rad etilgan urinishlar
     $visits = $site->inspections()->whereNotNull('staff_lat')->with('staff')->latest('id')->limit(15)->get()
         ->map(fn ($in) => ['p' => [$in->staff_lat, $in->staff_lng], 'c' => '#16a34a',

@@ -159,21 +159,21 @@ class InspectionAppController extends Controller
         $distance = ($site->lat && $site->lng) ? Site::distanceMeters($lat, $lng, $site->lat, $site->lng) : null;
         $device = Device::clean($request->input('device'));
 
-        if ($message = Gps::accuracyError($accuracy)) {
+        $check = \App\Support\Limits::inspectionCheck(); // o'chirilsa — uzoqdan ham (masofa va aniqlik tekshirilmaydi, belgi qoladi)
+        if ($check && ($message = Gps::accuracyError($accuracy))) {
             AuditLog::record('inspection.low_gps_accuracy', $user['id'], ['inspection' => $in->id, 'accuracy' => $accuracy]);
             \App\Models\LocationRejection::capture($in, \App\Models\LocationRejection::LOW_ACCURACY, $lat, $lng, $accuracy, $distance, $device);
 
             return $this->fail($message);
         }
 
-        $tooFar = $distance !== null && $distance > config('tutash.max_distance_m');
+        $radius = \App\Support\Limits::inspectionRadius();
+        $tooFar = $distance !== null && $distance > $radius;
         $flags = [...($tooFar ? ['far_from_site'] : []), ...Gps::flags($accuracy)];
 
-        if ($tooFar && config('tutash.strict_distance')) {
+        if ($tooFar && $check) {
             AuditLog::record('inspection.too_far_rejected', $user['id'], ['site' => $in->site_id, 'distance' => $distance]);
             \App\Models\LocationRejection::capture($in, \App\Models\LocationRejection::TOO_FAR, $lat, $lng, $accuracy, $distance, $device);
-
-            $radius = (int) config('tutash.max_distance_m');
 
             return response()->json([
                 'ok' => false, 'distance' => $distance, 'radius' => $radius,

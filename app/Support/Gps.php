@@ -14,7 +14,7 @@ class Gps
     /** Aniqlik juda past bo'lsa — xodimga ko'rsatiladigan xabar, aks holda null. */
     public static function accuracyError(?float $accuracy): ?string
     {
-        $max = (int) config('tutash.max_gps_accuracy_m');
+        $max = Limits::gpsAccuracy(); // admin panelda o'zgartiriladi
         if ($accuracy === null || $accuracy <= $max) {
             return null;
         }
@@ -187,8 +187,8 @@ class Gps
      */
     public static function outsideDistricts(Staff $staff, float $lat, float $lng, ?float $accuracy): ?array
     {
-        if ($staff->is_global || Staff::isAllDistrictsEmployeePhone($staff->phone)) {
-            return null;
+        if (! Limits::attendanceCheck() || $staff->is_global || Staff::isAllDistrictsEmployeePhone($staff->phone)) {
+            return null; // cheklov admin panelda o'chirilgan — uzoqdan (onlayn) ham qabul qilinadi
         }
         $districts = $staff->districts()->get(['districts.id', 'districts.name']);
         if ($districts->isEmpty()) {
@@ -203,7 +203,7 @@ class Gps
                 return null; // hududi aniqlanmagan tuman — xato bloklamaslik uchun tekshirilmaydi
             }
             $m = min(array_map(fn ($r) => self::distanceToArea($lat, $lng, $r) ?? INF, $rings));
-            $buffer = (int) config($real ? 'tutash.attendance.boundary_buffer_m' : 'tutash.attendance.district_buffer_m');
+            $buffer = Limits::boundaryBuffer($real);
             $over[] = $m - $buffer - $slack;
             $dist[] = $m;
         }
