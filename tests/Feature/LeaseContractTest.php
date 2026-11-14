@@ -33,6 +33,12 @@ class LeaseContractTest extends TestCase
         parent::setUp();
         Storage::fake('local');
         config(['tutash.soffice_bin' => null]); // testda PDF yasalmaydi
+        // sxema fonidagi xarita plitkalari — tarmoqqa chiqilmaydi
+        $tile = imagecreatetruecolor(256, 256);
+        imagefill($tile, 0, 0, imagecolorallocate($tile, 60, 120, 60));
+        ob_start();
+        imagepng($tile);
+        \Illuminate\Support\Facades\Http::fake(['server.arcgisonline.com/*' => \Illuminate\Support\Facades\Http::response(ob_get_clean())]);
         $this->district = District::create(['name' => 'Mirobod tumani', 'phone' => '901000001']);
         // Taras Shevchenko ko'chasi bo'lagi (~41.300, 69.270 atrofida)
         $this->street = GastroStreet::create(['district_id' => $this->district->id, 'name' => 'Taras Shevchenko', 'line' => [[41.2990, 69.2700], [41.3010, 69.2700]]]);
@@ -146,6 +152,10 @@ class LeaseContractTest extends TestCase
         $media = collect(range(0, $zip->numFiles - 1))->map(fn ($i) => $zip->getNameIndex($i))->filter(fn ($n) => str_starts_with($n, 'word/media/lease'));
         $this->assertCount(5, $media); // sxema + 4 rasm
         $this->assertStringContainsString('rIdLease', $zip->getFromName('word/_rels/document.xml.rels'));
+        // sxema — xarita fonida (sun'iy yo'ldosh plitkalari olindi va keshlandi), JPEG
+        \Illuminate\Support\Facades\Http::assertSent(fn ($r) => str_contains($r->url(), 'World_Imagery/MapServer/tile/'));
+        $this->assertNotEmpty(Storage::disk('local')->allFiles('tiles/World_Imagery'));
+        $this->assertNotEmpty($media->filter(fn ($n) => str_ends_with($n, '.jpg'))->all());
         $zip->close();
 
         // botga Word fayl yuborildi
@@ -180,6 +190,16 @@ class LeaseContractTest extends TestCase
         Staff::create(['telegram_id' => 777502, 'full_name' => 'Begona', 'phone' => '900000502', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
         $this->postJson('/tg/lease-form/state', ['initData' => $this->initData(777502)])->assertStatus(403);
         $this->assertSame(0, LeaseContract::count());
+    }
+
+    /** Xarita xizmati javob bermasa — sxema oq fonda chiziladi, shartnoma baribir tayyor. */
+    public function test_scheme_falls_back_to_plain_background_when_map_service_fails(): void
+    {
+        \Illuminate\Support\Facades\Http::swap(new \Illuminate\Http\Client\Factory); // setUp dagi plitkalar o'rniga — xizmat ishlamaydi
+        \Illuminate\Support\Facades\Http::fake(['server.arcgisonline.com/*' => \Illuminate\Support\Facades\Http::response('', 503)]);
+        $this->save($this->legal())->assertOk()->assertJsonPath('sent', true);
+        $this->assertSame([], Storage::disk('local')->allFiles('tiles'));
+        $this->assertStringContainsString('1-ilova', $this->docText(LeaseContract::sole()));
     }
 
     /** Production xatosi: soffice'ga ruxsat yo'q (open_basedir) — PDF bo'lmaydi, Word baribir yuboriladi. */

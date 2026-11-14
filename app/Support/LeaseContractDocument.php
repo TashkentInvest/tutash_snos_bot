@@ -175,7 +175,7 @@ class LeaseContractDocument
             $add[] = $p($text($t('1-ilova'), true, 26), 'right');
             $add[] = $p($text($t('Tutash hudud sxemasi'), true, 28));
             $add[] = $p($text($t('Toshkent shahri, '.$c->district?->name.', '.$c->mfy.(preg_match('/MFY$/u', trim($c->mfy)) ? '' : ' MFY').', '.$c->street?->name.(filled($c->house) ? ', '.$c->house.'-uy' : ''))));
-            $add[] = $p($image(LeaseScheme::png($c), 'png', 16.5));
+            $add[] = $p($image(LeaseScheme::render($c), 'jpg', 16.5));
             $add[] = $p($text($t('Tutash hudud maydoni (sxema bo‘yicha): '.number_format((float) $c->polygon_area_m2, 1, ',', ' ').' kv.m; shartnomada: '.self::area($c->area_m2).' kv.m'), false, 22), 'left');
             $coords = collect($c->polygon)->map(fn ($v, $i) => ($i + 1).') '.number_format($v[0], 6, '.', '').', '.number_format($v[1], 6, '.', ''))->join(';  ');
             $add[] = $p($text($t('Burchak nuqtalari (kenglik, uzunlik): ').$coords, false, 20), 'left');
