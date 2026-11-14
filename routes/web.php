@@ -70,6 +70,16 @@ Route::get('/admin-attendance-report.png', function (\Illuminate\Http\Request $r
     return response(\App\Telegram\Support\AttendanceReport::image($day)['png'], 200, ['Content-Type' => 'image/png', 'Cache-Control' => 'private, no-store']);
 })->middleware(['auth'])->name('admin.attendance-report.png');
 Route::get('/admin-checkin/{checkin}', [MediaController::class, 'checkinVideo'])->middleware(['auth'])->name('admin.checkin-video');
+// gastronomik svod rasmi (Telegram hisobotidagi kabi) — faqat admin; ?day=YYYY-MM-DD, onsite=0|1 (standart — sozlamadagi)
+Route::get('/admin-lease-svod.png', function (\Illuminate\Http\Request $request) {
+    abort_unless(\App\Models\User::currentIsAdmin(), 403);
+    $day = \App\Support\ReportPeriod::fromFilter($request->query('day'))->day;
+    $onsite = $request->has('onsite') ? $request->query('onsite') === '1' : \App\Models\ReportSetting::gastroOptions()['onsite'];
+
+    return response(\App\Telegram\Support\LeaseReport::png($day, $onsite, fn (string $s) => \App\Telegram\Support\Script::apply($s)), 200, [
+        'Content-Type' => 'image/png', 'Cache-Control' => 'private, no-store',
+    ]);
+})->middleware(['auth'])->name('admin.lease-svod.png');
 // ijara shartnomalari svodi (Excel) — faqat admin; ?from=&to=YYYY-MM-DD, unique=1, onsite=1
 Route::get('/admin-lease-svod.xlsx', function (\Illuminate\Http\Request $request) {
     abort_unless(\App\Models\User::currentIsAdmin(), 403);

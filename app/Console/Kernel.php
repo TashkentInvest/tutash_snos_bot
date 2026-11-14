@@ -36,6 +36,8 @@ class Kernel extends ConsoleKernel
         $schedule->command('checkins:report')->days(config('tutash.attendance.days'))->hourlyAt(59)
             ->between(\App\Models\Checkin::slots()[0] ?? '10:00', \App\Models\Checkin::scheduleUntil())->runInBackground()->withoutOverlapping(5);
         // Bajarilmagan moderator izohlari bo'yicha eslatma — ish kunlari ertalab.
+        // Gastronomik ko'chalar svodi — vaqti va kunlari admin panelda (Sozlamalar → Hisobotlar); buyruq o'zi tekshiradi.
+        $schedule->command('leases:report')->everyMinute()->withoutOverlapping(10)->runInBackground();
         $schedule->command('followups:remind')->days(config('tutash.attendance.days'))->dailyAt(config('tutash.followup_remind_at'))->withoutOverlapping(30);
     }
 

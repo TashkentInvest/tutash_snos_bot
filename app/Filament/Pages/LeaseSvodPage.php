@@ -48,6 +48,36 @@ class LeaseSvodPage extends Page
         };
     }
 
+    /** «Telegramga yuborish»: hozirgi holat (bugun) — oluvchilar sozlamadagilar, o'zgartirish mumkin. */
+    protected function getHeaderActions(): array
+    {
+        return [
+            \Filament\Actions\Action::make('sendTelegram')->label('Telegramga yuborish')->icon('heroicon-o-paper-airplane')
+                ->modalHeading('Gastronomik svod — '.today()->format('d.m.Y'))->modalWidth('3xl')->modalSubmitActionLabel('Yuborish')
+                ->form(fn () => [
+                    \Filament\Forms\Components\Toggle::make('onsite')->label('Faqat joyida tuzilganlar')->default($this->onsite || \App\Models\ReportSetting::gastroOptions()['onsite'])->live(),
+                    \Filament\Forms\Components\CheckboxList::make('recipients')->label('Kimlarga (oldindan — Sozlamalar → Hisobotlar)')
+                        ->options(fn () => ReportSettings::people())
+                        ->default(fn () => array_map('strval', \App\Models\ReportSetting::for(\App\Models\ReportSetting::GASTRO)->recipients ?? []))
+                        ->required()->searchable()->bulkToggleable()->columns(2)
+                        ->validationMessages(['required' => 'Kamida bitta oluvchini belgilang.']),
+                    \Filament\Forms\Components\Placeholder::make('preview')->label('Botda shunday ko‘rinadi')
+                        ->content(fn (\Filament\Forms\Get $get) => new \Illuminate\Support\HtmlString(
+                            '<img src="'.e(route('admin.lease-svod.png', ['onsite' => $get('onsite') ? 1 : 0])).'&t='.now()->timestamp
+                            .'" style="width:100%;border-radius:.5rem;background:#fff;margin-bottom:.75rem;"><div style="font-size:.875rem;line-height:1.5;">'
+                            .nl2br(\App\Telegram\Support\Script::apply(\App\Telegram\Support\LeaseReport::caption(today(), (bool) $get('onsite')))).'</div>')),
+                ])
+                ->action(function (array $data) {
+                    $to = \App\Models\Staff::whereIn('id', array_map('intval', $data['recipients'] ?? []))
+                        ->where('status', \App\Models\Staff::ACTIVE)->whereNotNull('telegram_id')->get();
+                    $sent = \App\Telegram\Support\LeaseReport::send(app(\SergiX44\Nutgram\Nutgram::class), today(), $to, (bool) ($data['onsite'] ?? false));
+                    \App\Models\AuditLog::record('report.manual.gastro_svod', null, ['by' => auth()->id(), 'sent' => $sent]);
+                    \Filament\Notifications\Notification::make()->title($sent ? "Yuborildi: {$sent} ta xabar" : 'Yuborilmadi: oluvchilar botni bloklagan bo‘lishi mumkin')
+                        ->{$sent ? 'success' : 'warning'}()->send();
+                }),
+        ];
+    }
+
     private function date(?string $v): ?Carbon
     {
         try {

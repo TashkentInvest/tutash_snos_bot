@@ -15,6 +15,10 @@ class ReportSetting extends Model
     public const ATTENDANCE = 'attendance';
     public const CHECKIN_HOURLY = 'checkin_hourly';
     public const CHECKIN_DAILY = 'checkin_daily';
+    public const GASTRO = 'gastro_svod';
+
+    /** gastronomik svod: standart jadval (har ish kuni 18:00, faqat joyida tuzilganlar) */
+    public const GASTRO_DEFAULTS = ['at' => '18:00', 'days' => [1, 2, 3, 4, 5], 'onsite' => true];
 
     /** key => [nomi, qachon yuboriladi] (sahifadagi tartib bilan). */
     public static function catalog(): array
@@ -24,12 +28,23 @@ class ReportSetting extends Model
             self::CHECKIN_DAILY => ['Soatlik qayd — kun yakuni', 'Oxirgi soat ('.collect(\App\Models\Checkin::slots())->max().') hisobotidan darhol keyin: kun bo‘yi barcha soatlar jadvali. Rasm.'],
             self::ATTENDANCE => ['Ertalabki davomat xulosasi', 'Ish kunlari davomat yopilganda ('.\App\Models\Attendance::closeAt()->format('H:i').'): ishda, sabab bilan yo‘q, javob bermadi (izoh bilan). Rasm.'],
             self::SVOD => ['Kunlik buzilish hisoboti', 'Har kuni '.config('tutash.daily_report_at').' da: tumanlar kesimida svod va bajarilish (2 rasm).'],
+            self::GASTRO => ['Gastronomik ko‘chalar — ijara shartnomalari svodi', 'Tanlangan kunlari va vaqtda: tumanlar kesimida shartnomalar soni, bugun tuzilganlar, maydon, oylik va joriy yil to‘lovi. Rasm.'],
         ];
     }
 
-    protected $fillable = ['key', 'enabled', 'recipients'];
+    protected $fillable = ['key', 'enabled', 'recipients', 'options'];
 
-    protected $casts = ['enabled' => 'boolean', 'recipients' => 'array'];
+    protected $casts = ['enabled' => 'boolean', 'recipients' => 'array', 'options' => 'array'];
+
+    /** Gastronomik svod jadvali: saqlangan qiymat yoki standart. */
+    public static function gastroOptions(): array
+    {
+        $o = (self::for(self::GASTRO)->options ?? []) + self::GASTRO_DEFAULTS;
+        $o['days'] = array_values(array_map('intval', $o['days'] ?? []));
+        $o['onsite'] = (bool) $o['onsite'];
+
+        return $o;
+    }
 
     public static function for(string $key): self
     {
