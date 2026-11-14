@@ -22,7 +22,8 @@ class GastroTest extends TestCase
         GastroStreet::create(['district_id' => $chil->id, 'name' => 'Qatortol', 'line' => [[41.28, 69.20], [41.29, 69.21]]]);
         $sanjar = Staff::create(['telegram_id' => 501, 'full_name' => 'Aslanov Sanjar', 'phone' => '950507174', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
         $other = Staff::create(['telegram_id' => 502, 'full_name' => 'Boshqa Xodim', 'phone' => '900000002', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
-        $rChil = GastroResponsible::create(['district_id' => $chil->id, 'staff_id' => $sanjar->id, 'phone' => '950507174']);
+        $rChil = GastroResponsible::create(['district_id' => $chil->id, 'phone' => '950507174']);
+        $rChil->staff()->attach($sanjar);
         GastroResponsible::create(['district_id' => $uch->id, 'phone' => '977777777']); // botga hali kirmagan
 
         $this->assertSame([$chil->id], GastroResponsible::districtIdsFor($sanjar));
@@ -38,13 +39,22 @@ class GastroTest extends TestCase
         $this->get('/admin/gastro-responsibles')->assertOk()->assertSee('Chilonzor tumani')->assertSee('botga hali kirmagan');
         $this->get('/admin/gastro-map')->assertOk()->assertSee('Qatortol')->assertSee('Aslanov Sanjar')->assertSee('977777777 (botga kirmagan)');
 
-        // xodim almashdi — faqat shu yerda; boshqa xodimning tumanlari o'zgarmaydi
-        \Livewire\Livewire::test(\App\Filament\Resources\GastroResponsibleResource\Pages\ManageGastroResponsibles::class)
-            ->call('updateTableColumnState', 'staff_id', (string) $rChil->id, (string) $other->id);
-        $this->assertSame($other->id, $rChil->refresh()->staff_id);
+        // bir tumanga bir nechta mas'ul — faqat shu yerda; xodimlarning «Tumanlar»i o'zgarmaydi
+        $page = fn () => \Livewire\Livewire::test(\App\Filament\Resources\GastroResponsibleResource\Pages\ManageGastroResponsibles::class);
+        $page()->callTableAction('edit', $rChil, ['staff' => [$sanjar->id, $other->id]])->assertHasNoTableActionErrors();
+        $this->assertEqualsCanonicalizing([$sanjar->id, $other->id], $rChil->staff()->pluck('staff.id')->all());
         $this->assertSame([$chil->id], GastroResponsible::districtIdsFor($other));
-        $this->assertSame([], GastroResponsible::districtIdsFor($sanjar));
+        $this->assertSame([$chil->id], GastroResponsible::districtIdsFor($sanjar));
         $this->assertSame([], $other->districts()->pluck('districts.id')->all());
+        $this->get('/admin/gastro-map')->assertOk()->assertSee('Aslanov Sanjar, Boshqa Xodim');
+        // bir xodim bir nechta tumanga ham mas'ul bo'la oladi
+        $rUch = GastroResponsible::where('district_id', $uch->id)->sole();
+        $page()->callTableAction('edit', $rUch, ['staff' => [$other->id]])->assertHasNoTableActionErrors();
+        $this->assertSame([$chil->id, $uch->id], GastroResponsible::districtIdsFor($other));
+        $this->assertSame([], GastroResponsible::districtIdsFor($late)); // xodim tanlangach jadvaldagi raqam endi ishlamaydi
+        // olib tashlandi
+        $page()->callTableAction('edit', $rChil, ['staff' => [$other->id]]);
+        $this->assertSame([], GastroResponsible::districtIdsFor($sanjar));
 
         // faqat admin
         $viewer = (new User)->forceFill(['name' => 'V', 'email' => 'v@t.test', 'password' => 'secret-pass-2', 'is_viewer' => true]);
@@ -52,6 +62,18 @@ class GastroTest extends TestCase
         $this->actingAs($viewer);
         $this->assertFalse(\App\Filament\Pages\GastroMap::canAccess());
         $this->assertFalse(\App\Filament\Resources\GastroResponsibleResource::canViewAny());
+    }
+
+    /** Obyekt xaritalaridagi «Gastronomik ko'chalar» qatlami: keshlangan, ko'cha o'zgarsa yangilanadi. */
+    public function test_map_layer_lines_are_cached_and_refreshed(): void
+    {
+        $d = District::create(['name' => 'Chilonzor tumani', 'phone' => '901000001']);
+        $s = GastroStreet::create(['district_id' => $d->id, 'name' => 'Qatortol', 'line' => [[41.28, 69.20], [41.29, 69.21]]]);
+        $this->assertSame([['n' => 'Qatortol', 'l' => [[41.28, 69.20], [41.29, 69.21]]]], GastroStreet::mapLines());
+        $s->update(['name' => 'Qatortol ko‘chasi']);
+        $this->assertSame('Qatortol ko‘chasi', GastroStreet::mapLines()[0]['n']);
+        $s->delete();
+        $this->assertSame([], GastroStreet::mapLines());
     }
 
     public function test_migration_data_files_are_consistent(): void
@@ -70,9 +92,11 @@ class GastroTest extends TestCase
             District::create(['name' => $n, 'phone' => '90100000'.$i]);
         }
         $sanjar = Staff::create(['telegram_id' => 501, 'full_name' => 'Aslanov Sanjar', 'phone' => '950507174', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
+        \Illuminate\Support\Facades\Schema::dropIfExists('gastro_responsible_staff');
         \Illuminate\Support\Facades\Schema::dropIfExists('gastro_responsibles');
         \Illuminate\Support\Facades\Schema::dropIfExists('gastro_streets');
         (require database_path('migrations/2026_11_14_000001_create_gastro_tables.php'))->up();
+        (require database_path('migrations/2026_11_15_000001_create_gastro_responsible_staff_table.php'))->up(); // yagona mas'ul → ro'yxatga
 
         $this->assertSame(6, GastroStreet::whereHas('district', fn ($q) => $q->where('name', 'Chilonzor tumani'))->count());
         $this->assertSame(12, GastroStreet::whereHas('district', fn ($q) => $q->where('name', 'Olmazor tumani'))->count());

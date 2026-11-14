@@ -34,7 +34,7 @@
                         <tr style="border-top:1px solid rgba(127,127,127,.25);vertical-align:top;">
                             <td style="padding:8px 16px 8px 0;white-space:nowrap;">{{ $r['name'] }}</td>
                             <td style="padding:8px 16px 8px 0;">{{ $r['streets'] ? implode(', ', $r['streets']) : '—' }}</td>
-                            <td style="padding:8px 0;white-space:nowrap;">{{ $r['responsible'] ?? '—' }}</td>
+                            <td style="padding:8px 0;white-space:normal;">{{ $r['responsible'] ?? '—' }}</td>
                         </tr>
                     @endforeach
                 </tbody>

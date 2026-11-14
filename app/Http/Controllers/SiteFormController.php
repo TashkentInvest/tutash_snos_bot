@@ -103,6 +103,8 @@ class SiteFormController extends Controller
 
         return response()->json([
             'ok' => true,
+            // xaritada «Gastronomik ko'chalar» qatlami (xodim tumanlaridagilari)
+            'gastro' => \App\Models\GastroStreet::whereIn('district_id', $ids)->get(['name', 'line'])->map(fn ($s) => ['n' => $s->name, 'l' => $s->line])->values(),
             'districts' => $districts->map(fn ($d) => [
                 'id' => $d->id, 'name' => $d->name,
                 'mahallas' => $mahallas[$d->id] ?? [], 'streets' => $streets[$d->id] ?? [],

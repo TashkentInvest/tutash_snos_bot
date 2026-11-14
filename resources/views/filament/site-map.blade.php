@@ -11,7 +11,7 @@
             't' => 'Rad etilgan · '.($r->staff?->full_name ?? '').' · '.$r->created_at?->format('d.m.Y H:i').' · '.\App\Filament\Resources\LocationRejectionResource::meters($r->distance_m)])->values();
     $area = $site->district_id ? \App\Support\Gps::districtRings($site->district_id) : ['rings' => [], 'real' => false];
     $data = ['site' => $site->lat ? [$site->lat, $site->lng] : null, 'radius' => $radius, 'points' => $visits->concat($rejected)->all(),
-        'boundary' => $area['real'] ? $area['rings'] : [], 'district' => $site->district?->name];
+        'boundary' => $area['real'] ? $area['rings'] : [], 'district' => $site->district?->name, 'gastro' => \App\Models\GastroStreet::mapLines()];
 @endphp
 <style>.leaflet-container .leaflet-interactive:focus,.leaflet-container path:focus{outline:none}</style>
 @if (! $data['site'])
@@ -29,7 +29,8 @@
             const esri = n => L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/${n}/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19, attribution: '© Esri' });
             const streets = esri('World_Street_Map').addTo(map);
             const sat = L.layerGroup([esri('World_Imagery'), esri('Reference/World_Boundaries_and_Places'), esri('Reference/World_Transportation')]);
-            L.control.layers({ 'Xarita': streets, 'Sun’iy yo’ldosh': sat }).addTo(map);
+            const gastro = L.layerGroup((d.gastro || []).map(s => L.polyline(s.l, { color: '#f59e0b', weight: 5, opacity: .85 }).bindTooltip('🍽 ' + s.n, { sticky: true }))).addTo(map);
+            L.control.layers({ 'Xarita': streets, 'Sun’iy yo’ldosh': sat }, { 'Gastronomik ko‘chalar': gastro }).addTo(map);
             // tuman chegarasi (KMZ / NGIS) — obyekt shu tuman ichidami, ko'rinib tursin
             (d.boundary || []).forEach(r => L.polygon(r, { color: '#64748b', weight: 2, dashArray: '5 5', fill: false, interactive: false }).addTo(map));
             const ring = L.circle(d.site, { radius: d.radius, color: '#2563eb', weight: 1, fillOpacity: .1 }).addTo(map);

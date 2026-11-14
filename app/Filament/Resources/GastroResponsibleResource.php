@@ -7,6 +7,7 @@ use App\Models\GastroResponsible;
 use App\Models\GastroStreet;
 use App\Models\Staff;
 use App\Models\User;
+use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -51,15 +52,25 @@ class GastroResponsibleResource extends Resource
             ->modifyQueryUsing(fn ($query) => $query->with(['district', 'staff']))
             ->columns([
                 Tables\Columns\TextColumn::make('district.name')->label('Tuman')->sortable(),
-                Tables\Columns\SelectColumn::make('staff_id')->label('Mas’ul xodim (shartnomalar)')
-                    ->options(fn () => Staff::where('status', Staff::ACTIVE)->whereNotNull('telegram_id')->whereIn('role', Staff::DISTRICT_ROLES)
-                        ->orderBy('full_name')->get()->mapWithKeys(fn (Staff $s) => [$s->id => $s->full_name.' · '.$s->phone])->all())
+                Tables\Columns\TextColumn::make('staff_list')->label('Mas’ul xodimlar (shartnomalar)')->badge()
+                    ->state(fn (GastroResponsible $r) => $r->staff->map(fn (Staff $s) => $s->full_name.' · '.$s->phone)->all())
                     ->placeholder('— tanlanmagan —'),
                 Tables\Columns\TextColumn::make('phone')->label('Jadvaldagi raqam')->placeholder('—')
-                    ->description(fn (GastroResponsible $r) => ! $r->staff_id && $r->phone ? 'botga hali kirmagan' : null)->toggleable(),
+                    ->description(fn (GastroResponsible $r) => $r->staff->isEmpty() && $r->phone ? 'botga hali kirmagan' : null)->toggleable(),
                 Tables\Columns\TextColumn::make('streets')->label('Ko‘chalar')
                     ->state(fn (GastroResponsible $r) => (int) ($counts[$r->district_id] ?? 0))
                     ->url(fn () => \App\Filament\Pages\GastroMap::getUrl()),
+            ])
+            ->actions([
+                // xodimlarni tumanga biriktirgan kabi: qidirib, bir nechtasini tanlash
+                Tables\Actions\EditAction::make()->label('O‘zgartirish')->modalHeading(fn (GastroResponsible $r) => $r->district?->name.' — shartnoma mas’ullari')
+                    ->form([
+                        Forms\Components\Select::make('staff')->label('Mas’ul xodimlar — qidirib tanlang')->multiple()->searchable()->preload()
+                            ->relationship('staff', 'full_name', fn ($query) => $query->where('status', Staff::ACTIVE)->whereNotNull('telegram_id')
+                                ->whereIn('role', Staff::DISTRICT_ROLES)->orderBy('full_name'))
+                            ->getOptionLabelFromRecordUsing(fn (Staff $s) => $s->full_name.' · '.$s->phone)
+                            ->helperText('Botda ro‘yxatdan o‘tgan xodimlar: ism yoki telefon bo‘yicha qidiring. Har biri shu tuman ko‘chalarida shartnoma tuzadi. Xodimning «Tumanlar»iga (davomat, obyektlar) ta’sir qilmaydi.'),
+                    ]),
             ])
             ->defaultSort('district_id')
             ->paginated(false);

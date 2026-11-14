@@ -111,7 +111,7 @@ const say = (t, c) => { msg.textContent = t; msg.className = c || ''; };
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const q = new URLSearchParams(location.search);
 const initData = () => (tg ? tg.initData : '');
-let districts = [], busy = false;
+let districts = [], busy = false, gastro = [];
 
 async function api(path, body) {
     const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 25000);
@@ -199,7 +199,9 @@ function initMap(center) {
     const streets = esri('World_Street_Map');
     const sat = L.layerGroup([esri('World_Imagery'), esri('Reference/World_Boundaries_and_Places'), esri('Reference/World_Transportation')]);
     streets.addTo(map);
-    L.control.layers({ 'Xarita': streets, 'Sun’iy yo’ldosh': sat }, null, { position: 'topright' }).addTo(map);
+    // gastronomik ko'chalar (KMZ) — bosilsa ham nuqta tanlanadi (hodisa xaritaga o'tadi)
+    const g = L.layerGroup(gastro.map(s => L.polyline(s.l, { color: '#f59e0b', weight: 5, opacity: .85 }).bindTooltip('🍽 ' + s.n, { sticky: true }))).addTo(map);
+    L.control.layers({ 'Xarita': streets, 'Sun’iy yo’ldosh': sat }, gastro.length ? { 'Gastronomik ko‘chalar': g } : null, { position: 'topright' }).addTo(map);
     map.on('click', e => setPoint(e.latlng.lat, e.latlng.lng));
     // Telegram oynani kengaytirganda / telefon burilganda xarita o'lchami yangilansin (aks holda kulrang bo'shliq qoladi)
     const fit = () => map.invalidateSize();
@@ -254,6 +256,7 @@ $('f').onsubmit = async ev => {
         const d = current();
         mahalla.setItems(d.mahallas); street.setItems(d.streets);
         say(''); $('f').classList.remove('hidden');
+        gastro = j.gastro || [];
         initMap(s && s.lat ? [s.lat, s.lng] : d.center); // forma ko'ringandan keyin — xarita o'lchami to'g'ri chiqadi
         if (s) {
             $('title').textContent = '✏️ Obyektni tahrirlash';

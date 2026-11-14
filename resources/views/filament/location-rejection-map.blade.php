@@ -10,6 +10,7 @@
         'areas' => $r->source === 'inspection' || ! $r->staff ? [] : $r->staff->districts()->get(['districts.id', 'districts.name'])
             ->flatMap(fn ($d) => collect(\App\Support\Gps::districtRings($d->id)['rings'])->map(fn ($r) => ['name' => $d->name, 'pts' => $r]))->values()->all(),
         'district' => $r->source !== 'inspection',
+        'gastro' => \App\Models\GastroStreet::mapLines(),
     ];
 @endphp
 <style>.leaflet-container .leaflet-interactive:focus,.leaflet-container path:focus{outline:none}</style>
@@ -22,6 +23,8 @@
         const draw = () => {
             const map = L.map($refs.map);
             L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: '© Esri' }).addTo(map);
+            const gastro = L.layerGroup((d.gastro || []).map(s => L.polyline(s.l, { color: '#f59e0b', weight: 5, opacity: .85 }).bindTooltip('🍽 ' + s.n, { sticky: true }))).addTo(map);
+            L.control.layers(null, { 'Gastronomik ko‘chalar': gastro }).addTo(map);
             const pts = [d.staff];
             (d.areas || []).forEach(a => { L.polygon(a.pts, { color: '#2563eb', weight: 2, dashArray: '4 4', fillOpacity: .06 }).addTo(map).bindTooltip(a.name + ' (hudud)', { sticky: true }); a.pts.forEach(p => pts.push(p)); });
             L.circleMarker(d.staff, { radius: 9, color: '#fff', weight: 2, fillColor: '#dc2626', fillOpacity: 1 }).addTo(map).bindTooltip('Xodim', { permanent: true, direction: 'top' });

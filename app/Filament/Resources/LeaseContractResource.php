@@ -63,7 +63,10 @@ class LeaseContractResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('district_id')->label('Tuman')->relationship('district', 'name'),
                 Tables\Filters\SelectFilter::make('party')->label('Turi')->options(LeaseContract::PARTIES),
-                Tables\Filters\SelectFilter::make('staff_id')->label('Tayyorlagan')->relationship('staff', 'full_name'),
+                // faqat shartnoma tuzganlar; ismi bo'sh xodim (botda ro'yxatdan to'liq o'tmagan) — telefoni bilan (null nom Filament'ni 500 ga tushirardi)
+                Tables\Filters\SelectFilter::make('staff_id')->label('Tayyorlagan')
+                    ->options(fn () => \App\Models\Staff::withTrashed()->whereIn('id', LeaseContract::query()->select('staff_id')->distinct())
+                        ->orderBy('full_name')->get()->mapWithKeys(fn ($s) => [$s->id => $s->full_name ?: ($s->phone ?: '№'.$s->id)])->all()),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()->label('Ko‘rish'),

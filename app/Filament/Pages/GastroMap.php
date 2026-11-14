@@ -40,7 +40,7 @@ class GastroMap extends Page
             'rows' => $districts->map(fn ($d) => [
                 'name' => $d->name,
                 'streets' => ($streets[$d->id] ?? collect())->pluck('name')->unique()->values()->all(),
-                'responsible' => $resp[$d->id]?->staff?->full_name ?? ($resp[$d->id]?->phone ? $resp[$d->id]->phone.' (botga kirmagan)' : null),
+                'responsible' => $resp[$d->id]?->label(),
             ])->all(),
             'map' => [
                 'districts' => $districts->map(fn ($d) => ['name' => $d->name, 'rings' => $d->boundary ?? []])->all(),

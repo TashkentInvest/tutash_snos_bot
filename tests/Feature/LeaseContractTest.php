@@ -37,7 +37,7 @@ class LeaseContractTest extends TestCase
         // Taras Shevchenko ko'chasi bo'lagi (~41.300, 69.270 atrofida)
         $this->street = GastroStreet::create(['district_id' => $this->district->id, 'name' => 'Taras Shevchenko', 'line' => [[41.2990, 69.2700], [41.3010, 69.2700]]]);
         $this->staff = Staff::create(['telegram_id' => self::UID, 'full_name' => 'Sagdullaev Rahmatjon', 'phone' => '993313441', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
-        GastroResponsible::create(['district_id' => $this->district->id, 'staff_id' => $this->staff->id, 'phone' => '993313441']);
+        GastroResponsible::create(['district_id' => $this->district->id, 'phone' => '993313441'])->staff()->attach($this->staff);
     }
 
     private function initData(int $uid = self::UID): string
@@ -204,6 +204,10 @@ class LeaseContractTest extends TestCase
         $admin->save();
         $this->actingAs($admin);
         $this->get('/admin/lease-contracts')->assertOk()->assertSee('GLOBAL PROPERTY DEVELOPMENT')->assertSee('Taras Shevchenko');
+        // ismi bo'sh xodim — «Tayyorlagan» filtri 500 bermasin (production'dagi xato)
+        $this->staff->forceFill(['full_name' => null])->save();
+        $this->get('/admin/lease-contracts')->assertOk()->assertSee('993313441');
+        $this->staff->forceFill(['full_name' => 'Sagdullaev Rahmatjon'])->save();
         $this->get(route('admin.lease-file', ['contract' => $c, 'format' => 'docx']))->assertOk()->assertDownload('ijara-shartnoma-'.$c->id.'.docx');
         $this->get(route('admin.lease-file', ['contract' => $c, 'format' => 'pdf']))->assertNotFound();
         $this->get('/admin/lease-contracts/'.$c->id)->assertOk()->assertSee('Tutash hudud')->assertSee(route('admin.lease-photo', ['contract' => $c, 'n' => 1]), false);

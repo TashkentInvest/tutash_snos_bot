@@ -57,7 +57,8 @@
                 }),
             };
             layers['Xarita (2GIS)'].addTo(this.map);
-            L.control.layers(layers, null, { collapsed: false }).addTo(this.map);
+            const gastro = L.layerGroup((@js(\App\Models\GastroStreet::mapLines())).map(s => L.polyline(s.l, { color: '#f59e0b', weight: 5, opacity: .85 }).bindTooltip('🍽 ' + s.n, { sticky: true }))).addTo(this.map);
+            L.control.layers(layers, { 'Gastronomik ko‘chalar': gastro }, { collapsed: false }).addTo(this.map);
             if (point) this.place(point);
 
             this.map.on('click', (e) => this.pick(e.latlng.lat, e.latlng.lng));

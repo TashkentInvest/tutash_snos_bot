@@ -4,31 +4,41 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 /**
- * Tuman bo'yicha ijara shartnomalari mas'uli («Shartnoma tushum» jadvali). Xodimning «Tumanlar»idan alohida:
- * xodim almashsa — shu yerda boshqasi tanlanadi, tuman shartnomalari yangi xodimga o'tadi; davomatga ta'sir qilmaydi.
+ * Tuman bo'yicha ijara shartnomalari mas'ullari («Shartnoma tushum» jadvali) — bir tumanga bir nechta xodim.
+ * Xodimning «Tumanlar»idan alohida: bu yerda o'zgartirish davomat va obyektlarga ta'sir qilmaydi.
+ * phone — jadvaldagi raqam: tumanga hali hech kim biriktirilmagan bo'lsa, botga keyin kirgan shu raqam egasi mas'ul hisoblanadi.
+ * staff_id ustuni eskirgan (yagona mas'ul davri) — endi gastro_responsible_staff ishlatiladi.
  */
 class GastroResponsible extends Model
 {
-    protected $fillable = ['district_id', 'staff_id', 'phone'];
+    protected $fillable = ['district_id', 'phone'];
 
     public function district(): BelongsTo
     {
         return $this->belongsTo(District::class);
     }
 
-    public function staff(): BelongsTo
+    public function staff(): BelongsToMany
     {
-        return $this->belongsTo(Staff::class)->withTrashed();
+        return $this->belongsToMany(Staff::class, 'gastro_responsible_staff');
     }
 
     /** Xodim shartnoma uchun mas'ul bo'lgan tumanlar. */
     public static function districtIdsFor(Staff $staff): array
     {
-        // tanlangan xodim yoki botga keyin kirgan, jadvaldagi raqam egasi
-        return self::where('staff_id', $staff->id)
-            ->orWhere(fn ($q) => $q->whereNull('staff_id')->where('phone', $staff->phone ?: '-'))
-            ->pluck('district_id')->all();
+        return self::whereHas('staff', fn ($q) => $q->whereKey($staff->id))
+            ->orWhere(fn ($q) => $q->doesntHave('staff')->where('phone', $staff->phone ?: '-'))
+            ->orderBy('district_id')->pluck('district_id')->all();
+    }
+
+    /** Ro'yxat va xaritada ko'rsatish: biriktirilganlar ismi yoki jadvaldagi raqam. */
+    public function label(): ?string
+    {
+        $names = $this->staff->pluck('full_name');
+
+        return $names->isNotEmpty() ? $names->join(', ') : ($this->phone ? $this->phone.' (botga kirmagan)' : null);
     }
 }
