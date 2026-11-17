@@ -195,6 +195,39 @@ class LeaseContractTest extends TestCase
         $this->assertSame(0, LeaseContract::count());
     }
 
+    /** Admin keraksiz shartnomani o'chiradi: svoddan chiqadi, tiklanadi; butunlay o'chirilsa — fayllari ham. */
+    public function test_admin_deletes_restores_and_force_deletes_contracts(): void
+    {
+        $this->save($this->legal())->assertOk();
+        $this->save($this->legal(['tenant_name' => 'Ikkinchi MChJ', 'cadastre' => '10:11:40:02:01:0999']))->assertOk();
+        [$a, $b] = LeaseContract::orderBy('id')->get()->all();
+        $admin = (new User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin);
+        $list = fn () => \Livewire\Livewire::test(\App\Filament\Resources\LeaseContractResource\Pages\ListLeaseContracts::class);
+
+        $list()->callTableAction('delete', $a);
+        $this->assertSoftDeleted($a);
+        $this->assertSame(1, \App\Support\LeaseSvod::data()['total']['count']); // svodga kirmaydi
+        $list()->assertCanNotSeeTableRecords([$a])->assertCanSeeTableRecords([$b])
+            ->filterTable('trashed', false)->assertCanSeeTableRecords([$a]); // «Faqat o'chirilganlar»
+        $this->assertTrue(\App\Models\AuditLog::where('event', 'lease.deleted')->exists());
+
+        $list()->filterTable('trashed', false)->callTableAction('restore', LeaseContract::withTrashed()->find($a->id));
+        $this->assertNotSoftDeleted($a);
+
+        $list()->callTableBulkAction('delete', [$a, $b]);
+        $this->assertSame(0, LeaseContract::count());
+        $this->assertTrue(Storage::disk('local')->exists($a->docx_path)); // tiklash mumkin — fayllar joyida
+
+        $list()->filterTable('trashed', false)->callTableAction('forceDelete', LeaseContract::withTrashed()->find($a->id));
+        $this->assertNull(LeaseContract::withTrashed()->find($a->id));
+        $this->assertSame([], Storage::disk('local')->allFiles("contracts/{$a->id}")); // Word va rasmlar ham
+        $this->assertNotEmpty(Storage::disk('local')->allFiles("contracts/{$b->id}"));
+
+        $this->get('/admin/lease-contracts/'.$b->id)->assertOk(); // o'chirilganini ham ko'rish mumkin (tiklash tugmasi)
+    }
+
     /** Oy o'rtasida boshlansa: birinchi oy kunlar bo'yicha (boshlanish kuni ham kiradi), keyingilari to'liq. */
     public function test_first_month_is_prorated_by_days(): void
     {

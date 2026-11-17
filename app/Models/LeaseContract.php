@@ -4,10 +4,19 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /** Ijara shartnomasi (gastronomik ko'chadagi tutash hudud) — namunadan yasalgan Word/PDF; tasdiq yo'q, hisob uchun saqlanadi. */
 class LeaseContract extends Model
 {
+    use SoftDeletes; // o'chirilgani svod va hisobotlarga kirmaydi; tiklash mumkin
+
+    protected static function booted(): void
+    {
+        // butunlay o'chirilganda — Word fayl va joyida olingan rasmlar ham
+        static::forceDeleted(fn (self $c) => \Illuminate\Support\Facades\Storage::disk('local')->deleteDirectory("contracts/{$c->id}"));
+    }
+
     public const LEGAL = 'legal';
     public const INDIVIDUAL = 'individual';
 

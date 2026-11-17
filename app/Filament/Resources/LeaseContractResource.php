@@ -67,10 +67,13 @@ class LeaseContractResource extends Resource
                 Tables\Filters\SelectFilter::make('staff_id')->label('Tayyorlagan')
                     ->options(fn () => \App\Models\Staff::withTrashed()->whereIn('id', LeaseContract::query()->select('staff_id')->distinct())
                         ->orderBy('full_name')->get()->mapWithKeys(fn ($s) => [$s->id => $s->full_name ?: ($s->phone ?: '№'.$s->id)])->all()),
+                Tables\Filters\TrashedFilter::make()->label('O‘chirilganlar')
+                    ->placeholder('Faqat amaldagilar')->trueLabel('Hammasi (o‘chirilganlar bilan)')->falseLabel('Faqat o‘chirilganlar'),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()->label('Ko‘rish'),
                 Tables\Actions\Action::make('docx')->label('Word')->icon('heroicon-o-arrow-down-tray')
+                    ->hidden(fn (LeaseContract $r) => $r->trashed())
                     ->url(fn (LeaseContract $r) => route('admin.lease-file', ['contract' => $r, 'format' => 'docx'])),
                 Tables\Actions\Action::make('pdf')->label('PDF')->icon('heroicon-o-arrow-down-tray')->color('gray')
                     ->visible(fn (LeaseContract $r) => (bool) $r->pdf_path)
@@ -82,9 +85,36 @@ class LeaseContractResource extends Resource
                         [$docx, $pdf] = LeaseContractDocument::render($r);
                         $r->update(['docx_path' => $docx, 'pdf_path' => $pdf]);
                         \Filament\Notifications\Notification::make()->title('Qayta yasaldi')->success()->send();
-                    }),
+                    })->hidden(fn (LeaseContract $r) => $r->trashed()),
+                // keraksiz (sinov, takror) — «o'chirilganlar»ga: svod va hisobotlarga kirmaydi, tiklash mumkin
+                Tables\Actions\DeleteAction::make()->label('O‘chirish')
+                    ->modalHeading(fn (LeaseContract $r) => '№'.$r->id.' shartnomani o‘chirish')
+                    ->modalDescription('Shartnoma ro‘yxat, svod va hisobotlardan olib tashlanadi. «O‘chirilganlar» filtridan tiklash mumkin.')
+                    ->after(fn (LeaseContract $r) => \App\Models\AuditLog::record('lease.deleted', null, ['contract' => $r->id, 'by' => auth()->id()])),
+                Tables\Actions\RestoreAction::make()->label('Tiklash')
+                    ->after(fn (LeaseContract $r) => \App\Models\AuditLog::record('lease.restored', null, ['contract' => $r->id, 'by' => auth()->id()])),
+                Tables\Actions\ForceDeleteAction::make()->label('Butunlay o‘chirish')
+                    ->modalDescription('Shartnoma, uning Word fayli va joyida olingan rasmlar qaytarib bo‘lmaydigan qilib o‘chiriladi.')
+                    ->before(fn (LeaseContract $r) => \App\Models\AuditLog::record('lease.force_deleted', null, ['contract' => $r->id, 'tenant' => $r->tenant_name, 'by' => auth()->id()])),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make()->label('Tanlanganlarni o‘chirish')
+                        ->modalDescription('Tanlangan shartnomalar ro‘yxat, svod va hisobotlardan olib tashlanadi. Tiklash mumkin.')
+                        ->after(fn ($records) => \App\Models\AuditLog::record('lease.deleted', null, ['contracts' => $records->pluck('id')->all(), 'by' => auth()->id()])),
+                    Tables\Actions\RestoreBulkAction::make()->label('Tanlanganlarni tiklash'),
+                    Tables\Actions\ForceDeleteBulkAction::make()->label('Butunlay o‘chirish')
+                        ->modalDescription('Tanlangan shartnomalar, Word fayllari va rasmlari qaytarib bo‘lmaydigan qilib o‘chiriladi.')
+                        ->before(fn ($records) => \App\Models\AuditLog::record('lease.force_deleted', null, ['contracts' => $records->pluck('id')->all(), 'by' => auth()->id()])),
+                ]),
             ])
             ->defaultSort('id', 'desc');
+    }
+
+    /** «O'chirilganlar» filtri ishlashi uchun (standart — faqat amaldagilar). */
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        return parent::getEloquentQuery()->withoutGlobalScopes([\Illuminate\Database\Eloquent\SoftDeletingScope::class]);
     }
 
     public static function getPages(): array
