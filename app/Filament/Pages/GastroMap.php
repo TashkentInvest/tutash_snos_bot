@@ -57,7 +57,7 @@ class GastroMap extends Page
             'rows' => $districts->map(fn ($d) => [
                 'name' => $d->name,
                 'streets' => $streets->where('district_id', $d->id)->pluck('name')->unique()->values()->all(),
-                'responsible' => $resp[$d->id]?->label(),
+                'responsible' => ($resp[$d->id] ?? null)?->label(),
                 'contracts' => $contracts->where('d', $d->id)->count(),
             ])->all(),
             'map' => [
