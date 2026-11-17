@@ -70,6 +70,19 @@ Route::get('/admin-attendance-report.png', function (\Illuminate\Http\Request $r
     return response(\App\Telegram\Support\AttendanceReport::image($day)['png'], 200, ['Content-Type' => 'image/png', 'Cache-Control' => 'private, no-store']);
 })->middleware(['auth'])->name('admin.attendance-report.png');
 Route::get('/admin-checkin/{checkin}', [MediaController::class, 'checkinVideo'])->middleware(['auth'])->name('admin.checkin-video');
+// «Umumiy xarita» qatlami (faqat yoqilganda yuklanadi) — faqat admin; ?district=ID&day=YYYY-MM-DD&staff=ID
+Route::get('/admin-map/{layer}', function (\Illuminate\Http\Request $request, string $layer) {
+    abort_unless(\App\Models\User::currentIsAdmin(), 403);
+    abort_unless(array_key_exists($layer, \App\Support\MapLayers::catalog()), 404);
+    try {
+        $day = filled($request->query('day')) ? \Illuminate\Support\Carbon::parse($request->query('day')) : today();
+    } catch (\Throwable) {
+        $day = today();
+    }
+
+    return response()->json(\App\Support\MapLayers::get($layer, $request->integer('district') ?: null, $day, $request->integer('staff') ?: null))
+        ->header('Cache-Control', 'private, no-store');
+})->middleware(['auth'])->name('admin.map-layer');
 // gastronomik svod rasmi (Telegram hisobotidagi kabi) — faqat admin; ?day=YYYY-MM-DD, onsite=0|1 (standart — sozlamadagi)
 Route::get('/admin-lease-svod.png', function (\Illuminate\Http\Request $request) {
     abort_unless(\App\Models\User::currentIsAdmin(), 403);
