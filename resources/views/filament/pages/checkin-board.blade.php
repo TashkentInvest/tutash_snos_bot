@@ -2,14 +2,17 @@
     @php($cell = 'border:1px solid rgba(128,128,128,.25);padding:.45rem .4rem;text-align:center;vertical-align:middle;')
     <div style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;">
         <label style="font-size:.875rem;font-weight:600;">Kun</label>
-        <input type="date" wire:model.live="day" max="{{ today()->toDateString() }}"
-               style="border:1px solid rgba(128,128,128,.4);border-radius:.5rem;padding:.35rem .6rem;background:transparent;color:inherit;">
-        <select wire:model.live="who"
-                style="border:1px solid rgba(128,128,128,.4);border-radius:.5rem;padding:.35rem 2rem .35rem .6rem;background:transparent;color:inherit;">
-            <option value="all">Hammasi</option>
-            <option value="contract">Shartnoma xodimlari</option>
-            <option value="employee">Xodimlar (soatlik qayd qo‘shilgan)</option>
-        </select>
+        {{-- Filament'ning o'z maydonlari — qorong'i rejimda ham variantlar va kalendar o'qiladi --}}
+        <x-filament::input.wrapper>
+            <x-filament::input type="date" wire:model.live="day" max="{{ today()->toDateString() }}" style="color-scheme:light dark;" />
+        </x-filament::input.wrapper>
+        <x-filament::input.wrapper style="min-width:260px;">
+            <x-filament::input.select wire:model.live="who">
+                <option value="all">Hammasi</option>
+                <option value="contract">Shartnoma xodimlari</option>
+                <option value="employee">Xodimlar (soatlik qayd qo‘shilgan)</option>
+            </x-filament::input.select>
+        </x-filament::input.wrapper>
         <span style="font-size:.8rem;opacity:.7;">
             Soatlik so‘rov: {{ implode(', ', $slots) }} · javob muddati — keyingi soatgacha
         </span>

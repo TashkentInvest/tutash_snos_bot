@@ -2,7 +2,6 @@
     <style>
         .leaflet-container .leaflet-interactive:focus, .leaflet-container path:focus { outline: none }
         .gm-bar { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; font-size: 13px; }
-        .gm-bar select { border: 1px solid rgba(127,127,127,.35); border-radius: 8px; padding: 5px 30px 5px 10px; font-size: 13px; background-color: transparent; color: inherit; }
         .gm-bar b { font-size: 15px; font-variant-numeric: tabular-nums; }
         .gm-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; font-size: 12px; opacity: .85; margin-top: 12px; }
         .gm-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.25); vertical-align: -1px; margin-right: 4px; }
@@ -82,8 +81,17 @@
             const js = document.createElement('script'); js.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'; js.onload = draw; document.head.appendChild(js);
         ">
             <div class="gm-bar">
-                <label>Tuman: <select x-ref="district"><option value="">Butun shahar</option></select></label>
-                <label>Ko‘chalar rangi: <select x-ref="mode"><option value="red">Gastronomik — qizil</option><option value="contracts">Shartnoma bor / yo‘q</option></select></label>
+                {{-- Filament'ning o'z maydonlari — qorong'i rejimda ham variantlar o'qiladi --}}
+                <label style="display:flex;align-items:center;gap:8px;">Tuman:
+                    <x-filament::input.wrapper style="min-width:200px;">
+                        <x-filament::input.select x-ref="district"><option value="">Butun shahar</option></x-filament::input.select>
+                    </x-filament::input.wrapper>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;">Ko‘chalar rangi:
+                    <x-filament::input.wrapper style="min-width:210px;">
+                        <x-filament::input.select x-ref="mode"><option value="red">Gastronomik — qizil</option><option value="contracts">Shartnoma bor / yo‘q</option></x-filament::input.select>
+                    </x-filament::input.wrapper>
+                </label>
                 <span>Ko‘chalar: <b x-ref="sStreets">0</b></span>
                 <span>Shartnomalar: <b x-ref="sContracts">0</b></span>
                 <span>Maydon: <b x-ref="sArea">0</b></span>

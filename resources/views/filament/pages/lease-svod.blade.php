@@ -9,16 +9,19 @@
     {{-- filtr --}}
     <x-filament::section>
         <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;">
-            <label style="font-size:13px;">Dan<br><input type="date" wire:model.live="from" style="border:1px solid rgba(127,127,127,.35);border-radius:8px;padding:6px 8px;background:transparent;color:inherit;"></label>
-            <label style="font-size:13px;">Gacha<br><input type="date" wire:model.live="to" style="border:1px solid rgba(127,127,127,.35);border-radius:8px;padding:6px 8px;background:transparent;color:inherit;"></label>
+            {{-- Filament'ning o'z maydonlari — qorong'i rejimda ham o'qiladi (kalendar belgisi ham) --}}
+            <label style="font-size:13px;">Dan
+                <x-filament::input.wrapper style="margin-top:4px;"><x-filament::input type="date" wire:model.live="from" style="color-scheme:light dark;" /></x-filament::input.wrapper></label>
+            <label style="font-size:13px;">Gacha
+                <x-filament::input.wrapper style="margin-top:4px;"><x-filament::input type="date" wire:model.live="to" style="color-scheme:light dark;" /></x-filament::input.wrapper></label>
             <div style="display:flex;gap:6px;">
                 @foreach (['today' => 'Bugun', 'month' => 'Shu oy', 'year' => 'Shu yil', 'all' => 'Hammasi'] as $k => $l)
                     <x-filament::button size="sm" color="gray" wire:click="preset('{{ $k }}')">{{ $l }}</x-filament::button>
                 @endforeach
             </div>
-            <label style="font-size:13px;display:flex;gap:6px;align-items:center;"><input type="checkbox" wire:model.live="unique"> Takrorlarsiz
+            <label style="font-size:13px;display:flex;gap:8px;align-items:center;"><x-filament::input.checkbox wire:model.live="unique" /> Takrorlarsiz
                 <span style="opacity:.6;">({{ $d['duplicates'] }} ta qayta tuzilgan)</span></label>
-            <label style="font-size:13px;display:flex;gap:6px;align-items:center;"><input type="checkbox" wire:model.live="onsite"> Faqat joyida tuzilganlar
+            <label style="font-size:13px;display:flex;gap:8px;align-items:center;"><x-filament::input.checkbox wire:model.live="onsite" /> Faqat joyida tuzilganlar
                 <span style="opacity:.6;">({{ $d['remote'] }} ta uzoqdan)</span></label>
             <div style="margin-left:auto;">
                 <x-filament::button tag="a" :href="$xlsx" icon="heroicon-o-arrow-down-tray">Excel</x-filament::button>
