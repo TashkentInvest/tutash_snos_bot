@@ -27,6 +27,7 @@ class LeaseReportTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Carbon::setTestNow('2026-11-16 10:00:00'); // sana-bog'liq tekshiruvlar: shartnomalar shu kuni tuzilgan
         $mir = District::create(['name' => 'Mirobod tumani', 'phone' => '901000001']);
         $st = GastroStreet::create(['district_id' => $mir->id, 'name' => 'Taras Shevchenko', 'line' => [[41.29, 69.27], [41.30, 69.27]]]);
         $this->boss = Staff::create(['telegram_id' => 9001, 'full_name' => 'Rahbar', 'phone' => '900009001', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE, 'is_global' => true]);
@@ -35,6 +36,12 @@ class LeaseReportTest extends TestCase
             'docx_path' => 'contracts/x.docx', 'tariff' => 62073.19];
         LeaseContract::create($base + ['tenant_name' => 'A', 'cadastre' => '1', 'area_m2' => 58.5, 'annual_amount' => 21787689.72, 'street_distance_m' => 10]);
         LeaseContract::create($base + ['tenant_name' => 'B', 'cadastre' => '2', 'area_m2' => 10, 'annual_amount' => 3724391.4, 'street_distance_m' => 7000]); // uzoqdan (sinov)
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
     }
 
     private function sent(): string
