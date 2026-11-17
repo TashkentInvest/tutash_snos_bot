@@ -354,6 +354,8 @@ class LeaseContractTest extends TestCase
         $admin->save();
         $this->actingAs($admin);
         $this->get('/admin/lease-contracts')->assertOk()->assertSee('GLOBAL PROPERTY DEVELOPMENT')->assertSee('Taras Shevchenko');
+        // ko'chalar xaritasi: shartnoma nuqtasi (yuridik) va ko'cha
+        $this->get('/admin/gastro-map')->assertOk()->assertSee('GLOBAL PROPERTY DEVELOPMENT')->assertSee('Taras Shevchenko')->assertSee('Ko‘chalar rangi');
         // ismi bo'sh xodim — «Tayyorlagan» filtri 500 bermasin (production'dagi xato)
         $this->staff->forceFill(['full_name' => null])->save();
         $this->get('/admin/lease-contracts')->assertOk()->assertSee('993313441');
