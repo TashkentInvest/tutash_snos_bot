@@ -86,16 +86,14 @@ class LeaseContractResource extends Resource
                         $r->update(['docx_path' => $docx, 'pdf_path' => $pdf]);
                         \Filament\Notifications\Notification::make()->title('Qayta yasaldi')->success()->send();
                     })->hidden(fn (LeaseContract $r) => $r->trashed()),
-                // keraksiz (sinov, takror) — «o'chirilganlar»ga: svod va hisobotlarga kirmaydi, tiklash mumkin
+                // keraksiz (sinov, takror) — «o'chirilganlar»ga: svod va hisobotlarga kirmaydi, har doim tiklash mumkin
+                // (butunlay o'chirish yo'q — hech bir shartnoma va uning fayllari yo'qolmaydi)
                 Tables\Actions\DeleteAction::make()->label('O‘chirish')
                     ->modalHeading(fn (LeaseContract $r) => '№'.$r->id.' shartnomani o‘chirish')
                     ->modalDescription('Shartnoma ro‘yxat, svod va hisobotlardan olib tashlanadi. «O‘chirilganlar» filtridan tiklash mumkin.')
                     ->after(fn (LeaseContract $r) => \App\Models\AuditLog::record('lease.deleted', null, ['contract' => $r->id, 'by' => auth()->id()])),
                 Tables\Actions\RestoreAction::make()->label('Tiklash')
                     ->after(fn (LeaseContract $r) => \App\Models\AuditLog::record('lease.restored', null, ['contract' => $r->id, 'by' => auth()->id()])),
-                Tables\Actions\ForceDeleteAction::make()->label('Butunlay o‘chirish')
-                    ->modalDescription('Shartnoma, uning Word fayli va joyida olingan rasmlar qaytarib bo‘lmaydigan qilib o‘chiriladi.')
-                    ->before(fn (LeaseContract $r) => \App\Models\AuditLog::record('lease.force_deleted', null, ['contract' => $r->id, 'tenant' => $r->tenant_name, 'by' => auth()->id()])),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -103,9 +101,6 @@ class LeaseContractResource extends Resource
                         ->modalDescription('Tanlangan shartnomalar ro‘yxat, svod va hisobotlardan olib tashlanadi. Tiklash mumkin.')
                         ->after(fn ($records) => \App\Models\AuditLog::record('lease.deleted', null, ['contracts' => $records->pluck('id')->all(), 'by' => auth()->id()])),
                     Tables\Actions\RestoreBulkAction::make()->label('Tanlanganlarni tiklash'),
-                    Tables\Actions\ForceDeleteBulkAction::make()->label('Butunlay o‘chirish')
-                        ->modalDescription('Tanlangan shartnomalar, Word fayllari va rasmlari qaytarib bo‘lmaydigan qilib o‘chiriladi.')
-                        ->before(fn ($records) => \App\Models\AuditLog::record('lease.force_deleted', null, ['contracts' => $records->pluck('id')->all(), 'by' => auth()->id()])),
                 ]),
             ])
             ->defaultSort('id', 'desc');

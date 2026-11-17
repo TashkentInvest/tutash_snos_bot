@@ -195,8 +195,8 @@ class LeaseContractTest extends TestCase
         $this->assertSame(0, LeaseContract::count());
     }
 
-    /** Admin keraksiz shartnomani o'chiradi: svoddan chiqadi, tiklanadi; butunlay o'chirilsa — fayllari ham. */
-    public function test_admin_deletes_restores_and_force_deletes_contracts(): void
+    /** Admin keraksiz shartnomani o'chiradi: svoddan chiqadi, har doim tiklanadi (butunlay o'chirish yo'q). */
+    public function test_admin_deletes_and_restores_contracts(): void
     {
         $this->save($this->legal())->assertOk();
         $this->save($this->legal(['tenant_name' => 'Ikkinchi MChJ', 'cadastre' => '10:11:40:02:01:0999']))->assertOk();
@@ -220,11 +220,13 @@ class LeaseContractTest extends TestCase
         $this->assertSame(0, LeaseContract::count());
         $this->assertTrue(Storage::disk('local')->exists($a->docx_path)); // tiklash mumkin — fayllar joyida
 
-        $list()->filterTable('trashed', false)->callTableAction('forceDelete', LeaseContract::withTrashed()->find($a->id));
-        $this->assertNull(LeaseContract::withTrashed()->find($a->id));
-        $this->assertSame([], Storage::disk('local')->allFiles("contracts/{$a->id}")); // Word va rasmlar ham
-        $this->assertNotEmpty(Storage::disk('local')->allFiles("contracts/{$b->id}"));
-
+        // butunlay o'chirish yo'q — o'chirilgan har doim tiklanadi
+        $list()->filterTable('trashed', false)->assertTableActionDoesNotExist('forceDelete')
+            ->assertTableBulkActionDoesNotExist('forceDelete');
+        $list()->filterTable('trashed', false)->callTableBulkAction('restore', LeaseContract::withTrashed()->whereKey([$a->id, $b->id])->get());
+        $this->assertSame(2, LeaseContract::count());
+        $this->assertNotEmpty(Storage::disk('local')->allFiles("contracts/{$a->id}"));
+        $b->delete();
         $this->get('/admin/lease-contracts/'.$b->id)->assertOk(); // o'chirilganini ham ko'rish mumkin (tiklash tugmasi)
     }
 
