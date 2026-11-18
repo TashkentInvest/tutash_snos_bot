@@ -19,6 +19,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // admin paneldagi har bir o'zgarish (kim, qachon, nima: eski → yangi) bazaga yoziladi
+        \App\Models\Site::observe(\App\Observers\PanelAuditObserver::class);
+        \App\Models\LeaseContract::observe(\App\Observers\PanelAuditObserver::class);
     }
 }

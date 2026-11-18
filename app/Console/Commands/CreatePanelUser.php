@@ -7,7 +7,7 @@ use Illuminate\Console\Command;
 
 class CreatePanelUser extends Command
 {
-    protected $signature = 'panel:user {email} {--name= : Ism-familiya} {--viewer : Kuzatuvchi — faqat obyektlarni ko\'radi} {--checkins : Faqat «Soatlik qayd» jadvali} {--attendance : Faqat «Ertalabki davomat» (ko\'rish)} {--leases : Faqat «Ijara shartnomalari» (ko\'rish, tuzatish; o\'chirmaydi)} {--admin : To\'liq admin} {--generate : Parolni avtomatik yaratib, bir marta ko\'rsatish}';
+    protected $signature = 'panel:user {email} {--name= : Ism-familiya} {--viewer : Kuzatuvchi — faqat obyektlarni ko\'radi} {--checkins : Faqat «Soatlik qayd» jadvali} {--attendance : Faqat «Ertalabki davomat» (ko\'rish)} {--leases : Faqat «Ijara shartnomalari» (ko\'rish, tuzatish; o\'chirmaydi)} {--sites-edit : Qo\'shimcha: obyektlarni ko\'rish va tahrirlash} {--admin : To\'liq admin} {--generate : Parolni avtomatik yaratib, bir marta ko\'rsatish}';
 
     protected $description = 'Admin panel foydalanuvchisini yaratadi yoki parol/rolini yangilaydi (parol yashirin so\'raladi).';
 
@@ -39,6 +39,7 @@ class CreatePanelUser extends Command
         $user->checkins_only = (bool) $this->option('checkins');
         $user->attendance_only = (bool) $this->option('attendance');
         $user->leases_only = (bool) $this->option('leases');
+        $user->sites_edit = (bool) $this->option('sites-edit');
         $user->save();
 
         $this->info(($user->wasRecentlyCreated ? 'Yaratildi' : 'Yangilandi').": {$user->email} — "
@@ -48,7 +49,7 @@ class CreatePanelUser extends Command
                 (bool) $user->attendance_only => 'faqat ertalabki davomat',
                 (bool) $user->leases_only => 'faqat ijara shartnomalari (o‘chira olmaydi)',
                 default => 'kuzatuvchi (faqat obyektlar)',
-            });
+            }.($user->sites_edit ? ' + obyektlarni tahrirlash' : ''));
         $this->option('generate') && $this->line("Parol: {$password}");
 
         return self::SUCCESS;

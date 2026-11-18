@@ -23,7 +23,7 @@ class SiteResource extends Resource
     // «Faqat soatlik qayd» foydalanuvchisi obyektlarni ko'rmaydi.
     public static function canViewAny(): bool
     {
-        return User::currentIsAdmin() || (bool) auth()->user()?->is_viewer;
+        return User::currentIsAdmin() || (bool) auth()->user()?->is_viewer || User::currentCanEditSites();
     }
 
     public static function canCreate(): bool
@@ -33,7 +33,7 @@ class SiteResource extends Resource
 
     public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return User::currentIsAdmin();
+        return User::currentCanEditSites(); // admin yoki «obyektlarni tahrirlash» huquqi berilgan foydalanuvchi
     }
 
     public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
@@ -175,6 +175,10 @@ class SiteResource extends Resource
             ]),
             Infolists\Components\Section::make('Avvalgi holat rasmlari')->visible(fn (Site $record) => ! empty($record->photos))->schema([
                 Infolists\Components\ViewEntry::make('photos')->hiddenLabel()->view('filament.infolists.site-photos'),
+            ]),
+            // admin panelda kim, qachon, nimani o'zgartirgani
+            Infolists\Components\Section::make('O‘zgarishlar tarixi')->compact()->collapsible()->collapsed()->schema([
+                Infolists\Components\ViewEntry::make('history')->hiddenLabel()->view('filament.panel-history'),
             ]),
         ]);
     }

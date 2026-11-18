@@ -235,7 +235,7 @@ class LeaseContractTest extends TestCase
     {
         $this->save($this->legal())->assertOk();
         $c = LeaseContract::sole();
-        $u = (new User)->forceFill(['name' => 'Nizomiddin', 'email' => 'n@t.test', 'password' => 'secret-pass-1', 'leases_only' => true]);
+        $u = (new User)->forceFill(['name' => 'Nizomiddin', 'email' => 'n@t.test', 'password' => 'secret-pass-1', 'leases_only' => true, 'sites_edit' => true]);
         $u->save();
         $this->actingAs($u);
 
@@ -244,7 +244,7 @@ class LeaseContractTest extends TestCase
         $this->get('/admin/lease-contracts/'.$c->id)->assertOk();
         $this->get(route('admin.lease-file', ['contract' => $c, 'format' => 'docx']))->assertOk();
         $this->get(route('admin.lease-photo', ['contract' => $c, 'n' => 1]))->assertOk();
-        foreach (['/admin/sites', '/admin/inspections', '/admin/attendances', '/admin/staff', '/admin/report-settings', '/admin/map', '/admin/lease-svod'] as $p) {
+        foreach (['/admin/inspections', '/admin/attendances', '/admin/staff', '/admin/report-settings', '/admin/map', '/admin/lease-svod'] as $p) {
             $this->get($p)->assertForbidden();
         }
 
@@ -260,6 +260,28 @@ class LeaseContractTest extends TestCase
         $this->assertStringContainsString('“GLOBAL PROPERTY” MÇJ', $this->docText($c));
         $this->assertTrue(\App\Models\AuditLog::where('event', 'lease.edited')->exists());
         $this->assertNull($c->deleted_at);
+
+        // har bir tahrir bazada: kim, qachon, eski → yangi
+        $log = \App\Models\AuditLog::where('event', 'panel.lease.updated')->where('context->id', $c->id)->oldest('id')->first();
+        $this->assertSame('Nizomiddin', $log->context['user']);
+        $this->assertSame(['“GLOBAL PROPERTY DEVELOPMENT” MChJ', '“GLOBAL PROPERTY” MChJ'], $log->context['changes']['tenant_name']);
+        $this->get('/admin/lease-contracts/'.$c->id)->assertOk()->assertSee('O‘zgarishlar tarixi')->assertSee('tahrirladi');
+
+        // obyektlar: ko'radi va tahrirlaydi; qo'sha / o'chira olmaydi; tahrir tarixga yoziladi
+        $site = \App\Models\Site::create(['district_id' => $this->district->id, 'source_no' => 77, 'address' => 'Eski manzil 1', 'lat' => 41.3, 'lng' => 69.27]);
+        $this->get('/admin/sites')->assertOk()->assertSee('Eski manzil 1');
+        $this->get('/admin/sites/'.$site->id)->assertOk();
+        $this->assertFalse(\App\Filament\Resources\SiteResource::canCreate());
+        $this->assertFalse(\App\Filament\Resources\SiteResource::canDelete($site));
+        $this->get('/admin/sites/create')->assertForbidden();
+        \Livewire\Livewire::test(\App\Filament\Resources\SiteResource\Pages\EditSite::class, ['record' => $site->id])
+            ->assertActionHidden('delete')
+            ->fillForm(['address' => 'Yangi manzil 1'])->call('save')->assertHasNoFormErrors();
+        $this->assertSame('Yangi manzil 1', $site->refresh()->address);
+        $slog = \App\Models\AuditLog::where('event', 'panel.site.updated')->where('context->id', $site->id)->sole();
+        $this->assertSame(['Eski manzil 1', 'Yangi manzil 1'], $slog->context['changes']['address']);
+        $this->assertSame($u->id, $slog->context['user_id']);
+        $this->get('/admin/sites/'.$site->id)->assertSee('O‘zgarishlar tarixi')->assertSee('Yangi manzil 1');
     }
 
     /** Oy o'rtasida boshlansa: birinchi oy kunlar bo'yicha (boshlanish kuni ham kiradi), keyingilari to'liq. */

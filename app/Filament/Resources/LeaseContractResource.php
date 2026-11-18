@@ -223,6 +223,10 @@ class LeaseContractResource extends Resource
             Infolists\Components\Section::make('Tutash hudud va joyida olingan rasmlar')->schema([
                 Infolists\Components\ViewEntry::make('map')->hiddenLabel()->view('filament.lease-contract-map'),
             ]),
+            // admin panelda kim, qachon, nimani o'zgartirgani (tuzatish, o'chirish, tiklash)
+            Infolists\Components\Section::make('O‘zgarishlar tarixi')->compact()->collapsible()->schema([
+                Infolists\Components\ViewEntry::make('history')->hiddenLabel()->view('filament.panel-history'),
+            ]),
         ]);
     }
 }

@@ -31,6 +31,7 @@ class User extends Authenticatable implements FilamentUser
         'checkins_only' => 'boolean',
         'attendance_only' => 'boolean',
         'leases_only' => 'boolean',
+        'sites_edit' => 'boolean',
     ];
 
     public function canAccessPanel(Panel $panel): bool
@@ -60,6 +61,14 @@ class User extends Authenticatable implements FilamentUser
         $u = auth()->user();
 
         return $u && ! $u->is_admin && (bool) $u->leases_only;
+    }
+
+    /** Obyektlarni ko'rish va tahrirlash huquqi (admin — doim; cheklangan foydalanuvchiga alohida beriladi). Qo'shish / o'chirish — yo'q. */
+    public static function currentCanEditSites(): bool
+    {
+        $u = auth()->user();
+
+        return $u && ($u->is_admin || (bool) $u->sites_edit);
     }
 
     /** Bitta bo'lim bilan cheklangan foydalanuvchi (bosh sahifa, obyektlar, tekshiruvlar unga yopiq). */
