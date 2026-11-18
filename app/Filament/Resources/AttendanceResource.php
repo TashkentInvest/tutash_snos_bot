@@ -14,10 +14,10 @@ class AttendanceResource extends Resource
 {
     protected static ?string $model = Attendance::class;
 
-    // Kuzatuvchi (is_viewer) bu bo'limni ko'rmaydi — faqat admin.
+    // Kuzatuvchi (is_viewer) bu bo'limni ko'rmaydi — admin va «faqat davomat» foydalanuvchisi (faqat ko'radi).
     public static function canViewAny(): bool
     {
-        return User::currentIsAdmin();
+        return User::currentIsAdmin() || User::currentIsAttendanceOnly();
     }
 
     protected static ?string $navigationGroup = 'Davomat';

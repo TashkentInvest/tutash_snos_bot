@@ -29,17 +29,23 @@ class Dashboard extends BaseDashboard
     /** «Faqat soatlik qayd» foydalanuvchisi bosh sahifa o'rniga to'g'ri o'z jadvaliga o'tadi. */
     public function mount(): void
     {
-        User::currentIsCheckinsOnly() && $this->redirect(CheckinBoard::getUrl());
+        // cheklangan foydalanuvchi bosh sahifa o'rniga to'g'ri o'z bo'limiga
+        match (true) {
+            User::currentIsCheckinsOnly() => $this->redirect(CheckinBoard::getUrl()),
+            User::currentIsAttendanceOnly() => $this->redirect(\App\Filament\Resources\AttendanceResource::getUrl('index')),
+            User::currentIsLeasesOnly() => $this->redirect(\App\Filament\Resources\LeaseContractResource::getUrl('index')),
+            default => null,
+        };
     }
 
     public static function shouldRegisterNavigation(): bool
     {
-        return ! User::currentIsCheckinsOnly();
+        return ! User::currentIsLimited();
     }
 
     public function getWidgets(): array
     {
-        return User::currentIsCheckinsOnly() ? [] : parent::getWidgets();
+        return User::currentIsLimited() ? [] : parent::getWidgets();
     }
 
     use HasFiltersForm;

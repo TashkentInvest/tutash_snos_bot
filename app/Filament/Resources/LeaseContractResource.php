@@ -31,9 +31,87 @@ class LeaseContractResource extends Resource
 
     protected static ?int $navigationSort = 3;
 
+    // admin — hammasi; «faqat shartnomalar» foydalanuvchisi — ko'radi va xatoni tuzatadi, o'chira / tiklay olmaydi
     public static function canViewAny(): bool
     {
+        return User::currentIsAdmin() || User::currentIsLeasesOnly();
+    }
+
+    public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return (User::currentIsAdmin() || User::currentIsLeasesOnly()) && ! $record->trashed();
+    }
+
+    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
+    {
         return User::currentIsAdmin();
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return User::currentIsAdmin();
+    }
+
+    public static function canRestore(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return User::currentIsAdmin();
+    }
+
+    public static function canRestoreAny(): bool
+    {
+        return User::currentIsAdmin();
+    }
+
+    public static function canForceDelete(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return false;
+    }
+
+    public static function canForceDeleteAny(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Xatoni tuzatish: ijarachi, rekvizitlar, manzil, maydon, faoliyat, muddat. Joylashuv, chizma va rasmlar o'zgarmaydi.
+     * Saqlanganda to'lov qayta hisoblanadi (maydon × shartnomadagi tarif) va Word qayta yasaladi.
+     */
+    public static function form(\Filament\Forms\Form $form): \Filament\Forms\Form
+    {
+        $legal = fn (\Filament\Forms\Get $get) => $get('party') === LeaseContract::LEGAL;
+
+        return $form->schema([
+            \Filament\Forms\Components\Section::make('Ijarachi')->columns(2)->schema([
+                \Filament\Forms\Components\Radio::make('party')->label('Turi')->options(LeaseContract::PARTIES)->inline()->required()->live()->columnSpanFull(),
+                \Filament\Forms\Components\TextInput::make('tenant_name')->label(fn (\Filament\Forms\Get $get) => $legal($get) ? 'Tashkilot nomi' : 'F.I.SH')->required()->maxLength(250),
+                \Filament\Forms\Components\TextInput::make('phone')->label('Telefon')->maxLength(40),
+                \Filament\Forms\Components\TextInput::make('tenant_address')->label(fn (\Filament\Forms\Get $get) => $legal($get) ? 'Tashkilot manzili' : 'Yashash manzili')->maxLength(300)->columnSpanFull(),
+                \Filament\Forms\Components\TextInput::make('director')->label('Direktor F.I.SH')->maxLength(150)->visible($legal)->required($legal),
+                \Filament\Forms\Components\TextInput::make('inn')->label('STIR (INN)')->maxLength(20)->visible($legal),
+                \Filament\Forms\Components\TextInput::make('account')->label('Hisob raqami')->maxLength(40)->visible($legal),
+                \Filament\Forms\Components\TextInput::make('mfo')->label('MFO')->maxLength(10)->visible($legal),
+                \Filament\Forms\Components\TextInput::make('passport')->label('Pasport')->maxLength(20)->visible(fn ($get) => ! $legal($get)),
+                \Filament\Forms\Components\TextInput::make('jshshir')->label('JSHSHIR')->maxLength(20)->visible(fn ($get) => ! $legal($get)),
+                \Filament\Forms\Components\TextInput::make('passport_issuer')->label('Kim tomonidan berilgan')->maxLength(200)->visible(fn ($get) => ! $legal($get)),
+                \Filament\Forms\Components\TextInput::make('passport_year')->label('Berilgan yili')->maxLength(10)->visible(fn ($get) => ! $legal($get)),
+            ]),
+            \Filament\Forms\Components\Section::make('Obyekt va to‘lov')->columns(3)->schema([
+                \Filament\Forms\Components\TextInput::make('mfy')->label('MFY')->required()->maxLength(150),
+                \Filament\Forms\Components\TextInput::make('house')->label('Uy')->maxLength(100),
+                \Filament\Forms\Components\TextInput::make('cadastre')->label('Kadastr raqami')->required()->maxLength(60),
+                \Filament\Forms\Components\TextInput::make('area_m2')->label('Maydon, m²')->numeric()->minValue(0.5)->maxValue(100000)->required()
+                    ->helperText('Saqlanganda to‘lov qayta hisoblanadi: maydon × shartnomadagi tarif.'),
+                \Filament\Forms\Components\TextInput::make('activity')->label('Faoliyat')->required()->maxLength(150)->datalist(LeaseContract::ACTIVITIES),
+                \Filament\Forms\Components\Placeholder::make('tariff_info')->label('Tarif (1 m² / oy)')
+                    ->content(fn (?LeaseContract $record) => $record?->tariff ? LeaseContractDocument::money($record->tariff).' so‘m' : '—'),
+                \Filament\Forms\Components\DatePicker::make('start_date')->label('Boshlanishi')->native(false)->displayFormat('d.m.Y')->required(),
+                \Filament\Forms\Components\DatePicker::make('end_date')->label('Tugashi')->native(false)->displayFormat('d.m.Y')->required()->after('start_date'),
+                \Filament\Forms\Components\Placeholder::make('annual_info')->label('Joriy yil to‘lovi (hozir)')
+                    ->content(fn (?LeaseContract $record) => $record ? LeaseContractDocument::money($record->annual_amount).' so‘m' : '—'),
+                \Filament\Forms\Components\TextInput::make('application_number')->label('Ariza raqami')->maxLength(40),
+                \Filament\Forms\Components\DatePicker::make('application_date')->label('Ariza sanasi')->native(false)->displayFormat('d.m.Y'),
+            ]),
+        ]);
     }
 
     public static function canCreate(): bool
@@ -72,6 +150,7 @@ class LeaseContractResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()->label('Ko‘rish'),
+                Tables\Actions\EditAction::make()->label('Tuzatish'),
                 Tables\Actions\Action::make('docx')->label('Word')->icon('heroicon-o-arrow-down-tray')
                     ->hidden(fn (LeaseContract $r) => $r->trashed())
                     ->url(fn (LeaseContract $r) => route('admin.lease-file', ['contract' => $r, 'format' => 'docx'])),
@@ -114,7 +193,8 @@ class LeaseContractResource extends Resource
 
     public static function getPages(): array
     {
-        return ['index' => Pages\ListLeaseContracts::route('/'), 'view' => Pages\ViewLeaseContract::route('/{record}')];
+        return ['index' => Pages\ListLeaseContracts::route('/'), 'view' => Pages\ViewLeaseContract::route('/{record}'),
+            'edit' => Pages\EditLeaseContract::route('/{record}/edit')];
     }
 
     public static function infolist(Infolist $infolist): Infolist

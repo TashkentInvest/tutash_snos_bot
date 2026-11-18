@@ -12,6 +12,7 @@ class ViewLeaseContract extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            \Filament\Actions\EditAction::make()->label('Tuzatish'),
             \Filament\Actions\DeleteAction::make()->label('O‘chirish')
                 ->modalDescription('Shartnoma ro‘yxat, svod va hisobotlardan olib tashlanadi. «O‘chirilganlar» filtridan tiklash mumkin.')
                 ->after(fn () => \App\Models\AuditLog::record('lease.deleted', null, ['contract' => $this->record->id, 'by' => auth()->id()])),

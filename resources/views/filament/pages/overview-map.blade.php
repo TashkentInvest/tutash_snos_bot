@@ -14,15 +14,22 @@
         .om-op input { flex: 1; accent-color: rgb(var(--primary-500)); }
         .om-pop { font-size: 13px; line-height: 1.45; min-width: 200px; }
         .om-pop a { color: #2563eb; font-weight: 600; }
+        .om-btn { display: flex !important; align-items: center; justify-content: center; width: 34px; height: 34px; font-size: 18px; line-height: 1; background: #fff; color: #111 !important; text-decoration: none; cursor: pointer; }
+        /* katta ekran: panelsiz — xarita butun kenglikda; to'liq ekranda — xarita ekran balandligida */
+        .om-wide .om-grid { grid-template-columns: 1fr; }
+        .om-wide [data-panel] { display: none; }
+        [data-om-root]:fullscreen { background: rgb(var(--gray-50)); padding: 16px; overflow: auto; }
+        .dark [data-om-root]:fullscreen, :root.dark [data-om-root]:fullscreen { background: rgb(var(--gray-950)); }
+        [data-om-root]:fullscreen [data-map] { height: calc(100vh - 150px) !important; }
     </style>
 
-    <div x-data="{ cfg: @js($cfg) }" x-init="
+    <div data-om-root x-data="{ cfg: @js($cfg) }" x-init="
         const load = (src, css) => new Promise(r => { const e = document.createElement(css ? 'link' : 'script'); css ? (e.rel = 'stylesheet', e.href = src) : (e.src = src); e.onload = r; e.onerror = r; document.head.appendChild(e); });
         const cdn = 'https://cdnjs.cloudflare.com/ajax/libs/';
         (async () => {
             if (!window.L) { load(cdn + 'leaflet/1.9.4/leaflet.min.css', true); await load(cdn + 'leaflet/1.9.4/leaflet.min.js'); }
             if (!L.markerClusterGroup) { load(cdn + 'leaflet.markercluster/1.5.3/MarkerCluster.min.css', true); load(cdn + 'leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css', true); await load(cdn + 'leaflet.markercluster/1.5.3/leaflet.markercluster.min.js'); }
-            if (!window.OverviewMap) await load('{{ asset('js/overview-map.js') }}?v=1');
+            if (!window.OverviewMap) await load('{{ asset('js/overview-map.js') }}?v=2');
             window.OverviewMap.init($el, cfg);
         })();
     " wire:ignore>
@@ -42,7 +49,7 @@
         </x-filament::section>
 
         <div class="om-grid" style="margin-top:16px;">
-            <x-filament::section heading="Qatlamlar">
+            <x-filament::section heading="Qatlamlar" data-panel>
                 @foreach ($cfg['layers'] as $l)
                     <div class="om-layer" data-layer="{{ $l['key'] }}">
                         <label><x-filament::input.checkbox data-toggle="{{ $l['key'] }}" :checked="$l['on']" /> {{ $l['name'] }} <span class="om-count" data-count="{{ $l['key'] }}">—</span></label>

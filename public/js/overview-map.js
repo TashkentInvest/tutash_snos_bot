@@ -31,6 +31,24 @@ window.OverviewMap = {
         L.control.layers({ 'Och kulrang': gray, 'Xarita': esri('World_Street_Map'),
             'Sun’iy yo‘ldosh': L.layerGroup([esri('World_Imagery'), esri('Reference/World_Transportation')]) }, null, { position: 'topright' }).addTo(map);
 
+        // katta ekran: to'liq ekran (filtrlar, qatlamlar va xarita) va qatlamlar panelini yashirish (xarita butun kenglikda)
+        const btn = (html, title, onClick) => {
+            const C = L.Control.extend({ onAdd() {
+                const a = L.DomUtil.create('a', 'leaflet-bar om-btn');
+                a.href = '#'; a.title = title; a.innerHTML = html; a.setAttribute('role', 'button');
+                L.DomEvent.on(a, 'click', e => { L.DomEvent.preventDefault(e); L.DomEvent.stopPropagation(e); onClick(a); });
+                return a;
+            } });
+            return new C({ position: 'topleft' }).addTo(map);
+        };
+        const fsIcon = on => on ? '⤡' : '⛶';
+        btn(fsIcon(false), 'To‘liq ekran (katta ekran uchun)', () => document.fullscreenElement ? document.exitFullscreen() : root.requestFullscreen?.());
+        btn('☰', 'Qatlamlar panelini yashirish / ko‘rsatish', () => { root.classList.toggle('om-wide'); setTimeout(() => map.invalidateSize(), 200); });
+        document.addEventListener('fullscreenchange', () => {
+            root.querySelectorAll('.om-btn')[0].innerHTML = fsIcon(document.fullscreenElement === root);
+            setTimeout(() => map.invalidateSize(), 250);
+        });
+
         const bounds = L.layerGroup().addTo(map);
         const drawBounds = () => {
             bounds.clearLayers();

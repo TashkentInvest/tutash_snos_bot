@@ -21,7 +21,7 @@ class InspectionResource extends Resource
     /** «Faqat soatlik qayd» foydalanuvchisi tekshiruvlarni ko'rmaydi. */
     public static function canViewAny(): bool
     {
-        return ! User::currentIsCheckinsOnly();
+        return ! User::currentIsLimited();
     }
 
     // Kuzatuvchi menyuda tekshiruvlar bo'limini ko'rmaydi (natijani obyekt sahifasidan ochadi), tasdiqlash — faqat admin.

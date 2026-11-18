@@ -23,7 +23,7 @@ class MediaController extends Controller
 
     public function attendanceVideo(Attendance $attendance)
     {
-        abort_unless(auth()->user()?->is_admin || auth()->user()?->checkins_only, 403); // soatlik qayd ko'ruvchisi ham
+        abort_unless(auth()->user()?->is_admin || auth()->user()?->checkins_only || auth()->user()?->attendance_only, 403); // soatlik qayd va «faqat davomat» ko'ruvchilari ham
 
         $path = request()->boolean('face') ? $attendance->face_video_path : $attendance->video_path;
 

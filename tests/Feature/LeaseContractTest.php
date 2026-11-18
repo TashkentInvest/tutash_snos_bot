@@ -230,6 +230,38 @@ class LeaseContractTest extends TestCase
         $this->get('/admin/lease-contracts/'.$b->id)->assertOk(); // o'chirilganini ham ko'rish mumkin (tiklash tugmasi)
     }
 
+    /** «Faqat shartnomalar» foydalanuvchisi: ko'radi, xatoni tuzatadi (Word yangilanadi), o'chira olmaydi; boshqa bo'limlar yopiq. */
+    public function test_leases_only_user_views_and_fixes_but_cannot_delete(): void
+    {
+        $this->save($this->legal())->assertOk();
+        $c = LeaseContract::sole();
+        $u = (new User)->forceFill(['name' => 'Nizomiddin', 'email' => 'n@t.test', 'password' => 'secret-pass-1', 'leases_only' => true]);
+        $u->save();
+        $this->actingAs($u);
+
+        $this->get('/admin')->assertRedirect(\App\Filament\Resources\LeaseContractResource::getUrl('index'));
+        $this->get('/admin/lease-contracts')->assertOk()->assertSee('GLOBAL PROPERTY DEVELOPMENT');
+        $this->get('/admin/lease-contracts/'.$c->id)->assertOk();
+        $this->get(route('admin.lease-file', ['contract' => $c, 'format' => 'docx']))->assertOk();
+        $this->get(route('admin.lease-photo', ['contract' => $c, 'n' => 1]))->assertOk();
+        foreach (['/admin/sites', '/admin/inspections', '/admin/attendances', '/admin/staff', '/admin/report-settings', '/admin/map', '/admin/lease-svod'] as $p) {
+            $this->get($p)->assertForbidden();
+        }
+
+        $list = \Livewire\Livewire::test(\App\Filament\Resources\LeaseContractResource\Pages\ListLeaseContracts::class);
+        $list->assertTableActionHidden('delete', $c)->assertTableActionVisible('edit', $c)->assertTableBulkActionHidden('delete');
+
+        // xato tuzatiladi: ijarachi nomi va maydon — to'lov qayta hisoblanadi, Word yangilanadi
+        \Livewire\Livewire::test(\App\Filament\Resources\LeaseContractResource\Pages\EditLeaseContract::class, ['record' => $c->id])
+            ->fillForm(['tenant_name' => '“GLOBAL PROPERTY” MChJ', 'area_m2' => 60])->call('save')->assertHasNoFormErrors();
+        $c->refresh();
+        $this->assertSame(60.0, $c->area_m2);
+        $this->assertSame(LeaseContract::amounts(60, 62073.19, $c->start_date)['annual'], $c->annual_amount);
+        $this->assertStringContainsString('“GLOBAL PROPERTY” MÇJ', $this->docText($c));
+        $this->assertTrue(\App\Models\AuditLog::where('event', 'lease.edited')->exists());
+        $this->assertNull($c->deleted_at);
+    }
+
     /** Oy o'rtasida boshlansa: birinchi oy kunlar bo'yicha (boshlanish kuni ham kiradi), keyingilari to'liq. */
     public function test_first_month_is_prorated_by_days(): void
     {

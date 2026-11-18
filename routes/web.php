@@ -113,7 +113,7 @@ Route::get('/admin-lease-svod.xlsx', function (\Illuminate\Http\Request $request
 })->middleware(['auth'])->name('admin.lease-svod');
 // ijara shartnomasi rasmi (joyida olingan, faqat admin)
 Route::get('/admin-lease/{contract}/photo/{n}', function (\App\Models\LeaseContract $contract, int $n) {
-    abort_unless(auth()->user()?->is_admin, 403);
+    abort_unless(auth()->user()?->is_admin || auth()->user()?->leases_only, 403);
     $path = ($contract->photos ?? [])[$n - 1] ?? null;
     $disk = \Illuminate\Support\Facades\Storage::disk('local');
     abort_unless($path && $disk->exists($path), 404);
@@ -122,7 +122,7 @@ Route::get('/admin-lease/{contract}/photo/{n}', function (\App\Models\LeaseContr
 })->whereNumber('n')->middleware(['auth'])->name('admin.lease-photo');
 // ijara shartnomasi fayli (faqat admin)
 Route::get('/admin-lease/{contract}/{format}', function (\App\Models\LeaseContract $contract, string $format) {
-    abort_unless(auth()->user()?->is_admin, 403);
+    abort_unless(auth()->user()?->is_admin || auth()->user()?->leases_only, 403);
     $path = $format === 'pdf' ? $contract->pdf_path : $contract->docx_path;
     $disk = \Illuminate\Support\Facades\Storage::disk('local');
     abort_unless($path && $disk->exists($path), 404);
