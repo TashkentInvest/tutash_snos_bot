@@ -30,7 +30,9 @@ class StaffResource extends Resource
 
     protected static ?string $modelLabel = 'xodim';
 
-    protected static ?string $pluralModelLabel = 'Xodimlar';
+    protected static ?string $pluralModelLabel = 'Aholi';
+
+    protected static ?string $navigationLabel = 'Aholi'; // menyu va sahifa nomi (ro'yxat o'zgarmagan: xodimlar ham shu yerda)
 
     private const STATUSES = [
         Staff::ACTIVE => 'Faol',
