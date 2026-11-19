@@ -49,6 +49,20 @@ class ErrorAlertTest extends TestCase
         $this->assertCount(2, $this->sent());
     }
 
+    /** Telegram bir zum javob bermasa (cURL timeout) yoki tugma javobi kechiksa — 🐞 ogohlantirish yuborilmaydi. */
+    public function test_transient_telegram_network_errors_are_not_alerted(): void
+    {
+        Staff::create(['telegram_id' => 555001, 'full_name' => 'Debug', 'phone' => '997906699', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE]);
+        $req = new \GuzzleHttp\Psr7\Request('POST', 'https://api.telegram.org/bot123/answerCallbackQuery');
+
+        report(new \GuzzleHttp\Exception\ConnectException('cURL error 28: Operation timed out after 30001 milliseconds with 0 bytes received for https://api.telegram.org/bot*****/answerCallbackQuery', $req));
+        report(new \SergiX44\Nutgram\Telegram\Exceptions\TelegramException('Bad Request: query is too old and response timeout expired or query ID is invalid', 400));
+        $this->assertCount(0, $this->sent());
+
+        report(new \RuntimeException('Haqiqiy xato')); // boshqa xatolar avvalgidek
+        $this->assertCount(1, $this->sent());
+    }
+
     public function test_no_alert_when_phone_not_registered_or_disabled(): void
     {
         report(new \RuntimeException('x'));

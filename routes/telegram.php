@@ -70,6 +70,13 @@ $bot->onDocument([MessageRouter::class, 'other']);
 $bot->onText('{text}', [MessageRouter::class, 'text']);
 
 $bot->onException(function (Nutgram $bot, Throwable $e) {
+    // Telegram serveri bir zum javob bermasa (timeout) yoki tugma javobi kechiksa («query is too old») — bu tarmoq hodisasi,
+    // kod xatosi emas: 🐞 ogohlantirish yuborilmaydi, faqat logga yoziladi; foydalanuvchi tugmani qayta bosadi
+    if (\App\Support\ErrorAlert::isTransientTelegram($e)) {
+        \Illuminate\Support\Facades\Log::warning('telegram.transient: '.\Illuminate\Support\Str::limit($e->getMessage(), 200));
+
+        return;
+    }
     report($e);
     try {
         $bot->callbackQuery() && $bot->answerCallbackQuery(['text' => Ui::t('Xatolik yuz berdi. Iltimos, qayta urinib ko‘ring.')]);

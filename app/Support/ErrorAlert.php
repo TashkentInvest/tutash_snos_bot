@@ -21,13 +21,29 @@ class ErrorAlert
 
     private static bool $sending = false;
 
+    /**
+     * Telegram API bilan vaqtinchalik muammo: server javob bermadi / ulanib bo'lmadi (cURL timeout), yoki tugmaga javob
+     * kechikdi («query is too old») — bular o'zi o'tib ketadi, foydalanuvchi qayta bosadi.
+     */
+    public static function isTransientTelegram(Throwable $e): bool
+    {
+        $msg = $e->getMessage();
+        if ($e instanceof \GuzzleHttp\Exception\ConnectException
+            || ($e instanceof \GuzzleHttp\Exception\RequestException && str_contains($msg, 'api.telegram.org') && preg_match('/cURL error (6|7|28|35|52|56)\b/', $msg))) {
+            return true;
+        }
+
+        return $e instanceof \SergiX44\Nutgram\Telegram\Exceptions\TelegramException
+            && (str_contains($msg, 'query is too old') || str_contains($msg, 'query ID is invalid'));
+    }
+
     public static function report(Throwable $e, ?string $where = null): void
     {
         if (self::$sending) {
             return; // ogohlantirish yuborishdagi xato qayta ogohlantirish chaqirmasin
         }
-        // xodim botni bloklagan (403) — odatiy hol, tizim xatosi emas
-        if ($e instanceof \SergiX44\Nutgram\Telegram\Exceptions\TelegramException && $e->getCode() === 403) {
+        // xodim botni bloklagan (403) yoki Telegram bilan bir zumlik tarmoq uzilishi — odatiy hol, tizim xatosi emas
+        if (($e instanceof \SergiX44\Nutgram\Telegram\Exceptions\TelegramException && $e->getCode() === 403) || self::isTransientTelegram($e)) {
             return;
         }
         self::$sending = true;
