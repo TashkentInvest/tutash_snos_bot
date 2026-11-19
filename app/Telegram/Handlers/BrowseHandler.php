@@ -330,12 +330,14 @@ class BrowseHandler
         }
 
         $rows = [];
-        if (! $staff->isCitizen() && ! $site->isDemolished() && ! $site->pendingReview) {
-            $rows[] = [Ui::btn('▶️ Tekshiruvni boshlash', "go:{$site->id}")];
-        }
-        // joylashuv — xodimga ham, aholiga ham (aholi obyekt qayerdaligini so'raydi)
-        if ($site->lat && $site->lng) {
-            $rows[] = [InlineKeyboardButton::make(Ui::t('🗺 Xaritada ko‘rish'), url: \App\Support\Maps::url($site->lat, $site->lng))];
+        // aholiga — faqat cheklangan karta (tekshiruv va xarita tugmalari yo'q)
+        if (! $staff->isCitizen()) {
+            if (! $site->isDemolished() && ! $site->pendingReview) {
+                $rows[] = [Ui::btn('▶️ Tekshiruvni boshlash', "go:{$site->id}")];
+            }
+            if ($site->lat && $site->lng) {
+                $rows[] = [InlineKeyboardButton::make(Ui::t('🗺 Xaritada ko‘rish'), url: \App\Support\Maps::url($site->lat, $site->lng))];
+            }
         }
         $rows[] = [Ui::btn('⬅️ Orqaga', $site->mahalla_id ? "m:{$site->mahalla_id}:1:0" : "d:{$site->district_id}")];
 

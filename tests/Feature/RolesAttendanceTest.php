@@ -267,8 +267,8 @@ class RolesAttendanceTest extends TestCase
         $this->assertStringNotContainsString('AD1234567', $card);
         $this->assertStringNotContainsString('Egallangan maydon', $card);
         $this->assertStringNotContainsString('go:', $card);
-        // joylashuv aholiga ham ko'rinadi (murojaat: «botda lokatsiyasi chiqmayapti»)
-        $this->site->lat && $this->assertStringContainsString('Xaritada ko', $card);
+        // aholiga xarita tugmasi ko'rsatilmaydi — karta avvalgidek cheklangan
+        $this->assertStringNotContainsString('Xaritada ko', $card);
 
         // aholi tekshiruv boshlay olmaydi
         $this->bot()->hearCallbackQueryData("go:{$this->site->id}")->reply();
