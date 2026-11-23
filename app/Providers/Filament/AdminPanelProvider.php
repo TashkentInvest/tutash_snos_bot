@@ -30,13 +30,13 @@ class AdminPanelProvider extends PanelProvider
             ->login()
             ->brandName('Tutash Snos')
             ->sidebarCollapsibleOnDesktop()
-            // menyu guruhlari: sarlavhani bosib yig'iladi/ochiladi (holati brauzerda eslab qolinadi); kam ishlatiladigan «Sozlamalar» yig'iq turadi
+            // menyu guruhlari: sarlavhani bosib yig'iladi/ochiladi (holati brauzerda eslab qolinadi)
             ->navigationGroups([
                 NavigationGroup::make('Obyektlar nazorati'),
                 NavigationGroup::make('Davomat'),
                 NavigationGroup::make('Gastronomik ko‘chalar'),
                 NavigationGroup::make('Foydalanuvchilar'),
-                NavigationGroup::make('Sozlamalar')->collapsed(),
+                NavigationGroup::make('Sozlamalar'),
             ])
             // ixcham menyu: bandlar va guruhlar orasidagi bo'shliq kichikroq
             ->renderHook(\Filament\View\PanelsRenderHook::HEAD_END, fn () => '<style>.fi-sidebar-nav{padding-top:1rem!important;padding-bottom:1rem!important;row-gap:1rem!important}.fi-sidebar-nav-groups{row-gap:.75rem!important}.fi-sidebar-group-items{row-gap:0!important}.fi-sidebar-item-button{padding-top:.375rem!important;padding-bottom:.375rem!important}</style>')
