@@ -27,6 +27,8 @@ class LocationRejectionResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Xatolikka uchraganlar';
 
+    protected static ?string $navigationGroup = 'Obyektlar nazorati';
+
     protected static ?int $navigationSort = 3;
 
     public static function canViewAny(): bool

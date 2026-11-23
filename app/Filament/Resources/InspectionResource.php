@@ -41,6 +41,8 @@ class InspectionResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Tekshiruvlar';
 
+    protected static ?string $navigationGroup = 'Obyektlar nazorati';
+
     protected static ?int $navigationSort = 2;
 
     private const REVIEW = [

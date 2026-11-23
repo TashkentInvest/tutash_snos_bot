@@ -7,6 +7,7 @@ use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Pages;
+use Filament\Navigation\NavigationGroup;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
@@ -29,6 +30,16 @@ class AdminPanelProvider extends PanelProvider
             ->login()
             ->brandName('Tutash Snos')
             ->sidebarCollapsibleOnDesktop()
+            // menyu guruhlari: sarlavhani bosib yig'iladi/ochiladi (holati brauzerda eslab qolinadi); kam ishlatiladigan «Sozlamalar» yig'iq turadi
+            ->navigationGroups([
+                NavigationGroup::make('Obyektlar nazorati'),
+                NavigationGroup::make('Davomat'),
+                NavigationGroup::make('Gastronomik ko‘chalar'),
+                NavigationGroup::make('Foydalanuvchilar'),
+                NavigationGroup::make('Sozlamalar')->collapsed(),
+            ])
+            // ixcham menyu: bandlar va guruhlar orasidagi bo'shliq kichikroq
+            ->renderHook(\Filament\View\PanelsRenderHook::HEAD_END, fn () => '<style>.fi-sidebar-nav{padding-top:1rem!important;padding-bottom:1rem!important;row-gap:1rem!important}.fi-sidebar-nav-groups{row-gap:.75rem!important}.fi-sidebar-group-items{row-gap:0!important}.fi-sidebar-item-button{padding-top:.375rem!important;padding-bottom:.375rem!important}</style>')
             // jadvallar ekran kengligida (standart ~1280 px cheklovsiz)
             ->maxContentWidth(\Filament\Support\Enums\MaxWidth::Full)
             ->renderHook(\Filament\View\PanelsRenderHook::USER_MENU_BEFORE, fn () => \App\Models\User::currentIsAdmin() ? \Illuminate\Support\Facades\Blade::render("@livewire('unregistered-districts-bell') @livewire('pending-inspections-bell')") : '')
