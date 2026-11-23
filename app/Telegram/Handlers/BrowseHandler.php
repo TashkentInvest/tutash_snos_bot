@@ -84,6 +84,38 @@ class BrowseHandler
         return InlineKeyboardButton::make(Ui::t($label), web_app: new WebAppInfo(rtrim((string) config('app.url'), '/').'/tg/lease-form'.($streetId ? '?street='.$streetId : '')));
     }
 
+    /**
+     * Xodim tugmasidagi sonlar «A/B»: B — joriy hisobot davrida (kechagi 18:00 dan) buzilgani tasdiqlanganlar,
+     * A — qolganlar + B (davr boshidagi qoldiq). 18:00 da B lar A dan ayiriladi va B 0 dan boshlanadi. Aholida — jami/buzilgan.
+     * @return array<string, \Closure> withCount uchun
+     */
+    private static function staffCounts(): array
+    {
+        $p = \App\Support\ReportPeriod::latest();
+
+        return [
+            'sites as left_count' => fn ($q) => $q->countable()->where('status', '!=', Site::DEMOLISHED),
+            'sites as today_count' => fn ($q) => $q->where('status', Site::DEMOLISHED)->whereHas('inspections', fn ($i) => $i
+                ->where('is_demolished', true)->where('review_status', \App\Models\Inspection::REVIEW_APPROVED)
+                ->whereRaw('coalesce(reviewed_at, submitted_at) > ?', [$p->from])->whereRaw('coalesce(reviewed_at, submitted_at) <= ?', [$p->to])),
+        ];
+    }
+
+    /** Tugmadagi «A/B»: xodimga — davr boshidagi qoldiq / bugun buzilgan; aholiga — jami / buzilgan (o'zgarmagan). */
+    private static function counts(Staff $staff, $m): string
+    {
+        return $staff->isCitizen()
+            ? "{$m->sites_count}/{$m->demolished_count}"
+            : ($m->left_count + $m->today_count).'/'.$m->today_count;
+    }
+
+    private static function legend(Staff $staff): string
+    {
+        return $staff->isCitizen()
+            ? '<i>jami obyektlar / shundan buzilganlari</i>.'
+            : '<i>qolgan obyektlar / bugun buzilganlari</i> (18:00 da bugun buzilganlar qoldiqdan ayiriladi).';
+    }
+
     /** Shartnoma mas'uli bo'lsa — bosh sahifadagi tugma va qisqa izoh. @return array{0: list<array>, 1: string} */
     public static function leaseRows(Staff $staff): array
     {
@@ -191,7 +223,8 @@ class BrowseHandler
         }
 
         $districts = $staff->accessibleDistricts()
-            ->withCount(['sites' => fn ($query) => $query->countable(), 'sites as demolished_count' => fn ($query) => $query->where('status', Site::DEMOLISHED)])
+            ->withCount(['sites' => fn ($query) => $query->countable(), 'sites as demolished_count' => fn ($query) => $query->where('status', Site::DEMOLISHED),
+                ...($staff->isCitizen() ? [] : self::staffCounts())])
             ->orderBy('name')->get();
 
         // ikkinchi vazifa (soatlik qayd) bo'lsa — holati va javob tugmasi tumanlar ro'yxati ustida
@@ -215,7 +248,7 @@ class BrowseHandler
             return;
         }
 
-        $rows = [...$leaseRows, ...$districts->map(fn ($d) => [Ui::btn("{$d->name} · {$d->sites_count}/{$d->demolished_count}", "d:{$d->id}")])->all()];
+        $rows = [...$leaseRows, ...$districts->map(fn ($d) => [Ui::btn("{$d->name} · ".self::counts($staff, $d), "d:{$d->id}")])->all()];
         if ($staff->isCadastre()) {
             array_unshift($rows, [self::siteFormButton('➕ Obyekt qo‘shish')], [Ui::btn('📋 Men qo‘shgan obyektlar', 'cad:mine')]);
         }
@@ -231,7 +264,7 @@ class BrowseHandler
             $head .= "\n\n".self::checkinText($staff)."\n";
         }
         $head .= $leaseText ? $leaseText."\n" : '';
-        Ui::show($bot, $head."\nTumanni tanlang. Tugmada: <i>jami obyektlar / shundan buzilganlari</i>.", Ui::markup($rows));
+        Ui::show($bot, $head."\nTumanni tanlang. Tugmada: ".self::legend($staff), Ui::markup($rows));
     }
 
     public function district(Nutgram $bot, string $id, string $page = '1'): void
@@ -248,7 +281,8 @@ class BrowseHandler
 
         $perPage = config('tutash.page_size');
         $mahallas = Mahalla::where('district_id', $district->id)
-            ->withCount(['sites' => fn ($query) => $query->countable(), 'sites as pending_count' => fn ($query) => $query->pending(), 'sites as demolished_count' => fn ($query) => $query->where('status', Site::DEMOLISHED)])
+            ->withCount(['sites' => fn ($query) => $query->countable(), 'sites as pending_count' => fn ($query) => $query->pending(), 'sites as demolished_count' => fn ($query) => $query->where('status', Site::DEMOLISHED),
+                ...($staff->isCitizen() ? [] : self::staffCounts())])
             ->orderByDesc('pending_count')->orderBy('name')
             ->get()->filter(fn ($m) => $m->sites_count > 0)->values();
 
@@ -256,7 +290,7 @@ class BrowseHandler
         $page = min(max((int) $page, 1), $pages);
 
         $rows = $mahallas->forPage($page, $perPage)->map(fn ($m) => [Ui::btn(
-            ($m->pending_count ? '⏳' : '✅')." ".Ui::cut($m->name, 30)." · {$m->sites_count}/{$m->demolished_count}",
+            ($m->pending_count ? '⏳' : '✅')." ".Ui::cut($m->name, 30)." · ".self::counts($staff, $m),
             "m:{$m->id}:1:0"
         )])->all();
 
@@ -273,7 +307,7 @@ class BrowseHandler
             $rows[] = [Ui::btn('⬅️ Orqaga', 'home')];
         }
 
-        $text = '<b>'.Ui::e($district->name)."</b>\nMFYni tanlang. Tugmada: <i>jami obyektlar / shundan buzilganlari</i>.";
+        $text = '<b>'.Ui::e($district->name)."</b>\nMFYni tanlang. Tugmada: ".self::legend($staff);
         if ($phone = $district->contactLine()) {
             $text .= "\n\n📞 Savol, taklif yoki e’tirozlaringiz bo‘lsa, ".Ui::e($district->name)." bo‘yicha mas’ul xodimga murojaat qiling:\n<b>".Ui::e($phone).'</b>';
         }
