@@ -85,7 +85,7 @@ class GastroTest extends TestCase
         $streets = json_decode(file_get_contents(database_path('data/gastro-streets.json')), true);
         $bounds = json_decode(file_get_contents(database_path('data/district-boundaries.json')), true);
         $this->assertCount(12, $streets);
-        $this->assertSame(42, collect($streets)->flatten(1)->count());
+        $this->assertSame(44, collect($streets)->flatten(1)->count());
         $this->assertEmpty(array_diff(array_keys($streets), array_keys($bounds))); // tuman nomlari bir xil
         // 1 m² tariflari: 12 tumanning har biri uchun, nomlari bir xil
         $tariffs = (new \ReflectionClassConstant(require database_path('migrations/2026_11_15_000002_add_lease_tariff.php'), 'TARIFFS'))->getValue();
@@ -107,7 +107,9 @@ class GastroTest extends TestCase
 
         $this->assertSame(6, GastroStreet::whereHas('district', fn ($q) => $q->where('name', 'Chilonzor tumani'))->count());
         $this->assertSame(12, GastroStreet::whereHas('district', fn ($q) => $q->where('name', 'Olmazor tumani'))->count());
-        $this->assertSame(1, GastroStreet::whereHas('district', fn ($q) => $q->where('name', 'Mirobod tumani'))->count());
+        $this->assertSame(3, GastroStreet::whereHas('district', fn ($q) => $q->where('name', 'Mirobod tumani'))->count());
+        (require database_path('migrations/2026_11_24_000001_add_mirobod_gastro_streets.php'))->up(); // ikkinchi marta — dublikat yo'q
+        $this->assertSame(3, GastroStreet::whereHas('district', fn ($q) => $q->where('name', 'Mirobod tumani'))->count());
         $this->assertSame(4, GastroResponsible::count());
         $this->assertEqualsCanonicalizing(District::whereIn('name', ['Chilonzor tumani', 'Uchtepa tumani'])->pluck('id')->all(), GastroResponsible::districtIdsFor($sanjar));
         $this->assertSame('978981899', GastroResponsible::whereHas('district', fn ($q) => $q->where('name', 'Olmazor tumani'))->value('phone'));
