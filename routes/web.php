@@ -151,6 +151,7 @@ Route::get('/tg/site-form', [\App\Http\Controllers\SiteFormController::class, 'p
 Route::get('/tg/lease-form', [\App\Http\Controllers\LeaseFormController::class, 'page']);
 Route::post('/tg/lease-form/state', [\App\Http\Controllers\LeaseFormController::class, 'state'])->middleware('throttle:tg-app');
 Route::post('/tg/lease-form/save', [\App\Http\Controllers\LeaseFormController::class, 'save'])->middleware('throttle:tg-app');
+Route::post('/tg/lease-form/reject', [\App\Http\Controllers\LeaseFormController::class, 'reject'])->middleware('throttle:tg-app');
 Route::post('/tg/site-form/state', [\App\Http\Controllers\SiteFormController::class, 'state'])->middleware('throttle:tg-app');
 Route::post('/tg/site-form/save', [\App\Http\Controllers\SiteFormController::class, 'save'])->middleware('throttle:tg-app');
 

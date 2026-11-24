@@ -11,14 +11,42 @@ class LocationRejection extends Model
     public const TOO_FAR = 'too_far';
     public const LOW_ACCURACY = 'low_accuracy';
     public const OUT_OF_DISTRICT = 'out_of_district';
+    public const FAR_FROM_STREET = 'far_from_street';
 
     public const REASONS = [
         self::TOO_FAR => 'Obyektdan uzoq',
         self::LOW_ACCURACY => 'GPS aniqligi past',
         self::OUT_OF_DISTRICT => 'Tumandan tashqarida',
+        self::FAR_FROM_STREET => 'Gastro ko‘chadan uzoq',
     ];
 
-    public const SOURCES = ['inspection' => 'Tekshiruv', 'attendance' => 'Ertalabki davomat', 'checkin' => 'Soatlik qayd'];
+    public const SOURCES = ['inspection' => 'Tekshiruv', 'attendance' => 'Ertalabki davomat', 'checkin' => 'Soatlik qayd', 'lease' => 'Ijara shartnomasi'];
+
+    /**
+     * Ijara shartnomasi oynasida qabul qilinmagan joylashuv: xodim nuqtasi va tanlangan gastro ko'chaning eng yaqin nuqtasi.
+     * Bir xodim, bir ko'cha, bir sabab — 2 daqiqada bir marta (oyna har joylashuv olishda chaqiradi).
+     */
+    public static function captureLease(Staff $staff, GastroStreet $street, string $reason, float $lat, float $lng, ?float $accuracy, ?int $distance, ?string $device): bool
+    {
+        if (! \Illuminate\Support\Facades\Cache::add("lease-reject:{$staff->id}:{$street->id}:{$reason}", 1, now()->addMinutes(2))) {
+            return false;
+        }
+        try {
+            $near = \App\Support\Gps::nearestOnLine($lat, $lng, $street->line ?? []);
+            $radius = \App\Support\Limits::leaseRadius();
+            self::create([
+                'staff_id' => $staff->id, 'source' => 'lease', 'reason' => $reason, 'lat' => $lat, 'lng' => $lng, 'accuracy' => $accuracy,
+                'distance_m' => $distance, 'site_lat' => $near[0] ?? null, 'site_lng' => $near[1] ?? null, 'device' => $device,
+                'note' => $street->district?->name.' · «'.$street->name.'» ko‘chasi'.($reason === self::FAR_FROM_STREET ? " (ruxsat: {$radius} m)" : ''),
+            ]);
+
+            return true;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return false;
+        }
+    }
 
     protected $fillable = ['staff_id', 'site_id', 'inspection_id', 'reason', 'lat', 'lng', 'accuracy', 'site_lat', 'site_lng', 'distance_m', 'device', 'source', 'note'];
 

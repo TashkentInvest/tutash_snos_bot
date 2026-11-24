@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Filament\Pages\ReportSettings;
+use App\Filament\Pages\LocationLimits;
 use App\Models\AuditLog;
 use App\Models\District;
 use App\Models\Staff;
@@ -13,7 +13,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
 
-/** Hisobotlar sahifasidagi «Joylashuv cheklovlari»: davomat, obyekt tekshiruvi, gastronomik ko'cha. */
+/** Sozlamalar → «Joylashuv cheklovlari»: davomat, obyekt tekshiruvi, gastronomik ko'cha. */
 class LimitsTest extends TestCase
 {
     use RefreshDatabase;
@@ -27,9 +27,9 @@ class LimitsTest extends TestCase
         $admin = (new User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
         $admin->save();
         $this->actingAs($admin);
-        $this->get('/admin/report-settings')->assertOk()->assertSee('Joylashuv cheklovlari')->assertSee('Faqat o‘z tumani hududidan');
+        $this->get('/admin/location-limits')->assertOk()->assertSee('Joylashuv cheklovlari')->assertSee('Faqat o‘z tumani hududidan');
 
-        Livewire::test(ReportSettings::class)
+        Livewire::test(LocationLimits::class)
             ->assertSet('data.limits.inspection_radius', 300)
             ->set('data.limits.attendance_check', false)
             ->set('data.limits.lease_radius', 800)
@@ -44,7 +44,7 @@ class LimitsTest extends TestCase
         $this->assertTrue(AuditLog::where('event', 'limits.saved')->exists());
 
         // o'chirilgan cheklov maydonlari yashirin — saqlanganda eski qiymat qoladi
-        Livewire::test(ReportSettings::class)->assertSet('data.limits.attendance_check', false)->call('save')->assertHasNoFormErrors();
+        Livewire::test(LocationLimits::class)->assertSet('data.limits.attendance_check', false)->call('save')->assertHasNoFormErrors();
         $this->assertSame(300, Limits::boundaryBuffer(true));
     }
 

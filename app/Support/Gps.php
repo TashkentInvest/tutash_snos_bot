@@ -141,6 +141,30 @@ class Gps
         return $min;
     }
 
+    /** Chiziqdagi nuqtaga eng yaqin nuqta [lat, lng] (xatolar xaritasida «ko‘chagacha» chizig'i uchun). */
+    public static function nearestOnLine(float $lat, float $lng, array $line): ?array
+    {
+        if (! $line) {
+            return null;
+        }
+        $kx = cos(deg2rad($lat)) * 111_320;
+        $ky = 110_574;
+        $best = [INF, $line[0]];
+        for ($i = 0; $i < max(1, count($line) - 1); $i++) {
+            $a = $line[$i];
+            $b = $line[$i + 1] ?? $a;
+            $ax = ($a[1] - $lng) * $kx; $ay = ($a[0] - $lat) * $ky;
+            $dx = ($b[1] - $a[1]) * $kx; $dy = ($b[0] - $a[0]) * $ky;
+            $t = ($dx || $dy) ? max(0, min(1, -($ax * $dx + $ay * $dy) / ($dx * $dx + $dy * $dy))) : 0;
+            $d = hypot($ax + $t * $dx, $ay + $t * $dy);
+            if ($d < $best[0]) {
+                $best = [$d, [round($a[0] + $t * ($b[0] - $a[0]), 7), round($a[1] + $t * ($b[1] - $a[1]), 7)]];
+            }
+        }
+
+        return $best[1];
+    }
+
     /** Nuqtadan hududgacha masofa (metr): ichida bo'lsa 0; hudud bo'sh bo'lsa null. */
     public static function distanceToArea(float $lat, float $lng, array $area): ?float
     {

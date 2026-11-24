@@ -7,6 +7,7 @@ use App\Models\District;
 use App\Models\GastroResponsible;
 use App\Models\GastroStreet;
 use App\Models\LeaseContract;
+use App\Models\LocationRejection;
 use App\Models\Mahalla;
 use App\Models\Staff;
 use App\Support\Gps;
@@ -130,13 +131,20 @@ class LeaseFormController extends Controller
         }
         // GPS aniqligi — tekshiruvlardagi kabi
         $check = \App\Support\Limits::leaseCheck();
+        $device = substr((string) $request->userAgent(), 0, 255) ?: null;
         if ($check && ($message = Gps::accuracyError((float) $data['accuracy']))) {
+            LocationRejection::captureLease($staff, $street, LocationRejection::LOW_ACCURACY, (float) $data['lat'], (float) $data['lng'], (float) $data['accuracy'], null, $device);
+
             return $this->fail($message);
         }
-        // faqat gastronomik ko'chadagi obyekt: tanlangan ko'cha chizig'idan ruxsat etilgan masofa ichida (obyektlardagi kabi)
+        // faqat gastronomik ko'chadagi obyekt: tanlangan ko'cha chizig'idan ruxsat etilgan masofa ichida (obyektlardagi kabi).
+        // Botda boshqa ko'cha tanlangan, lekin xodim shu tumanning boshqa gastro ko'chasi yonida bo'lsa — o'sha ko'chaga yoziladi.
         $radius = \App\Support\Limits::leaseRadius();
+        $street = self::nearestStreet($street, (float) $data['lat'], (float) $data['lng'], $radius);
         $distance = (int) round(Gps::distanceToLine((float) $data['lat'], (float) $data['lng'], $street->line) ?? INF);
         if ($check && $distance > $radius) {
+            LocationRejection::captureLease($staff, $street, LocationRejection::FAR_FROM_STREET, (float) $data['lat'], (float) $data['lng'], (float) $data['accuracy'], $distance, $device);
+
             return $this->fail("Siz «{$street->name}» ko‘chasidan taxminan {$distance} m uzoqdasiz. Shartnoma faqat gastronomik ko‘chadagi obyektlarga tuziladi (ko‘chadan {$radius} m ichida) — obyekt oldiga borib, joylashuvni qayta oling.");
         }
         // chizilgan hudud: 3–60 burchak, har bir burchagi shu ko'chadan ruxsat etilgan masofa ichida
@@ -208,6 +216,57 @@ class LeaseFormController extends Controller
         $sent = self::sendFiles($bot, $contract, $staff->telegram_id);
 
         return response()->json(['ok' => true, 'id' => $contract->id, 'sent' => $sent]);
+    }
+
+    /**
+     * Tanlangan ko'chadan uzoq bo'lsa — shu tumanning ruxsat etilgan masofadagi eng yaqin gastro ko'chasi (yo'q bo'lsa tanlangani).
+     */
+    public static function nearestStreet(GastroStreet $street, float $lat, float $lng, int $radius): GastroStreet
+    {
+        if ((Gps::distanceToLine($lat, $lng, $street->line) ?? INF) <= $radius) {
+            return $street;
+        }
+        $near = GastroStreet::where('district_id', $street->district_id)->get()
+            ->map(fn (GastroStreet $s) => [$s, Gps::distanceToLine($lat, $lng, $s->line) ?? INF])
+            ->sortBy(1)->first();
+
+        return $near && $near[1] <= $radius ? $near[0] : $street;
+    }
+
+    /**
+     * Oyna joylashuv olganda ko'chadan uzoq (yoki GPS aniqligi past) chiqsa — «Xatolikka uchraganlar»ga yoziladi
+     * (xodim formani oxirigacha to'ldirmasa ham admin ko'radi). Server o'zi qayta hisoblaydi.
+     */
+    public function reject(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'initData' => 'required|string|max:4096',
+            'gastro_street_id' => 'required|integer',
+            'lat' => 'required|numeric|between:37,46',
+            'lng' => 'required|numeric|between:55,74',
+            'accuracy' => 'nullable|numeric|min:0',
+        ]);
+        [$staff, $ids, $error] = $this->staff($request);
+        if ($error) {
+            return $error;
+        }
+        $street = GastroStreet::whereIn('district_id', $ids)->find((int) $data['gastro_street_id']);
+        if (! $street || ! \App\Support\Limits::leaseCheck()) {
+            return response()->json(['ok' => true, 'logged' => false]);
+        }
+        [$lat, $lng, $acc] = [(float) $data['lat'], (float) $data['lng'], isset($data['accuracy']) ? (float) $data['accuracy'] : null];
+        $device = substr((string) $request->userAgent(), 0, 255) ?: null;
+        $radius = \App\Support\Limits::leaseRadius();
+        $street = self::nearestStreet($street, $lat, $lng, $radius);
+        $distance = (int) round(Gps::distanceToLine($lat, $lng, $street->line) ?? INF);
+        $logged = false;
+        if ($distance > $radius) {
+            $logged = LocationRejection::captureLease($staff, $street, LocationRejection::FAR_FROM_STREET, $lat, $lng, $acc, $distance, $device);
+        } elseif ($acc !== null && Gps::accuracyError($acc)) {
+            $logged = LocationRejection::captureLease($staff, $street, LocationRejection::LOW_ACCURACY, $lat, $lng, $acc, $distance, $device);
+        }
+
+        return response()->json(['ok' => true, 'logged' => $logged]);
     }
 
     /** Tayyor fayl(lar)ni botga yuboradi (Word va bo'lsa PDF). */

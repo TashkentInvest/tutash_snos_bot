@@ -12,7 +12,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 
 /**
- * «Xatolikka uchraganlar»: tekshiruv, davomat va soatlik qaydda joylashuvi qabul qilinmagan urinishlar — xodim qayerdan yubordi,
+ * «Xatolikka uchraganlar»: tekshiruv, davomat, soatlik qayd va ijara shartnomasida joylashuvi qabul qilinmagan urinishlar — xodim qayerdan yubordi,
  * obyekt qayerda, orasi necha metr. Ichiga kirilsa ikkala nuqta xaritada.
  */
 class LocationRejectionResource extends Resource
@@ -61,8 +61,9 @@ class LocationRejectionResource extends Resource
                 Tables\Columns\TextColumn::make('source')->label('Qayerda')->badge()->color('gray')
                     ->formatStateUsing(fn ($state) => LocationRejection::SOURCES[$state] ?? $state),
                 Tables\Columns\TextColumn::make('site.district.name')->label('Tuman')->toggleable(),
-                Tables\Columns\TextColumn::make('site.address')->label('Obyekt')->limit(40)->wrap()
-                    ->description(fn (LocationRejection $r) => $r->note ?? $r->site?->mahalla?->name),
+                Tables\Columns\TextColumn::make('site.address')->label('Obyekt')->limit(70)->wrap()
+                    ->state(fn (LocationRejection $r) => $r->site?->address ?? ($r->source === 'lease' ? $r->note : null))->placeholder('—')
+                    ->description(fn (LocationRejection $r) => $r->source === 'lease' ? null : ($r->note ?? $r->site?->mahalla?->name)),
                 Tables\Columns\TextColumn::make('reason')->label('Sabab')->badge()
                     ->formatStateUsing(fn ($state) => LocationRejection::REASONS[$state] ?? $state)
                     ->color(fn ($state) => $state === LocationRejection::LOW_ACCURACY ? 'warning' : 'danger'),
@@ -104,9 +105,10 @@ class LocationRejectionResource extends Resource
                     ->formatStateUsing(fn ($state) => LocationRejection::REASONS[$state] ?? $state)
                     ->color(fn ($state) => $state === LocationRejection::LOW_ACCURACY ? 'warning' : 'danger'),
                 Infolists\Components\TextEntry::make('note')->label('Izoh')->columnSpanFull()->color('danger')->hidden(fn ($state) => blank($state)),
-                Infolists\Components\TextEntry::make('distance_m')->label(fn (LocationRejection $r) => $r->source === 'inspection' ? 'Obyektgacha' : 'Eng yaqin obyektgacha')
+                Infolists\Components\TextEntry::make('distance_m')->label(fn (LocationRejection $r) => match ($r->source) { 'inspection' => 'Obyektgacha', 'lease' => 'Ko‘chagacha', default => 'Eng yaqin obyektgacha' })
                     ->formatStateUsing(fn ($state, LocationRejection $r) => self::meters($state).($r->source === 'inspection' ? ' (ruxsat: '.\App\Support\Limits::inspectionRadius().' m)' : ''))->placeholder('—'),
                 Infolists\Components\TextEntry::make('site.address')->label(fn (LocationRejection $r) => $r->source === 'inspection' ? 'Obyekt' : 'Eng yaqin obyekt (o‘z tumanida)')->columnSpan(2)
+                    ->hidden(fn (LocationRejection $r) => $r->source === 'lease')
                     ->formatStateUsing(fn ($state, LocationRejection $r) => collect([$r->site?->district?->name, $r->site?->mahalla?->name, $state])->filter()->join(' · '))
                     ->url(fn (LocationRejection $r) => $r->site_id ? SiteResource::getUrl('view', ['record' => $r->site_id]) : null),
                 Infolists\Components\TextEntry::make('accuracy')->label('GPS aniqligi')->formatStateUsing(fn ($state) => '±'.self::meters($state))->placeholder('—'),
@@ -116,7 +118,7 @@ class LocationRejectionResource extends Resource
                 Infolists\Components\TextEntry::make('lat')->label('Xodim yuborgan nuqta')
                     ->formatStateUsing(fn ($state, LocationRejection $r) => round($r->lat, 6).', '.round($r->lng, 6))
                     ->url(fn (LocationRejection $r) => \App\Support\Maps::url($r->lat, $r->lng), true)->color('danger'),
-                Infolists\Components\TextEntry::make('site_lat')->label('Bizdagi obyekt nuqtasi')->placeholder('Obyektda koordinata yo‘q')
+                Infolists\Components\TextEntry::make('site_lat')->label(fn (LocationRejection $r) => $r->source === 'lease' ? 'Ko‘chaning eng yaqin nuqtasi' : 'Bizdagi obyekt nuqtasi')->placeholder('Obyektda koordinata yo‘q')
                     ->formatStateUsing(fn ($state, LocationRejection $r) => round($r->site_lat, 6).', '.round($r->site_lng, 6))
                     ->url(fn (LocationRejection $r) => $r->site_lat ? \App\Support\Maps::url($r->site_lat, $r->site_lng) : null, true)->color('primary'),
                 Infolists\Components\TextEntry::make('device')->label('Qurilma')->columnSpan(2)->placeholder('—')->limit(120),

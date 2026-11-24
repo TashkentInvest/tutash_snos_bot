@@ -356,6 +356,35 @@ class LeaseContractTest extends TestCase
         $this->assertGreaterThan(5000, LeaseContract::sole()->street_distance_m); // qayerdan yuborilgani saqlanadi
     }
 
+    /** Ko'chadan uzoq joylashuv «Xatolikka uchraganlar»ga yoziladi; tumanning boshqa gastro ko'chasi yonida bo'lsa — o'sha ko'chaga. */
+    public function test_far_location_is_logged_and_nearby_other_street_is_used(): void
+    {
+        // ko'chadan ~420 m (ruxsat 300 m): oyna joylashuv olganda xabar beradi
+        $far = ['initData' => $this->initData(), 'gastro_street_id' => $this->street->id, 'lat' => 41.3000, 'lng' => 69.2750, 'accuracy' => 10];
+        $this->postJson('/tg/lease-form/reject', $far)->assertOk()->assertJsonPath('logged', true);
+        $this->postJson('/tg/lease-form/reject', $far)->assertOk()->assertJsonPath('logged', false); // 2 daqiqada bir marta
+        $r = \App\Models\LocationRejection::sole();
+        $this->assertSame(['lease', \App\Models\LocationRejection::FAR_FROM_STREET, $this->staff->id], [$r->source, $r->reason, $r->staff_id]);
+        $this->assertEqualsWithDelta(420, $r->distance_m, 10);
+        $this->assertEqualsWithDelta(69.27, $r->site_lng, 0.0001); // ko'chaning eng yaqin nuqtasi
+        // ko'cha yonida — yozilmaydi; boshqa tuman ko'chasi — e'tiborsiz
+        $this->postJson('/tg/lease-form/reject', ['lat' => 41.3000, 'lng' => 69.2702] + $far)->assertJsonPath('logged', false);
+
+        $admin = (new \App\Models\User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin);
+        $this->get('/admin/location-rejections')->assertOk()->assertSee('Ijara shartnomasi')->assertSee('Gastro ko‘chadan uzoq')->assertSee('«Taras Shevchenko» ko‘chasi');
+        $this->get('/admin/location-rejections/'.$r->id)->assertOk()->assertSee('Ko‘chagacha')->assertSee('Ko‘chaning eng yaqin nuqtasi');
+        $this->get('/admin/location-limits')->assertOk()->assertSee('Faqat ko‘cha yonida');
+        $this->get('/admin/report-settings')->assertOk()->assertDontSee('Faqat ko‘cha yonida');
+
+        // botda Taras Shevchenko tanlangan, xodim esa Fidokor yonida — shartnoma Fidokorga yoziladi
+        $fid = GastroStreet::create(['district_id' => $this->district->id, 'name' => 'Fidokor', 'line' => [[41.2990, 69.2745], [41.3010, 69.2745]]]);
+        $this->save($this->legal(['lat' => 41.3000, 'lng' => 69.2746, 'polygon' => json_encode([[41.2999, 69.27455], [41.3001, 69.27455], [41.3001, 69.2747], [41.2999, 69.2747]])]))->assertOk();
+        $this->assertSame($fid->id, LeaseContract::sole()->gastro_street_id);
+        $this->assertLessThan(20, LeaseContract::sole()->street_distance_m);
+    }
+
     /** Barcha tumanlarga biriktirilgan xodim ham mas'ul bo'lsa — tumanlar ro'yxati ustida shartnoma tugmasi. */
     public function test_global_staff_who_is_responsible_sees_lease_button(): void
     {

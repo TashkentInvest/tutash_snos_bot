@@ -7,9 +7,10 @@
         'radius' => \App\Support\Limits::inspectionRadius(),
         'distance' => \App\Filament\Resources\LocationRejectionResource::meters($r->distance_m),
         // davomat / soatlik qayd: xodimga biriktirilgan tuman hududlari (obyektlar o'rami)
-        'areas' => $r->source === 'inspection' || ! $r->staff ? [] : $r->staff->districts()->get(['districts.id', 'districts.name'])
+        'areas' => in_array($r->source, ['inspection', 'lease'], true) || ! $r->staff ? [] : $r->staff->districts()->get(['districts.id', 'districts.name'])
             ->flatMap(fn ($d) => collect(\App\Support\Gps::districtRings($d->id)['rings'])->map(fn ($r) => ['name' => $d->name, 'pts' => $r]))->values()->all(),
-        'district' => $r->source !== 'inspection',
+        'district' => ! in_array($r->source, ['inspection', 'lease'], true),
+        'lease' => $r->source === 'lease',
         'gastro' => \App\Models\GastroStreet::mapLines(),
     ];
 @endphp
@@ -17,7 +18,7 @@
 <div>
     <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:13px;margin-bottom:8px;">
         <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#dc2626;vertical-align:middle;"></span> Xodim yuborgan joy</span>
-        <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#2563eb;vertical-align:middle;"></span> {{ $data['district'] ? 'Eng yaqin obyekt; punktir — biriktirilgan tuman hududi' : 'Bizdagi obyekt (ko‘k doira — ruxsat etilgan '.$data['radius'].' m)' }}</span>
+        <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#2563eb;vertical-align:middle;"></span> {{ $data['lease'] ? 'Tanlangan gastro ko‘chaning eng yaqin nuqtasi (qizil chiziq — ko‘chalar)' : ($data['district'] ? 'Eng yaqin obyekt; punktir — biriktirilgan tuman hududi' : 'Bizdagi obyekt (ko‘k doira — ruxsat etilgan '.$data['radius'].' m)') }}</span>
     </div>
     <div wire:ignore x-data="{ d: @js($data) }" x-init="(async () => {
         if (!window.AdminMap) await new Promise(r => { const s = document.createElement('script'); s.src = '{{ asset('js/admin-map.js') }}?v={{ filemtime(public_path('js/admin-map.js')) }}'; s.onload = r; document.head.appendChild(s); });
@@ -30,8 +31,8 @@
             if (d.accuracy) L.circle(d.staff, { radius: d.accuracy, color: '#dc2626', weight: 1, fillOpacity: .08 }).addTo(map);
             if (d.site) {
                 pts.push(d.site);
-                d.district || L.circle(d.site, { radius: d.radius, color: '#2563eb', weight: 1, fillOpacity: .1 }).addTo(map);
-                L.circleMarker(d.site, { radius: 9, color: '#fff', weight: 2, fillColor: '#2563eb', fillOpacity: 1 }).addTo(map).bindTooltip(d.district ? 'Eng yaqin obyekt' : 'Obyekt', { permanent: true, direction: 'top' });
+                d.district || d.lease || L.circle(d.site, { radius: d.radius, color: '#2563eb', weight: 1, fillOpacity: .1 }).addTo(map);
+                L.circleMarker(d.site, { radius: 9, color: '#fff', weight: 2, fillColor: '#2563eb', fillOpacity: 1 }).addTo(map).bindTooltip(d.lease ? 'Ko‘cha' : (d.district ? 'Eng yaqin obyekt' : 'Obyekt'), { permanent: true, direction: 'top' });
                 L.polyline([d.staff, d.site], { color: '#dc2626', dashArray: '6 6' }).addTo(map).bindTooltip(d.distance, { permanent: true, className: 'font-bold' });
             }
             pts.length > 1 && m.fit(pts, { padding: [50, 50] });

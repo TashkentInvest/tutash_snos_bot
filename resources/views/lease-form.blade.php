@@ -245,11 +245,26 @@ $('street').onchange = () => { drawDistrict(); showPoint(); };
 
 async function locate() {
     $('goLoc').disabled = true; $('coords').textContent = 'Joylashuv aniqlanmoqda…'; $('coords').className = 'hint';
-    try { const p = await TgLoc.get(); setPoint(p.lat, p.lng, 19, p.accuracy); }
+    try { const p = await TgLoc.get(); setPoint(p.lat, p.lng, 19, p.accuracy); nearestStreet(); reportBad(); }
     catch (e) { $('coords').textContent = e.message || 'Joylashuv aniqlanmadi. Telefonda GPS (joylashuv) yoqilganini tekshiring.'; $('coords').className = 'hint err'; }
     $('goLoc').disabled = false;
 }
 $('goLoc').onclick = locate;
+// botda boshqa ko'cha tanlangan, lekin xodim shu tumanning boshqa gastro ko'chasi yonida — o'sha ko'chaga o'tkaziladi (server ham shunday)
+function nearestStreet() {
+    const s = street();
+    if (!point || !s || radius === Infinity || distToLine(point.lat, point.lng, s.line) <= radius) return;
+    const best = district().streets.map(x => [x, distToLine(point.lat, point.lng, x.line)]).sort((a, b) => a[1] - b[1])[0];
+    if (!best || best[1] > radius) return;
+    $('street').value = String(best[0].id); drawDistrict(); showPoint();
+    $('place').textContent = district().name + ' · ' + best[0].name;
+    $('coords').textContent = `Siz «${best[0].name}» ko‘chasi yonidasiz (~${Math.round(best[1])} m) — ko‘cha shunga almashtirildi.`;
+}
+// joy qabul qilinmasa — admin «Xatolikka uchraganlar»da ko'radi (javob kutilmaydi)
+function reportBad() {
+    if (!point || placeOk() || !street()) return;
+    api('reject', { gastro_street_id: Number($('street').value), lat: point.lat, lng: point.lng, accuracy: point.acc }).catch(() => {});
+}
 
 // ---- tutash hudud: xaritada burchaklar ketma-ket bosiladi (maydoni avtomatik, kerak bo'lsa qo'lda tuzatiladi)
 let poly = [], polyLayers = [];
