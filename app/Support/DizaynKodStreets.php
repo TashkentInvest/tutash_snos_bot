@@ -63,6 +63,24 @@ class DizaynKodStreets
         return $key === '' ? [] : array_values(array_filter($all, fn ($f) => self::districtKey($f['properties']['district_latin'] ?? null) === $key));
     }
 
+    /**
+     * Ko'cha chizig'i qismlari: [[[lat, lng], ...], ...] (GeoJSON [lon, lat] dan). LineString — bitta qism, MultiLineString — bir nechta.
+     * 2 nuqtadan kam qismlar tashlanadi.
+     */
+    public static function parts(array $feature): array
+    {
+        $g = $feature['geometry'] ?? [];
+        $pt = fn ($c) => is_array($c) && count($c) >= 2 && is_numeric($c[0]) && is_numeric($c[1]) ? [round((float) $c[1], 6), round((float) $c[0], 6)] : null;
+        $part = fn ($cs) => array_values(array_filter(array_map($pt, is_array($cs) ? $cs : [])));
+        $parts = match ($g['type'] ?? null) {
+            'LineString' => [$part($g['coordinates'] ?? [])],
+            'MultiLineString' => array_map($part, is_array($g['coordinates'] ?? null) ? $g['coordinates'] : []),
+            default => [],
+        };
+
+        return array_values(array_filter($parts, fn ($p) => count($p) >= 2));
+    }
+
     /** «Mirzo Ulug‘bek tumani» va «Mirzo Ulug'bek tumani» → «mirzo ulugbek»: kichik harf, apostroflarsiz, «tumani»siz. */
     public static function districtKey(?string $name): string
     {

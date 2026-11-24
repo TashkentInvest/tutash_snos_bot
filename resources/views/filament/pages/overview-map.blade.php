@@ -28,7 +28,6 @@
         const cdn = 'https://cdnjs.cloudflare.com/ajax/libs/';
         (async () => {
             if (!window.L) { load(cdn + 'leaflet/1.9.4/leaflet.min.css', true); await load(cdn + 'leaflet/1.9.4/leaflet.min.js'); }
-            if (!L.markerClusterGroup) { load(cdn + 'leaflet.markercluster/1.5.3/MarkerCluster.min.css', true); load(cdn + 'leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css', true); await load(cdn + 'leaflet.markercluster/1.5.3/leaflet.markercluster.min.js'); }
             if (!window.OverviewMap) await load('{{ asset('js/overview-map.js') }}?v={{ filemtime(public_path('js/overview-map.js')) }}');
             window.OverviewMap.init($el, cfg);
         })();

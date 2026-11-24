@@ -8,6 +8,7 @@ use App\Filament\Resources\LocationRejectionResource;
 use App\Filament\Resources\SiteResource;
 use App\Models\Attendance;
 use App\Models\Checkin;
+use App\Models\District;
 use App\Models\GastroStreet;
 use App\Models\Inspection;
 use App\Models\LeaseContract;
@@ -96,20 +97,19 @@ class MapLayers
             return ['lines' => [], 'count' => 0, 'note' => 'Dizayn-kod API sozlanmagan (DIZAYN_KOD_TOKEN bo‘sh).'];
         }
         $num = fn ($v) => $v === null || $v === '' ? null : str_replace('.', ',', (string) round((float) $v, 2));
-        $pt = fn ($c) => is_array($c) && count($c) >= 2 ? [round((float) $c[1], 6), round((float) $c[0], 6)] : null; // GeoJSON [lon, lat] → [lat, lon]
-        $part = fn ($cs) => array_values(array_filter(array_map($pt, is_array($cs) ? $cs : [])));
+        $buffer = DesignCodeSvod::DEFAULT_BUFFER;
+        $svod = DesignCodeSvod::streets($buffer); // ko'cha bo'yidagi SNOS obyektlari
+        $districtIds = District::pluck('id', 'name')->mapWithKeys(fn ($id, $n) => [DizaynKodStreets::districtKey($n) => $id]);
 
-        $lines = collect(DizaynKodStreets::forDistrict($district))->map(function (array $f) use ($num, $part) {
-            $g = $f['geometry'] ?? [];
-            $line = match ($g['type'] ?? null) {
-                'LineString' => $part($g['coordinates'] ?? []),
-                'MultiLineString' => array_values(array_filter(array_map($part, $g['coordinates'] ?? []), fn ($p) => count($p) >= 2)),
-                default => [],
-            };
-            if (($g['type'] ?? null) === 'MultiLineString' ? $line === [] : count($line) < 2) {
+        $lines = collect(DizaynKodStreets::forDistrict($district))->map(function (array $f) use ($num, $svod, $buffer, $districtIds) {
+            $parts = DizaynKodStreets::parts($f);
+            if (! $parts) {
                 return null;
             }
+            $line = ($f['geometry']['type'] ?? null) === 'MultiLineString' ? $parts : $parts[0];
             $p = $f['properties'] ?? [];
+            $snos = DesignCodeSvod::siteCounts($svod[$p['id'] ?? ($f['id'] ?? null)]['sites'] ?? []);
+            $did = $districtIds[DizaynKodStreets::districtKey($p['district_latin'] ?? null)] ?? null;
             $pct = (float) ($p['pct'] ?? 0);
             $name = ($p['name_latin'] ?? null) ?: ($p['name'] ?? '—');
             $len = $num($p['length_km'] ?? null);
@@ -126,9 +126,11 @@ class MapLayers
                     'Obyektlar: '.(int) ($p['objects_total'] ?? 0).' · dizayn-kodga keltirildi: '.(int) ($p['objects_installed'] ?? 0)
                         .' · jarayonda: '.(int) ($p['objects_removed'] ?? 0),
                     'Bajarilish: '.$num($pct).'%',
+                    "Noqonuniy obyektlar (SNOS, {$buffer} m ichida): ".$snos['total'].' · buzilgan: '.$snos['demolished'].' · qolgan: '.$snos['left'],
                 ])),
                 'small' => $drawn !== null ? 'xaritada chizilgani: '.$drawn.' km' : null,
-                'tip' => $name.(($len ?? $drawn) !== null ? ' · '.($len ?? $drawn).' km' : ''),
+                'tip' => $name.(($len ?? $drawn) !== null ? ' · '.($len ?? $drawn).' km' : '').' · '.$snos['total'].' ta noqonuniy obyekt',
+                'u' => \App\Filament\Pages\DesignCodeSvodPage::getUrl(array_filter(['district' => $did, 'street' => $p['id'] ?? null])),
             ];
         })->filter()->values();
 
@@ -147,7 +149,7 @@ class MapLayers
                 'u' => SiteResource::getUrl('view', ['record' => $s->id]),
             ])->values();
 
-        return ['points' => $points, 'cluster' => true];
+        return ['points' => $points];
     }
 
     private static function attendance(?int $district, CarbonInterface $day, ?int $staff): array

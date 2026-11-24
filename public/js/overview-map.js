@@ -59,7 +59,7 @@ window.OverviewMap = {
 
         const groups = {}, polys = {}, data = {};
         const popup = p => `<div class='om-pop'><b>${esc(p.t)}</b>${p.s ? '<br>' + esc(p.s) : ''}${p.u ? `<br><a href='${esc(p.u)}'>Ochish →</a>` : ''}</div>`;
-        const style = (key, color) => ({ radius: 6, color: '#fff', weight: 2, fillColor: color, fillOpacity: state.opacity[key], opacity: state.opacity[key] });
+        const style = (key, color) => ({ radius: key === 'sites' ? 5 : 6, color: '#fff', weight: key === 'sites' ? 1.5 : 2, fillColor: color, fillOpacity: state.opacity[key], opacity: state.opacity[key] });
 
         const render = key => {
             const g = groups[key], d = data[key];
@@ -72,7 +72,8 @@ window.OverviewMap = {
                     L.polyline(s.line, s.shape ? { color: c, weight: 5, opacity: o, lineCap: 'round' } : { color: c, weight: 3, opacity: o, dashArray: '8 7' })
                         .bindTooltip(esc(s.tip), { sticky: true })
                         .bindPopup(`<div class='om-pop'><b>${esc(s.t)}</b>${(s.rows || []).map(r => '<br>' + esc(r)).join('')}`
-                            + `${s.small ? `<br><small style='opacity:.7'>${esc(s.small)}</small>` : ''}</div>`).addTo(g);
+                            + `${s.small ? `<br><small style='opacity:.7'>${esc(s.small)}</small>` : ''}`
+                            + `${s.u ? `<br><a href='${esc(s.u)}'>Svodda ko‘rish →</a>` : ''}</div>`).addTo(g);
                     return;
                 }
                 L.polyline(s.line, { color: colors[key].street || '#dc2626', weight: 4, opacity: .9 * state.opacity[key], lineCap: 'round' })
@@ -99,16 +100,8 @@ window.OverviewMap = {
         };
 
         cfg.layers.forEach(l => {
-            // obyektlar ko'p — uzoqdan raqamli doiralarga birlashadi (xarita uslubidagi neytral rang)
-            groups[l.key] = l.key === 'sites' ? L.markerClusterGroup({
-                maxClusterRadius: 45, showCoverageOnHover: false, disableClusteringAtZoom: 17,
-                iconCreateFunction: c => {
-                    const n = c.getChildCount(), size = n < 10 ? 28 : n < 100 ? 34 : 40;
-                    return L.divIcon({ className: '', iconSize: [size, size],
-                        html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:rgba(71,85,105,${.55 + .4 * state.opacity.sites});color:#fff;`
-                            + `display:flex;align-items:center;justify-content:center;font:600 12px/1 system-ui;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.3);">${n}</div>` });
-                },
-            }) : L.featureGroup();
+            // obyektlar ham alohida nuqta (raqamli doiralarga birlashtirilmaydi) — ko'cha bo'yidagi joylashuvi ko'rinsin
+            groups[l.key] = L.featureGroup();
             if (l.key === 'gastro') polys[l.key] = L.layerGroup(); // yaqinlashtirilganda — shartnomalar hududi
         });
         const zoomPolys = () => Object.entries(polys).forEach(([k, g]) => (state.on[k] && map.getZoom() >= 16) ? map.addLayer(g) : map.removeLayer(g));
