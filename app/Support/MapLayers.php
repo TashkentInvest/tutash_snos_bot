@@ -34,7 +34,7 @@ class MapLayers
                 'new' => ['#64748b', 'boshlanmagan'], 'progress' => ['#f59e0b', 'jarayonda'], 'done' => ['#16a34a', 'to‘liq bajarilgan']]],
             'sites' => ['Obyektlar (holati bo‘yicha)', [
                 Site::NOT_DEMOLISHED => ['#64748b', 'buzilmagan'], Site::IN_PROGRESS => ['#f59e0b', 'jarayonda'],
-                Site::DEMOLISHED => ['#16a34a', 'buzilgan'], Site::EXEMPT => ['#2563eb', 'sud / buzilmaydi']]],
+                Site::DEMOLISHED => ['#16a34a', 'buzilgan'], Site::EXEMPT => ['#2563eb', 'sud qarori bekor qilingan']]],
             'attendance' => ['Ertalabki davomat', [
                 'in' => ['#16a34a', 'o‘z hududida'], 'out' => ['#dc2626', 'hududdan tashqarida']]],
             'checkins' => ['Soatlik qayd (oxirgi joylashuv)', [
@@ -94,7 +94,7 @@ class MapLayers
     private static function designcode(?int $district): array
     {
         if (! DizaynKodStreets::configured()) {
-            return ['lines' => [], 'count' => 0, 'note' => 'Dizayn-kod API sozlanmagan (DIZAYN_KOD_TOKEN bo‘sh).'];
+            return ['lines' => [], 'count' => 0, 'note' => 'Dizayn-kod tizimi bilan ulanish hozircha sozlanmagan.'];
         }
         $num = fn ($v) => $v === null || $v === '' ? null : str_replace('.', ',', (string) round((float) $v, 2));
         $buffer = DesignCodeSvod::DEFAULT_BUFFER;
@@ -126,7 +126,7 @@ class MapLayers
                     'Obyektlar: '.(int) ($p['objects_total'] ?? 0).' · dizayn-kodga keltirildi: '.(int) ($p['objects_installed'] ?? 0)
                         .' · jarayonda: '.(int) ($p['objects_removed'] ?? 0),
                     'Bajarilish: '.$num($pct).'%',
-                    "Noqonuniy obyektlar (SNOS, {$buffer} m ichida): ".$snos['total'].' · buzilgan: '.$snos['demolished'].' · qolgan: '.$snos['left'],
+                    "Noqonuniy obyektlar ({$buffer} m ichida): ".$snos['total'].' · buzilgan: '.$snos['demolished'].' · qolgan: '.$snos['left'],
                 ])),
                 'small' => $drawn !== null ? 'xaritada chizilgani: '.$drawn.' km' : null,
                 'tip' => $name.(($len ?? $drawn) !== null ? ' · '.($len ?? $drawn).' km' : '').' · '.$snos['total'].' ta noqonuniy obyekt',

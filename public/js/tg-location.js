@@ -7,7 +7,7 @@
     const lm = () => (tg && tg.LocationManager && tg.isVersionAtLeast && tg.isVersionAtLeast('8.0') ? tg.LocationManager : null);
 
     const fail = (text, settings) => Object.assign(new Error(text), { settings: !!settings });
-    const DENIED = 'Bu botga joylashuv ruxsati berilmagan. «⚙️ Ruxsatni yoqish» tugmasini bosing va «Joylashuv» (Geoposition) ruxsatini yoqing, keyin qayta urinib ko‘ring.';
+    const DENIED = 'Bu botga joylashuv ruxsati berilmagan. «Ruxsatni yoqish» tugmasini bosing, «Joylashuv» ruxsatini yoqing va qayta urinib ko‘ring.';
 
     function viaBrowser(resolve, reject) {
         if (!navigator.geolocation) return reject(fail('Qurilmada joylashuv xizmati mavjud emas.'));

@@ -26,6 +26,7 @@ window.OverviewMap = {
 
         // xarita: och kulrang (standart), oddiy xarita, sun'iy yo'ldosh
         const map = L.map($('[data-map]'), { preferCanvas: true }).setView([41.31, 69.27], 11);
+        map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank">Leaflet</a>');
         const esri = (n, o = {}) => L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/${n}/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19, attribution: '© Esri', ...o });
         const gray = L.layerGroup([esri('Canvas/World_Light_Gray_Base', { maxNativeZoom: 16 }), esri('Canvas/World_Light_Gray_Reference', { maxNativeZoom: 16 })]).addTo(map);
         L.control.layers({ 'Och kulrang': gray, 'Xarita': esri('World_Street_Map'),
@@ -41,9 +42,9 @@ window.OverviewMap = {
             } });
             return new C({ position: 'topleft' }).addTo(map);
         };
-        const fsIcon = on => on ? '⤡' : '⛶';
+        const fsIcon = on => on ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25"/></svg>' : '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>';
         btn(fsIcon(false), 'To‘liq ekran (katta ekran uchun)', () => document.fullscreenElement ? document.exitFullscreen() : root.requestFullscreen?.());
-        btn('☰', 'Qatlamlar panelini yashirish / ko‘rsatish', () => { root.classList.toggle('om-wide'); setTimeout(() => map.invalidateSize(), 200); });
+        btn('<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>', 'Qatlamlar panelini yashirish / ko‘rsatish', () => { root.classList.toggle('om-wide'); setTimeout(() => map.invalidateSize(), 200); });
         document.addEventListener('fullscreenchange', () => {
             root.querySelectorAll('.om-btn')[0].innerHTML = fsIcon(document.fullscreenElement === root);
             setTimeout(() => map.invalidateSize(), 250);
@@ -58,7 +59,7 @@ window.OverviewMap = {
         };
 
         const groups = {}, polys = {}, data = {};
-        const popup = p => `<div class='om-pop'><b>${esc(p.t)}</b>${p.s ? '<br>' + esc(p.s) : ''}${p.u ? `<br><a href='${esc(p.u)}'>Ochish →</a>` : ''}</div>`;
+        const popup = p => `<div class='om-pop'><b>${esc(p.t)}</b>${p.s ? '<br>' + esc(p.s) : ''}${p.u ? `<br><a href='${esc(p.u)}'>Batafsil</a>` : ''}</div>`;
         const style = (key, color) => ({ radius: key === 'sites' ? 5 : 6, color: '#fff', weight: key === 'sites' ? 1.5 : 2, fillColor: color, fillOpacity: state.opacity[key], opacity: state.opacity[key] });
 
         const render = key => {
@@ -73,7 +74,7 @@ window.OverviewMap = {
                         .bindTooltip(esc(s.tip), { sticky: true })
                         .bindPopup(`<div class='om-pop'><b>${esc(s.t)}</b>${(s.rows || []).map(r => '<br>' + esc(r)).join('')}`
                             + `${s.small ? `<br><small style='opacity:.7'>${esc(s.small)}</small>` : ''}`
-                            + `${s.u ? `<br><a href='${esc(s.u)}'>Svodda ko‘rish →</a>` : ''}</div>`).addTo(g);
+                            + `${s.u ? `<br><a href='${esc(s.u)}'>Svodda ko‘rish</a>` : ''}</div>`).addTo(g);
                     return;
                 }
                 L.polyline(s.line, { color: colors[key].street || '#dc2626', weight: 4, opacity: .9 * state.opacity[key], lineCap: 'round' })

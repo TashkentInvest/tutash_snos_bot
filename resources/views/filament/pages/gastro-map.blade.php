@@ -20,6 +20,7 @@
 
             const draw = () => {
                 const map = L.map($refs.map, { zoomControl: true, preferCanvas: true });
+                map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank">Leaflet</a>');
                 const esri = (n, o = {}) => L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/${n}/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19, attribution: '© Esri', ...o });
                 // och kulrang fon (ko'chalar va obyektlar aniq ko'rinadi); kerak bo'lsa — oddiy xarita yoki sun'iy yo'ldosh
                 const gray = L.layerGroup([esri('Canvas/World_Light_Gray_Base', { maxNativeZoom: 16 }), esri('Canvas/World_Light_Gray_Reference', { maxNativeZoom: 16 })]).addTo(map);
@@ -51,10 +52,10 @@
                         pts.push(c.p);
                         L.circleMarker(c.p, { radius: 6, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1 }).addTo(dots)
                             .bindPopup(`<div class='gm-pop'><b>№${c.id} · ${esc(c.name)}</b><br>${esc(c.addr)}<br>`
-                                + `<span style='color:${color};font-weight:600;'>● ${LABELS[c.k] || ''}</span><br>`
+                                + `<span style='display:inline-block;width:9px;height:9px;border-radius:50%;background:${color};margin-right:5px;'></span><span style='color:${color};font-weight:600;'>${LABELS[c.k] || ''}</span><br>`
                                 + `Maydon: <b>${fmt(c.area, 1)} m²</b>` + (c.monthly ? ` · oyiga ${fmt(c.monthly)} so‘m` : '') + `<br>`
                                 + `Joriy yil: ${fmt(c.annual)} so‘m<br>`
-                                + `<span style='opacity:.7'>${esc(c.staff)} · ${esc(c.at)}</span><br><a href='${c.url}'>Shartnomani ochish →</a></div>`);
+                                + `<span style='opacity:.7'>${esc(c.staff)} · ${esc(c.at)}</span><br><a href='${c.url}'>Shartnomani ochish</a></div>`);
                     });
                     // ko'rsatkichlar (tanlangan tuman bo'yicha)
                     const covered = streets.filter(s => s.n > 0).length;

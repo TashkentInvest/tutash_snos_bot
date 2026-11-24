@@ -53,12 +53,12 @@ class GastroResponsibleResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('district.name')->label('Tuman')->sortable(),
                 Tables\Columns\TextColumn::make('staff_list')->label('Mas’ul xodimlar (shartnomalar)')->badge()
-                    ->state(fn (GastroResponsible $r) => $r->staff->map(fn (Staff $s) => $s->full_name.' · '.$s->phone)->all())
-                    ->placeholder('— tanlanmagan —'),
+                    ->state(fn (GastroResponsible $r) => $r->staff->map(fn (Staff $s) => $s->full_name.' · '.\App\Support\Phone::format($s->phone))->all())
+                    ->placeholder('Tanlanmagan'),
                 // 1 m² uchun oylik ijara tarifi: shartnoma to'lovi = maydon × tarif × oylar (yangi shartnomalarga ta'sir qiladi)
-                Tables\Columns\TextInputColumn::make('tariff')->label('Tarif, 1 m² / oy (so‘m)')->type('number')->step('0.01')
-                    ->rules(['nullable', 'numeric', 'min:0', 'max:100000000'])->width('11rem'),
-                Tables\Columns\TextColumn::make('phone')->label('Jadvaldagi raqam')->placeholder('—')
+                Tables\Columns\TextColumn::make('tariff')->label('Tarif, 1 m² / oy (so‘m)')->placeholder('kiritilmagan')
+                    ->formatStateUsing(fn ($state) => number_format((float) $state, 2, ',', ' '))->alignEnd(),
+                Tables\Columns\TextColumn::make('phone')->label('Jadvaldagi raqam')->formatStateUsing(fn ($state) => \App\Support\Phone::format($state))->placeholder('—')
                     ->description(fn (GastroResponsible $r) => $r->staff->isEmpty() && $r->phone ? 'botga hali kirmagan' : null)->toggleable(),
                 Tables\Columns\TextColumn::make('streets')->label('Ko‘chalar')
                     ->state(fn (GastroResponsible $r) => (int) ($counts[$r->district_id] ?? 0))
@@ -71,9 +71,17 @@ class GastroResponsibleResource extends Resource
                         Forms\Components\Select::make('staff')->label('Mas’ul xodimlar — qidirib tanlang')->multiple()->searchable()->preload()
                             ->relationship('staff', 'full_name', fn ($query) => $query->where('status', Staff::ACTIVE)->whereNotNull('telegram_id')
                                 ->whereIn('role', Staff::DISTRICT_ROLES)->orderBy('full_name'))
-                            ->getOptionLabelFromRecordUsing(fn (Staff $s) => $s->full_name.' · '.$s->phone)
+                            ->getOptionLabelFromRecordUsing(fn (Staff $s) => $s->full_name.' · '.AppSupportPhone::format($s->phone))
                             ->helperText('Botda ro‘yxatdan o‘tgan xodimlar: ism yoki telefon bo‘yicha qidiring. Har biri shu tuman ko‘chalarida shartnoma tuzadi. Xodimning «Tumanlar»iga (davomat, obyektlar) ta’sir qilmaydi.'),
-                    ]),
+                        Forms\Components\TextInput::make('tariff')->label('Tarif, 1 m² / oy (so‘m)')->numeric()->minValue(0)->maxValue(100000000)->step('0.01')
+                            ->helperText('Faqat yangi shartnomalarga ta’sir qiladi; tuzilgan shartnomalar summasi o‘zgarmaydi.'),
+                    ])
+                    ->before(function (GastroResponsible $record, array $data) {
+                        $old = $record->tariff;
+                        if (array_key_exists('tariff', $data) && (float) $old !== (float) $data['tariff']) {
+                            \App\Models\AuditLog::record('gastro.tariff.updated', null, ['district' => $record->district?->name, 'old' => $old, 'new' => $data['tariff'], 'by' => auth()->id()]);
+                        }
+                    }),
             ])
             ->defaultSort('district_id')
             ->paginated(false);

@@ -31,6 +31,7 @@ window.AdminMap = {
      */
     create(el, center, opts = {}) {
         const map = L.map(el, { scrollWheelZoom: true }).setView(center || [41.31, 69.27], opts.zoom || 15);
+        map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank">Leaflet</a>');
         const esri = (n, o = {}) => L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/${n}/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19, attribution: '© Esri', ...o });
         const bases = {
             'Och kulrang': L.layerGroup([esri('Canvas/World_Light_Gray_Base', { maxNativeZoom: 16 }), esri('Canvas/World_Light_Gray_Reference', { maxNativeZoom: 16 })]),
@@ -43,8 +44,8 @@ window.AdminMap = {
         // to'liq ekran
         const Fs = L.Control.extend({ onAdd() {
             const a = L.DomUtil.create('a', 'leaflet-bar');
-            a.href = '#'; a.title = 'To‘liq ekran'; a.innerHTML = '⛶'; a.setAttribute('role', 'button');
-            a.style.cssText = 'width:30px;height:30px;line-height:30px;text-align:center;font-size:16px;background:#fff;color:#111;display:block;';
+            a.href = '#'; a.title = 'To‘liq ekran'; a.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>'; a.setAttribute('role', 'button');
+            a.style.cssText = 'width:30px;height:30px;background:#fff;color:#111;display:flex;align-items:center;justify-content:center;';
             L.DomEvent.on(a, 'click', e => {
                 L.DomEvent.preventDefault(e); L.DomEvent.stopPropagation(e);
                 document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen?.();

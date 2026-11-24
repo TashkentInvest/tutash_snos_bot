@@ -92,7 +92,7 @@ class CheckinTest extends TestCase
         $row->refresh();
         $this->assertSame(Checkin::PRESENT, $row->status);
         $this->assertSame('Obyektdaman, buzish ishlarini kuzatyapman', $row->comment);
-        $this->get('/tg/checkin')->assertOk()->assertSee('3/3. Izoh');
+        $this->get('/tg/checkin')->assertOk()->assertSee('3-qadam: Izoh');
         $this->assertSame(41.3, $row->lat);
         Storage::disk('local')->assertExists($row->video_path);
         $this->tg('/tg/checkin-state')->assertJsonPath('step', 'done');

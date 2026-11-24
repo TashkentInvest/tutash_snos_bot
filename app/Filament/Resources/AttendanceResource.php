@@ -38,8 +38,8 @@ class AttendanceResource extends Resource
         Attendance::RECORDING => 'Video kutilmoqda',
         Attendance::REASONING => 'Sabab kutilmoqda',
         Attendance::PRESENT => 'Ishda',
-        Attendance::ABSENT => 'Ishda emas (sabab bilan)',
-        Attendance::MISSED => 'Javob bermadi',
+        Attendance::ABSENT => 'Sabab bilan yo‘q',
+        Attendance::MISSED => 'Javob bermagan',
     ];
 
     public static function table(Table $table): Table
@@ -65,11 +65,11 @@ class AttendanceResource extends Resource
                 Tables\Columns\TextColumn::make('video_path')->label('Video')
                     ->formatStateUsing(fn ($state, Attendance $record) => $state ? 'Ko‘rish' : ($record->video_file_id ? 'Yuklanmoqda…' : '—'))
                     ->url(fn (Attendance $record) => $record->video_path ? route('admin.attendance-video', ['attendance' => $record, 'v' => $record->updated_at?->timestamp]) : null, true),
-                Tables\Columns\TextColumn::make('face_video_path')->label('Yuz (birlashtirilmagan)')->toggleable(isToggledHiddenByDefault: true)
+                Tables\Columns\TextColumn::make('face_video_path')->label('Old kamera videosi')->toggleable(isToggledHiddenByDefault: true)
                     ->formatStateUsing(fn ($state) => $state ? 'Ko‘rish' : '—')
                     ->url(fn (Attendance $record) => $record->face_video_path ? route('admin.attendance-video', ['attendance' => $record, 'face' => 1, 'v' => $record->updated_at?->timestamp]) : null, true),
                 Tables\Columns\TextColumn::make('device')->label('Qurilma')->formatStateUsing(fn ($state) => \App\Support\Device::label($state))->wrap()->toggleable(),
-                Tables\Columns\TextColumn::make('flags')->label('Belgi')->badge()->color('warning')
+                Tables\Columns\TextColumn::make('flags')->label('Ogohlantirish')->badge()->color('warning')
                     ->formatStateUsing(fn ($state) => \App\Support\Gps::flagLabel($state))->placeholder('—'),
                 Tables\Columns\TextColumn::make('comment')->label('Izoh')->limit(60)->tooltip(fn (Attendance $record) => $record->comment)->placeholder('—')->wrap(),
                 Tables\Columns\TextColumn::make('reason')->label('Sabab')->limit(60)->tooltip(fn (Attendance $record) => $record->reason)->placeholder('—'),

@@ -56,7 +56,15 @@ class SiteResource extends Resource
 
     protected static ?int $navigationSort = 1;
 
-    private const STATUS = [Site::NOT_DEMOLISHED => 'Buzilmagan', Site::IN_PROGRESS => 'Jarayonda', Site::DEMOLISHED => 'Buzilgan', Site::EXEMPT => 'Buzilmaydi (sud qarori bekor)'];
+    private const STATUS = [Site::NOT_DEMOLISHED => 'Buzilmagan', Site::IN_PROGRESS => 'Jarayonda', Site::DEMOLISHED => 'Buzilgan', Site::EXEMPT => 'Sud qarori bekor qilingan'];
+
+    public static function statusLabel(?string $status): string
+    {
+        return self::STATUS[$status] ?? (string) $status;
+    }
+
+    /** Holat rangi — xaritadagi bilan bir xil */
+    public const STATUS_COLOR = [Site::NOT_DEMOLISHED => 'gray', Site::IN_PROGRESS => 'warning', Site::DEMOLISHED => 'success', Site::EXEMPT => 'info'];
 
     public static function form(Form $form): Form
     {
@@ -68,7 +76,7 @@ class SiteResource extends Resource
                     ->options(fn (Forms\Get $get) => Mahalla::where('district_id', $get('district_id'))->orderBy('name')->pluck('name', 'id'))
                     ->rule(fn (Forms\Get $get) => \Illuminate\Validation\Rule::exists('mahallas', 'id')->where('district_id', $get('district_id')))
                     ->searchable(),
-                Forms\Components\TextInput::make('address')->label('Manzil (ko\'cha)')->required()->columnSpanFull(),
+                Forms\Components\TextInput::make('address')->label('Manzil (ko‘cha)')->required()->columnSpanFull(),
                 Forms\Components\ViewField::make('map_picker')->hiddenLabel()->dehydrated(false)
                     ->view('filament.forms.site-map-picker')->columnSpanFull(),
                 Forms\Components\TextInput::make('lat')->label('Kenglik (lat)')->numeric()->minValue(-90)->maxValue(90),
@@ -140,8 +148,8 @@ class SiteResource extends Resource
                 $text('o_place', 'Manzil', fn (Site $s) => collect([$s->district?->name, $s->mahalla?->name, $s->address !== $s->mahalla?->name ? $s->address : null])
                     ->filter(fn ($v) => filled($v) && $v !== '—')->join(' · '))->columnSpan(2),
                 Infolists\Components\TextEntry::make('o_status')->label('Holat')->badge()
-                    ->state(fn ($record) => ($s = $site($record)) ? ($s->status !== Site::DEMOLISHED && $s->pendingReview ? 'Ko‘rib chiqilmoqda' : (self::STATUS[$s->status] ?? $s->status)) : null)
-                    ->color(fn ($record) => ($s = $site($record)) && $s->status === Site::DEMOLISHED ? 'success' : (($s?->pendingReview) ? 'info' : ($s?->status === Site::IN_PROGRESS ? 'primary' : 'warning'))),
+                    ->state(fn ($record) => ($s = $site($record)) ? ($s->status !== Site::DEMOLISHED && $s->pendingReview ? 'Tasdiq kutilmoqda' : (self::STATUS[$s->status] ?? $s->status)) : null)
+                    ->color(fn ($record) => ($s = $site($record)) && $s->status !== Site::DEMOLISHED && $s->pendingReview ? 'primary' : (self::STATUS_COLOR[$s?->status] ?? 'gray')),
                 $text('o_area', 'Maydon', fn (Site $s) => $s->area_m2 ? number_format((float) $s->area_m2, 0, ',', ' ').' m²'.($s->is_tutash ? '' : ' · tutash emas') : null),
 
                 // subyekt: pasport va STIR bazada shifrlangan, bu yerda ochiq
@@ -202,8 +210,8 @@ class SiteResource extends Resource
                 Tables\Columns\TextColumn::make('violator_name')->label('Huquqbuzar')->searchable()->limit(30),
                 Tables\Columns\TextColumn::make('area_m2')->label('m²')->numeric(decimalPlaces: 0)->sortable(),
                 Tables\Columns\TextColumn::make('status')->label('Holat')->badge()
-                    ->formatStateUsing(fn ($state, Site $record) => $state !== Site::DEMOLISHED && $record->pendingReview ? 'Ko‘rib chiqilmoqda' : (self::STATUS[$state] ?? $state))
-                    ->color(fn ($state, Site $record) => $state === Site::DEMOLISHED ? 'success' : ($record->pendingReview ? 'info' : ($state === Site::IN_PROGRESS ? 'primary' : 'warning'))),
+                    ->formatStateUsing(fn ($state, Site $record) => $state !== Site::DEMOLISHED && $record->pendingReview ? 'Tasdiq kutilmoqda' : (self::STATUS[$state] ?? $state))
+                    ->color(fn ($state, Site $record) => $state !== Site::DEMOLISHED && $record->pendingReview ? 'primary' : (self::STATUS_COLOR[$state] ?? 'gray')),
                 Tables\Columns\TextColumn::make('last_inspected_at')->label('Oxirgi tekshiruv')->dateTime('d.m.Y H:i')->sortable()->placeholder('Tekshirilmagan'),
             ])
             ->filters([
@@ -216,7 +224,7 @@ class SiteResource extends Resource
                     }),
                 Tables\Filters\SelectFilter::make('district_id')->label('Tuman')->relationship('district', 'name'),
                 Tables\Filters\SelectFilter::make('status')->label('Holat')->options(self::STATUS),
-                Tables\Filters\Filter::make('in_review')->label('Ko‘rib chiqilmoqda')->toggle()->query(fn ($query) => $query->whereHas('pendingReview')),
+                Tables\Filters\Filter::make('in_review')->label('Tasdiq kutilmoqda')->toggle()->query(fn ($query) => $query->whereHas('pendingReview')),
                 Tables\Filters\TernaryFilter::make('inspected')->label('Tekshirilgan')
                     ->queries(
                         true: fn ($query) => $query->whereNotNull('last_inspected_at'),

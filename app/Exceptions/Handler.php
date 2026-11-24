@@ -69,6 +69,12 @@ class Handler extends ExceptionHandler
                 }
             }
 
+            // Mini App (tg/*) — kutilmagan server xatosi xodimga inglizcha «Server Error» bo'lib ko'rinmasin
+            if ($request->is('tg/*') && $request->expectsJson() && ! config('app.debug')
+                && ! $e instanceof \Illuminate\Validation\ValidationException && ($status === null || $status >= 500)) {
+                return response()->json(['ok' => false, 'message' => 'Serverda xatolik yuz berdi. Birozdan so‘ng qayta urinib ko‘ring.'], 500);
+            }
+
             return null;
         });
     }

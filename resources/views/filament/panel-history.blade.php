@@ -12,7 +12,7 @@
                 <th style="padding:6px 12px 6px 0;font-weight:500;white-space:nowrap;">Qachon</th>
                 <th style="padding:6px 12px 6px 0;font-weight:500;">Kim</th>
                 <th style="padding:6px 12px 6px 0;font-weight:500;">Amal</th>
-                <th style="padding:6px 0;font-weight:500;">O‘zgarishlar (eski → yangi)</th>
+                <th style="padding:6px 0;font-weight:500;">O‘zgarishlar (avvalgi → yangi qiymat)</th>
             </tr></thead>
             <tbody>
                 @foreach ($rows as $r)
@@ -22,7 +22,7 @@
                         <td style="padding:6px 12px 6px 0;white-space:nowrap;">{{ $actions[\Illuminate\Support\Str::afterLast($r->event, '.')] ?? $r->event }}</td>
                         <td style="padding:6px 0;">
                             @foreach ($r->context['changes'] ?? [] as $field => [$old, $new])
-                                <div><b>{{ $field }}</b>: <span style="opacity:.65;">{{ \Illuminate\Support\Str::limit((string) ($old ?? '—'), 80) }}</span> → {{ \Illuminate\Support\Str::limit((string) ($new ?? '—'), 80) }}</div>
+                                <div><b>{{ \App\Observers\PanelAuditObserver::label($field) }}</b>: <span style="opacity:.65;">{{ \Illuminate\Support\Str::limit(\App\Observers\PanelAuditObserver::value($field, $old), 80) }}</span> → {{ \Illuminate\Support\Str::limit(\App\Observers\PanelAuditObserver::value($field, $new), 80) }}</div>
                             @endforeach
                         </td>
                     </tr>

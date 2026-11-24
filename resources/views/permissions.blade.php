@@ -2,7 +2,7 @@
 <html lang="uz">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Ruxsatlar</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
@@ -17,18 +17,19 @@
         .hint { text-align: left; font-size: 14px; margin: 6px 4px 0; }
         .hidden { display: none; }
         .ok-t { color: #2a9d4a; } .err { color: #d33; }
+            .st { min-width: 110px; text-align: right; font-size: 14px; } .ok-t { color: #2a9d4a; } .err { color: var(--tg-theme-destructive-text-color, #d33); }
     </style>
 </head>
 <body>
-<h1>🔐 Ruxsatlarni tekshirish</h1>
+<h1>Ruxsatlarni tekshirish</h1>
 <p>Tekshiruv va davomat uchun botga <b>joylashuv</b>, <b>kamera</b> va <b>mikrofon</b> ruxsati kerak. Tugmani bosing va chiqqan so‘rovlarda <b>«Ruxsat berish»</b>ni tanlang.</p>
 
-<div class="row"><span>📍</span><b>Joylashuv</b><span id="stLoc">—</span></div>
-<button id="goLocSettings" class="secondary hidden">⚙️ Joylashuv ruxsatini yoqish</button>
-<div class="row"><span>📷</span><b>Kamera va mikrofon</b><span id="stCam">—</span></div>
+<div class="row"><b>Joylashuv</b><span id="stLoc" class="st">—</span></div>
+<button id="goLocSettings" class="secondary hidden">Ruxsatni yoqish</button>
+<div class="row"><b>Kamera va mikrofon</b><span id="stCam" class="st">—</span></div>
 <p id="camHint" class="hint err hidden">iPhone: <b>Sozlamalar → Telegram</b> → «Kamera» va «Mikrofon»ni yoqing. Android: <b>Sozlamalar → Ilovalar → Telegram → Ruxsatlar</b>. Keyin oynani yopib, qayta oching.</p>
 
-<button id="goCheck">✅ Ruxsatlarni tekshirish</button>
+<button id="goCheck">Ruxsatlarni tekshirish</button>
 <p id="msg"></p>
 
 <script src="/js/tg-location.js?v=4"></script>
@@ -36,10 +37,10 @@
 const tg = window.Telegram && window.Telegram.WebApp;
 tg && (tg.ready(), tg.expand());
 const $ = id => document.getElementById(id);
-const mark = (id, ok, text) => { $(id).textContent = text || (ok ? '✅' : '❌'); };
+const mark = (id, ok, text) => { $(id).textContent = text || (ok ? 'Berilgan' : 'Berilmagan'); $(id).className = 'st ' + (text ? '' : (ok ? 'ok-t' : 'err')); };
 
 async function checkLocation() {
-    mark('stLoc', false, '⏳');
+    mark('stLoc', false, 'Tekshirilmoqda…');
     try {
         await TgLoc.get();
         mark('stLoc', true);
@@ -55,7 +56,7 @@ async function checkLocation() {
 }
 
 async function checkCamera() {
-    mark('stCam', false, '⏳');
+    mark('stCam', false, 'Tekshirilmoqda…');
     try {
         const st = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         st.getTracks().forEach(t => t.stop());
@@ -75,7 +76,7 @@ $('goCheck').onclick = async () => {
     const cam = await checkCamera();
     $('goCheck').disabled = false;
     if (loc && cam) {
-        $('msg').textContent = '✅ Hamma ruxsatlar berilgan. Oynani yopishingiz mumkin.';
+        $('msg').textContent = 'Barcha ruxsatlar berilgan. Oynani yopishingiz mumkin.';
         $('msg').className = 'ok-t';
         setTimeout(() => tg && tg.close(), 1500);
     }

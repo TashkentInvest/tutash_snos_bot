@@ -35,7 +35,7 @@ class DistrictResource extends Resource
         return $form->schema([
             Forms\Components\TextInput::make('name')->label('Tuman nomi')->required()->unique(ignoreRecord: true),
             Forms\Components\TextInput::make('responsible_name')->label('Mas’ul xodim F.I.SH')->maxLength(100),
-            Forms\Components\TextInput::make('phone')->label('Mas\'ul xodim telefoni (9 raqam)')
+            Forms\Components\TextInput::make('phone')->label('Mas’ul xodim telefoni (9 raqam)')
                 ->helperText('Masalan: 992012272. Xodim shu raqam bilan botga kirganda tumanga biriktiriladi.')
                 ->regex('/^\d{9}$/')->length(9),
             // botda bor xodimlar — qidirib tanlanadi (yozish shart emas); tanlansa shu tumanga darhol biriktiriladi
@@ -43,7 +43,7 @@ class DistrictResource extends Resource
                 ->helperText('Botda ro‘yxatdan o‘tgan xodimlar: ism yoki telefon bo‘yicha qidiring, bir nechtasini tanlang. Saqlangach shu tumanga darhol biriktiriladi.')
                 ->multiple()->searchable()->preload()
                 ->options(fn () => self::linkableStaff()->get()->mapWithKeys(fn (Staff $s) => [(string) $s->id => $s->full_name.' · '
-                    .(StaffResource::ROLES[$s->role] ?? $s->role).' · '.$s->phone])->all())
+                    .(StaffResource::ROLES[$s->role] ?? $s->role).' · '.AppSupportPhone::format($s->phone)])->all())
                 ->afterStateHydrated(fn ($component, ?District $record) => $component->state($record
                     ? self::linkableStaff()->whereIn('phone', $record->phones()->pluck('phone'))->pluck('id')->map(fn ($id) => (string) $id)->all() : []))
                 ->dehydrated(false)
@@ -84,7 +84,7 @@ class DistrictResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('name')->label('Tuman')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('responsible_name')->label('Mas’ul xodim')->placeholder('—'),
-                Tables\Columns\TextColumn::make('phone')->label('Telefon'),
+                Tables\Columns\TextColumn::make('phone')->label('Telefon')->formatStateUsing(fn ($state) => \App\Support\Phone::format($state))->placeholder('—'),
                 Tables\Columns\TextColumn::make('responsibleStaff.full_name')->label('Botda')->badge()
                     ->state(fn (District $record) => $record->responsibleStaff
                         ? $record->responsibleStaff->full_name

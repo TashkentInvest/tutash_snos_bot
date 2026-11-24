@@ -19,7 +19,7 @@ class EditSite extends EditRecord
                 if ($record->inspections()->exists()) {
                     \Filament\Notifications\Notification::make()->danger()
                         ->title('Bu obyektda tekshiruv natijalari bor — o‘chirib bo‘lmaydi.')
-                        ->body('Holatini o‘zgartiring (masalan, «Sud qarori bekor») yoki xato yozuv bo‘lsa administratorga murojaat qiling.')->send();
+                        ->body('Holatini o‘zgartiring (masalan, «Sud qarori bekor qilingan») yoki xato yozuv bo‘lsa administratorga murojaat qiling.')->send();
                     $action->cancel();
                 }
             }),

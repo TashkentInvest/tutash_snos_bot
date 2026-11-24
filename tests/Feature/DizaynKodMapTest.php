@@ -102,9 +102,9 @@ class DizaynKodMapTest extends TestCase
         $this->actingAs($this->admin());
 
         $lines = collect($this->getJson(route('admin.map-layer', ['layer' => 'designcode']))->assertOk()->json('lines'))->keyBy('id');
-        $this->assertContains('Noqonuniy obyektlar (SNOS, 50 m ichida): 3 · buzilgan: 1 · qolgan: 2', $lines[1]['rows']);
+        $this->assertContains('Noqonuniy obyektlar (50 m ichida): 3 · buzilgan: 1 · qolgan: 2', $lines[1]['rows']);
         $this->assertStringEndsWith('· 3 ta noqonuniy obyekt', $lines[1]['tip']);
-        $this->assertContains('Noqonuniy obyektlar (SNOS, 50 m ichida): 2 · buzilgan: 0 · qolgan: 2', $lines[2]['rows']);
+        $this->assertContains('Noqonuniy obyektlar (50 m ichida): 2 · buzilgan: 0 · qolgan: 2', $lines[2]['rows']);
         $this->assertStringContainsString('designcode-svod?district='.$ch->id, $lines[1]['u']);
 
         $d = \App\Support\DesignCodeSvod::build(50, $ch->id);
@@ -170,7 +170,7 @@ class DizaynKodMapTest extends TestCase
         $this->actingAs($this->admin());
 
         $this->getJson(route('admin.map-layer', ['layer' => 'designcode']))->assertOk()
-            ->assertJson(['lines' => [], 'count' => 0])->assertJsonPath('note', 'Dizayn-kod API sozlanmagan (DIZAYN_KOD_TOKEN bo‘sh).');
+            ->assertJson(['lines' => [], 'count' => 0])->assertJsonPath('note', 'Dizayn-kod tizimi bilan ulanish hozircha sozlanmagan.');
         $this->assertSame([], DizaynKodStreets::all());
         Http::assertNothingSent();
     }

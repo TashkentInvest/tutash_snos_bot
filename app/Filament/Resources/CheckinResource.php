@@ -62,10 +62,10 @@ class CheckinResource extends Resource
                 Tables\Columns\TextColumn::make('video_path')->label('Video')
                     ->formatStateUsing(fn ($state) => $state ? 'Ko‘rish' : '—')
                     ->url(fn (Checkin $record) => $record->video_path ? route('admin.checkin-video', ['checkin' => $record, 'v' => $record->updated_at?->timestamp]) : null, true),
-                Tables\Columns\TextColumn::make('face_video_path')->label('Yuz')->toggleable(isToggledHiddenByDefault: true)
+                Tables\Columns\TextColumn::make('face_video_path')->label('Old kamera videosi')->toggleable(isToggledHiddenByDefault: true)
                     ->formatStateUsing(fn ($state) => $state ? 'Ko‘rish' : '—')
                     ->url(fn (Checkin $record) => $record->face_video_path ? route('admin.checkin-video', ['checkin' => $record, 'face' => 1]) : null, true),
-                Tables\Columns\TextColumn::make('flags')->label('Belgi')->badge()->color('warning')
+                Tables\Columns\TextColumn::make('flags')->label('Ogohlantirish')->badge()->color('warning')
                     ->formatStateUsing(fn ($state) => $state === 'undeliverable' ? 'Xabar yetkazilmadi' : \App\Support\Gps::flagLabel($state))->placeholder('—'),
                 Tables\Columns\TextColumn::make('device')->label('Qurilma')->formatStateUsing(fn ($state) => \App\Support\Device::label($state))->wrap()->toggleable(isToggledHiddenByDefault: true),
             ])

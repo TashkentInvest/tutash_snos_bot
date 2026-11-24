@@ -52,9 +52,10 @@ class GastroTest extends TestCase
         $page()->callTableAction('edit', $rUch, ['staff' => [$other->id]])->assertHasNoTableActionErrors();
         $this->assertSame([$chil->id, $uch->id], GastroResponsible::districtIdsFor($other));
         $this->assertSame([], GastroResponsible::districtIdsFor($late)); // xodim tanlangach jadvaldagi raqam endi ishlamaydi
-        // 1 m² tarifi jadvalning o'zida tahrirlanadi
-        $page()->call('updateTableColumnState', 'tariff', (string) $rChil->id, '37101.44');
+        // 1 m² tarifi — «O‘zgartirish» oynasida (jadvalda tasodifan o'zgarmaydi), o'zgarish jurnalga yoziladi
+        $page()->callTableAction('edit', $rChil, ['staff' => [$sanjar->id, $other->id], 'tariff' => '37101.44'])->assertHasNoTableActionErrors();
         $this->assertSame(37101.44, $rChil->refresh()->tariff);
+        $this->assertTrue(\App\Models\AuditLog::where('event', 'gastro.tariff.updated')->exists());
         // olib tashlandi
         $page()->callTableAction('edit', $rChil, ['staff' => [$other->id]]);
         $this->assertSame([], GastroResponsible::districtIdsFor($sanjar));

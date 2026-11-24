@@ -2,7 +2,7 @@
 <html lang="uz">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Ijara shartnomasi</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
@@ -43,10 +43,11 @@
         .shot.done { border-style: solid; border-color: #2a9d4a; }
         .shot.done img { display: block; }
         .shot.done span { position: absolute; bottom: 4px; left: 4px; background: rgba(0,0,0,.55); color: #fff; padding: 2px 6px; border-radius: 6px; font-size: 12px; }
+            .pin-dot { width: 18px; height: 18px; border-radius: 50%; background: #2563eb; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45); box-sizing: border-box; }
     </style>
 </head>
 <body>
-<h1>📄 Ijara shartnomasi</h1>
+<h1>Ijara shartnomasi</h1>
 <div class="sub">Obyekt oldida to‘ldiring. Tayyor Word fayl botga keladi — chop etib, imzolanadi.</div>
 
 <form id="f" class="hidden" autocomplete="off">
@@ -59,17 +60,17 @@
     <div id="coords" class="hint">Joylashuv aniqlanmoqda…</div>
     <div id="polyInfo" class="hint">Hudud chizilmagan — burchaklarni bosing</div>
     <div class="row">
-        <button type="button" id="undo" class="secondary">↶ Oxirgi nuqta</button>
-        <button type="button" id="clearPoly" class="secondary">🗑 Qaytadan</button>
+        <button type="button" id="undo" class="secondary">Oxirgi nuqtani o‘chirish</button>
+        <button type="button" id="clearPoly" class="secondary">Qaytadan chizish</button>
     </div>
-    <button type="button" id="goLoc" class="secondary">📍 Joylashuvni qayta olish</button>
+    <button type="button" id="goLoc" class="secondary">Joylashuvni qayta olish</button>
     <div class="row">
         <div><label>MFY</label><input id="mfy" list="mfyList" required minlength="3" maxlength="150" placeholder="masalan: Oybek"><datalist id="mfyList"></datalist></div>
         <div><label>Uy <small>(raqami)</small></label><input id="house" maxlength="100" placeholder="21A"></div>
     </div>
     <div class="row">
         <div><label>Kadastr raqami</label><input id="cadastre" required minlength="5" maxlength="60" placeholder="10:11:40:02:01:0612"></div>
-        <div><label>Maydon, m² <small>(qo‘lda kiriting)</small></label><input id="area" type="number" inputmode="decimal" min="0.5" step="0.01" required placeholder="masalan 58.5"></div>
+        <div><label>Maydon, m² <small>(qo‘lda kiriting)</small></label><input id="area" type="number" inputmode="decimal" min="0.5" step="0.01" required placeholder="masalan: 58,5"></div>
     </div>
     <label>Faoliyat turi</label>
     <select id="activity"></select>
@@ -125,7 +126,7 @@
             <label class="shot" data-i="{{ $i }}">
                 <input type="file" accept="image/*" capture="environment">
                 <img alt="">
-                <span>📷 {{ $i + 1 }}-rasm</span>
+                <span>{{ $i + 1 }}-rasm</span>
             </label>
         @endfor
     </div>
@@ -206,8 +207,8 @@ function showPoint() {
     const s = street(), d = s ? Math.round(distToLine(point.lat, point.lng, s.line)) : null;
     const acc = point.acc != null ? ` · aniqlik ±${Math.round(point.acc)} m` : '';
     $('coords').textContent = point.acc != null && point.acc > maxAcc
-        ? `⚠️ GPS aniqligi past (±${Math.round(point.acc)} m). Ochiq joyga chiqib, qayta oling (talab: ±${maxAcc} m).`
-        : (d === null ? '✅ Joylashuv olindi' + acc : (d <= radius ? (radius === Infinity ? `✅ Ko‘chadan ~${d} m (joylashuv cheklovi o‘chirilgan)${acc}` : `✅ Ko‘chadan ~${d} m — mos${acc}`) : `⚠️ Ko‘chadan ~${d} m uzoq (ruxsat: ${radius} m). Obyekt oldiga boring va qayta oling.`));
+        ? `GPS aniqligi past (±${Math.round(point.acc)} m). Ochiq joyga chiqib, qayta oling (talab: ±${maxAcc} m).`
+        : (d === null ? 'Joylashuv olindi' + acc : (d <= radius ? (radius === Infinity ? `Ko‘chadan ~${d} m (joylashuv cheklovi o‘chirilgan)${acc}` : `Ko‘chadan ~${d} m — mos${acc}`) : `Ko‘chadan ~${d} m uzoq (ruxsat: ${radius} m). Obyekt oldiga boring va qayta oling.`));
     $('coords').className = 'hint ' + (placeOk() ? 'ok' : 'err');
 }
 // faqat GPS: xodim obyekt oldida turadi — xaritada qo'lda belgilab bo'lmaydi
@@ -215,7 +216,7 @@ function setPoint(lat, lng, zoom, acc) {
     point = { lat: +lat, lng: +lng, acc: acc == null ? null : +acc };
     if (map) {
         if (!marker) {
-            marker = L.marker([point.lat, point.lng], { icon: L.divIcon({ className: 'pin', html: '📍', iconSize: [30, 30], iconAnchor: [15, 28] }), interactive: false }).addTo(map);
+            marker = L.marker([point.lat, point.lng], { icon: L.divIcon({ className: 'pin', html: '<div class="pin-dot"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: false }).addTo(map);
         } else marker.setLatLng([point.lat, point.lng]);
         zoom && map.setView([point.lat, point.lng], Math.max(map.getZoom(), zoom));
     }
@@ -276,7 +277,7 @@ function drawPoly() {
         $('polyInfo').textContent = poly.length ? `${poly.length} nuqta — yana bosing (kamida 3 ta burchak)` : 'Hudud chizilmagan — burchaklarni bosing';
         $('polyInfo').className = 'hint';
     } else {
-        $('polyInfo').textContent = far > radius ? `⚠️ Hudud ko‘chadan ${far} m gacha uzoq (ruxsat: ${radius} m)` : `✅ Hudud chizildi: ${poly.length} burchak`;
+        $('polyInfo').textContent = far > radius ? `Hudud ko‘chadan ${far} m gacha uzoq (ruxsat: ${radius} m)` : `Hudud chizildi: ${poly.length} burchak`;
         $('polyInfo').className = 'hint ' + (far > radius ? 'err' : 'ok');
     }
 }
@@ -298,7 +299,7 @@ async function shrink(file) {
 }
 function photoInfo(text, cls) {
     const n = shots.filter(Boolean).length;
-    $('photoInfo').textContent = text || (n === 4 ? '✅ 4 ta rasm olindi' : `${n} / 4 rasm olindi`);
+    $('photoInfo').textContent = text || (n === 4 ? '4 ta rasm olindi' : `${n} / 4 rasm olindi`);
     $('photoInfo').className = 'hint ' + (cls || (n === 4 ? 'ok' : ''));
 }
 document.querySelectorAll('.shot').forEach(el => {
@@ -307,7 +308,7 @@ document.querySelectorAll('.shot').forEach(el => {
         const f = input.files[0];
         input.value = '';
         if (!f) return;
-        if (Date.now() - f.lastModified > 15 * 60 * 1000) return photoInfo('⚠️ Rasm joyida, hozir olinishi kerak — galereyadagi eski rasm qabul qilinmaydi.', 'err');
+        if (Date.now() - f.lastModified > 15 * 60 * 1000) return photoInfo('Rasm joyida, hozir olinishi kerak — galereyadagi eski rasm qabul qilinmaydi.', 'err');
         try {
             shots[i] = await shrink(f);
             el.querySelector('img').src = URL.createObjectURL(shots[i]);
@@ -331,7 +332,7 @@ const MONTHS = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avg
 const sum = x => x.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function schedule() {
     const t = district().tariff, s = $('start').value, area = Number(($('area').value || '').replace(',', '.'));
-    if (!t) { $('schedule').textContent = '⚠️ Bu tuman uchun 1 m² tarifi kiritilmagan — administratorga murojaat qiling.'; return; }
+    if (!t) { $('schedule').textContent = 'Bu tuman uchun 1 m² tarifi kiritilmagan — administratorga murojaat qiling.'; return; }
     if (!s || !(area > 0)) { $('schedule').textContent = `Tarif: 1 m² — ${sum(t)} so‘m/oy. Maydonni kiriting.`; return; }
     // birinchi oy — boshlanish kunidan oy oxirigacha (shu kun ham kiradi), keyingilari to'liq (serverdagi LeaseContract::amounts kabi)
     const d = new Date(s), m = d.getMonth(), n = 12 - m, monthly = Math.round(area * t * 100) / 100;
@@ -372,7 +373,7 @@ $('f').onsubmit = async ev => {
         }, shots);
         if (ok) {
             $('f').classList.add('hidden');
-            say(j.sent ? '✅ Shartnoma tayyor — Word fayl botga yuborildi.' : '✅ Shartnoma saqlandi, lekin botga yuborib bo‘lmadi — administratorga murojaat qiling.', j.sent ? 'ok' : 'err');
+            say(j.sent ? 'Shartnoma tayyor — Word fayl botga yuborildi.' : 'Shartnoma saqlandi, lekin botga yuborib bo‘lmadi — administratorga murojaat qiling.', j.sent ? 'ok' : 'err');
             j.sent && setTimeout(() => tg && tg.close(), 1800);
             return;
         }
@@ -391,24 +392,24 @@ $('f').onsubmit = async ev => {
         if (!districts.length) return say('Sizga ijara shartnomasi uchun tuman biriktirilmagan.', 'err');
         // tuman va ko'cha botdagi tugmalar bilan tanlanadi (…/tg/lease-form?street=ID)
         const d0 = districts.find(d => d.streets.some(s => String(s.id) === streetParam));
-        if (!d0) return say('Botda «📄 Ijara shartnomasi tuzish» → tuman → ko‘chani tanlab, so‘ng «Shartnoma to‘ldirish» tugmasini bosing.', 'err');
+        if (!d0) return say('Botda «Ijara shartnomasi tuzish» → tuman → ko‘chani tanlab, so‘ng «Shartnoma to‘ldirish» tugmasini bosing.', 'err');
         $('district').innerHTML = districts.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
         $('district').value = String(d0.id);
         $('activity').innerHTML = j.activities.map(a => `<option>${esc(a)}</option>`).join('') + '<option value="other">Boshqa — o‘zim yozaman</option>';
-        const today = new Date().toISOString().slice(0, 10); $('start').value = today; $('start').onchange();
+        const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10); $('start').value = today; $('start').onchange();
         say(''); $('f').classList.remove('hidden');
         if (window.L) {
-            map = L.map('map', { doubleClickZoom: false }).setView([41.31, 69.27], 12);
+            map = L.map('map', { doubleClickZoom: false }).setView([41.31, 69.27], 12); map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank">Leaflet</a>');
             // hududni aniq chizish uchun sun'iy yo'ldosh rasmi (tomlar, ayvonlar ko'rinadi); oddiy xarita ham bor
             const esri = n => L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/${n}/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19, attribution: '© Esri' });
             const sat = L.layerGroup([esri('World_Imagery'), esri('Reference/World_Transportation')]).addTo(map);
-            L.control.layers({ 'Sun’iy yo’ldosh': sat, 'Xarita': esri('World_Street_Map') }, null, { position: 'topright' }).addTo(map);
+            L.control.layers({ 'Sun’iy yo‘ldosh': sat, 'Xarita': esri('World_Street_Map') }, null, { position: 'topright' }).addTo(map);
             map.on('click', e => { poly.push([+e.latlng.lat.toFixed(7), +e.latlng.lng.toFixed(7)]); drawPoly(); });
             const fit = () => map.invalidateSize(); setTimeout(fit, 300); window.addEventListener('resize', fit); tg && tg.onEvent && tg.onEvent('viewportChanged', fit);
-        } else $('coords').textContent = 'Xarita yuklanmadi — «Turgan joyimni olish» tugmasini bosing.';
+        } else $('coords').textContent = 'Xarita yuklanmadi — «Joylashuvni qayta olish» tugmasini bosing.';
         fillDistrict();
         $('street').value = streetParam; drawDistrict();
-        $('place').textContent = '📍 ' + d0.name + ' · ' + street().name;
+        $('place').textContent = d0.name + ' · ' + street().name;
         locate(); // obyekt oldida — darhol GPS
     } catch (e) { say('Aloqa xatosi. Qayta oching.', 'err'); }
 })();

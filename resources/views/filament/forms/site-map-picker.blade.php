@@ -43,6 +43,7 @@
             const point = this.current();
             // Toshkent markazi — koordinata hali kiritilmagan bo'lsa
             this.map = L.map(this.$refs.map).setView(point ?? [41.3111, 69.2797], point ? 17 : 12);
+            this.map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank">Leaflet</a>');
             // Asosiy qatlam — 2GIS (Toshkent bo'yicha batafsil, kalit talab qilmaydi). tile.openstreetmap.org bizning sahifalardan
             // (Referrer-Policy: same-origin) 'Access blocked' qaytargani uchun asosiy qilinmadi; unga sayt domeni yuboriladi.
             const layers = {
@@ -57,7 +58,7 @@
                 }),
             };
             layers['Xarita (2GIS)'].addTo(this.map);
-            const gastro = L.layerGroup((@js(\App\Models\GastroStreet::mapLines())).map(s => L.polyline(s.l, { color: '#f59e0b', weight: 5, opacity: .85 }).bindTooltip('🍽 ' + s.n, { sticky: true }))).addTo(this.map);
+            const gastro = L.layerGroup((@js(\App\Models\GastroStreet::mapLines())).map(s => L.polyline(s.l, { color: '#dc2626', weight: 4, opacity: .85 }).bindTooltip(s.n, { sticky: true }))).addTo(this.map);
             L.control.layers(layers, { 'Gastronomik ko‘chalar': gastro }, { collapsed: false }).addTo(this.map);
             if (point) this.place(point);
 

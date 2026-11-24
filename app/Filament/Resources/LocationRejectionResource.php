@@ -68,7 +68,7 @@ class LocationRejectionResource extends Resource
                     ->color(fn ($state) => $state === LocationRejection::LOW_ACCURACY ? 'warning' : 'danger'),
                 Tables\Columns\TextColumn::make('distance_m')->label('Masofa')->sortable()->placeholder('—')
                     ->formatStateUsing(fn ($state) => self::meters($state))
-                    ->color(fn ($state) => $state > \App\Support\Limits::inspectionRadius() ? 'danger' : null),
+                    ->color(fn ($state, LocationRejection $record) => $record->source === 'inspection' && $state > \App\Support\Limits::inspectionRadius() ? 'danger' : null),
                 Tables\Columns\TextColumn::make('accuracy')->label('GPS aniqligi')->placeholder('—')
                     ->formatStateUsing(fn ($state) => '±'.self::meters($state))->toggleable(),
             ])
@@ -105,7 +105,7 @@ class LocationRejectionResource extends Resource
                     ->color(fn ($state) => $state === LocationRejection::LOW_ACCURACY ? 'warning' : 'danger'),
                 Infolists\Components\TextEntry::make('note')->label('Izoh')->columnSpanFull()->color('danger')->hidden(fn ($state) => blank($state)),
                 Infolists\Components\TextEntry::make('distance_m')->label(fn (LocationRejection $r) => $r->source === 'inspection' ? 'Obyektgacha' : 'Eng yaqin obyektgacha')
-                    ->formatStateUsing(fn ($state) => self::meters($state).' (ruxsat: '.\App\Support\Limits::inspectionRadius().' m)')->placeholder('—'),
+                    ->formatStateUsing(fn ($state, LocationRejection $r) => self::meters($state).($r->source === 'inspection' ? ' (ruxsat: '.\App\Support\Limits::inspectionRadius().' m)' : ''))->placeholder('—'),
                 Infolists\Components\TextEntry::make('site.address')->label(fn (LocationRejection $r) => $r->source === 'inspection' ? 'Obyekt' : 'Eng yaqin obyekt (o‘z tumanida)')->columnSpan(2)
                     ->formatStateUsing(fn ($state, LocationRejection $r) => collect([$r->site?->district?->name, $r->site?->mahalla?->name, $state])->filter()->join(' · '))
                     ->url(fn (LocationRejection $r) => $r->site_id ? SiteResource::getUrl('view', ['record' => $r->site_id]) : null),

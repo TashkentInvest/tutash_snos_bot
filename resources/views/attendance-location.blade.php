@@ -4,15 +4,15 @@
     // Bir oyna ikki joyda: ertalabki davomat (standart) va shartnoma xodimlarining soatlik qaydi (CheckinController)
     $title ??= 'Davomat';
     $endpoints ??= ['state' => '/tg/attendance-state', 'location' => '/tg/attendance-location', 'video' => '/tg/attendance-video'];
-    $doneText ??= '✅ Davomatingiz qayd etildi. Oynani yopishingiz mumkin.';
-    $alreadyText ??= '✅ Davomatingiz allaqachon qayd etilgan.';
+    $doneText ??= 'Davomatingiz qayd etildi. Oynani yopishingiz mumkin.';
+    $alreadyText ??= 'Davomatingiz allaqachon qayd etilgan.';
     $noneText ??= 'Hozir davomat so‘rovi yo‘q yoki muddat tugagan. Botga qaytib, «Ha, ishni boshladim» tugmasini bosing.';
     $commentHint ??= 'Qayerdasiz va nima qilyapsiz? Masalan: «Ofisdaman, yig‘ilishdaman» yoki «Obyektda, buzish ishlarini kuzatyapman».';
     $minComment = \App\Http\Controllers\AttendanceLocationController::MIN_COMMENT;
 @endphp
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title }}</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
@@ -36,14 +36,14 @@
 </head>
 <body>
 <div id="stepLocation" class="hidden">
-    <h1>📍 1/3. Joylashuvni aniqlash</h1>
+    <h1>1-qadam: Joylashuv</h1>
     <p>Pastdagi tugmani bosing. Telefoningiz GPS’idan joriy joylashuvingiz olinadi va qayd etiladi.</p>
     <button id="goLoc">Joylashuvni yuborish</button>
-    <button id="goLocSettings" class="secondary hidden">⚙️ Ruxsatni yoqish</button>
+    <button id="goLocSettings" class="secondary hidden">Ruxsatni yoqish</button>
 </div>
 
 <div id="stepVideo" class="hidden">
-    <h1>🎥 2/3. Video yozish</h1>
+    <h1>2-qadam: Video</h1>
     <p>Hududdagi holatingizni ko‘rsating. Video <b>faqat shu oynada, jonli</b> yoziladi ({{ $minSeconds }}–15 soniya).</p>
     <div id="circle"><video id="preview" autoplay playsinline muted></video></div>
     <div id="timer">0.0 s</div>
@@ -52,7 +52,7 @@
 </div>
 
 <div id="stepComment" class="hidden">
-    <h1>💬 3/3. Izoh</h1>
+    <h1>3-qadam: Izoh</h1>
     <p>{{ $commentHint }}</p>
     <textarea id="comment" maxlength="500" placeholder="Izohingizni yozing…"></textarea>
     <div id="commentCount"></div>

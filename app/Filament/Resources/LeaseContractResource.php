@@ -217,7 +217,7 @@ class LeaseContractResource extends Resource
                 $e('tariff', 'Tarif (1 m² / oy)')->formatStateUsing(fn ($state, LeaseContract $record) => LeaseContractDocument::money((float) $state).' so‘m · oyiga '
                     .LeaseContractDocument::money(round($record->area_m2 * (float) $state, 2)).' so‘m'),
                 $e('start_date', 'Muddat')->formatStateUsing(fn (LeaseContract $record) => $record->start_date->format('d.m.Y').' – '.$record->end_date->format('d.m.Y')),
-                $e('street_distance_m', 'Xodim ko‘chadan')->formatStateUsing(fn ($state, LeaseContract $record) => $state.' m · GPS ±'.round((float) $record->gps_accuracy).' m'),
+                $e('street_distance_m', 'Xodim ko‘chadan')->formatStateUsing(fn ($state, LeaseContract $record) => $state.' m'.($record->gps_accuracy ? ' · GPS ±'.round((float) $record->gps_accuracy).' m' : '')),
                 $e('created_at', 'Tayyorlangan')->dateTime('d.m.Y H:i'),
             ]),
             Infolists\Components\Section::make('Tutash hudud va joyida olingan rasmlar')->schema([

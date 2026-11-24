@@ -47,7 +47,7 @@ class StaffInviteResource extends Resource
             ->modifyQueryUsing(fn ($query) => $query->with('staff'))
             ->columns([
                 Tables\Columns\TextColumn::make('full_name')->label('F.I.SH')->searchable(),
-                Tables\Columns\TextColumn::make('phone')->label('Telefon')->searchable(),
+                Tables\Columns\TextColumn::make('phone')->label('Telefon')->formatStateUsing(fn ($state) => \App\Support\Phone::format($state))->searchable(),
                 Tables\Columns\TextColumn::make('role')->label('Rol')->badge()
                     ->formatStateUsing(fn ($state, StaffInvite $record) => (StaffResource::ROLES[$state] ?? $state).($record->hourly_checkin ? ' + soatlik qayd' : ''))
                     ->color(fn ($state) => match ($state) { \App\Models\Staff::ROLE_CONTRACT => 'warning', \App\Models\Staff::ROLE_CADASTRE => 'info', default => 'primary' }),

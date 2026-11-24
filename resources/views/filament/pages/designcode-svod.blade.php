@@ -23,13 +23,13 @@
             .'<td style="'.$td.'font-weight:600;">'.$p($s['pct']).'</td>';
     };
     $head = function () use ($th, $sep, $buffer) {
-        return '<th style="'.$th.$sep.'">Obyektlar</th><th style="'.$th.'">Keltirildi</th><th style="'.$th.'">Bajarilish</th>'
+        return '<th style="'.$th.$sep.'">Obyektlar</th><th style="'.$th.'">Talabga keltirildi</th><th style="'.$th.'">Bajarilish</th>'
             .'<th style="'.$th.$sep.'">Jami</th><th style="'.$th.'">Buzilmagan</th><th style="'.$th.'">Jarayonda</th>'
             .'<th style="'.$th.'">Buzilgan</th><th style="'.$th.'">Qolgan</th><th style="'.$th.'">Bajarilish</th>';
     };
     $groups = '<th></th><th></th><th></th><th></th>'
         .'<th colspan="3" style="'.$th.$sep.'text-align:center;color:#0891b2;">Dizayn-kod</th>'
-        .'<th colspan="6" style="'.$th.$sep.'text-align:center;color:#e11d48;">Noqonuniy obyektlar (SNOS) — ko‘chadan '.$buffer.' m ichida</th>';
+        .'<th colspan="6" style="'.$th.$sep.'text-align:center;color:#e11d48;">Noqonuniy obyektlar — ko‘chadan '.$buffer.' m ichida</th>';
 @endphp
 <x-filament-panels::page>
     <style>
@@ -44,7 +44,7 @@
 
     @unless ($d['configured'])
         <x-filament::section>
-            <div style="color:#d97706;">Dizayn-kod API sozlanmagan: serverdagi <code>.env</code> ga <code>DIZAYN_KOD_TOKEN</code> qo‘yilishi kerak.</div>
+            <div style="color:#d97706;">Dizayn-kod tizimi bilan ulanish hozircha sozlanmagan.</div>
         </x-filament::section>
     @endunless
 
@@ -54,7 +54,7 @@
             @foreach ($buffers as $b)
                 <x-filament::button size="sm" :color="$b === $buffer ? 'primary' : 'gray'" wire:click="$set('buffer', {{ $b }})">{{ $b }} m</x-filament::button>
             @endforeach
-            <span style="font-size:12px;opacity:.65;">Obyekt KMZ chizig‘idan shu masofa ichida bo‘lsa — shu ko‘chaga hisoblanadi. Chorrahadagi obyekt tuman va shahar jamida bir marta sanaladi; sud / buzilmaydiganlar jamiga kirmaydi.</span>
+            <span style="font-size:12px;opacity:.65;">Obyekt ko‘cha chizig‘idan shu masofa ichida bo‘lsa — shu ko‘chaga hisoblanadi. Chorrahadagi obyekt tuman va shahar jamida bir marta sanaladi; sud / buzilmaydiganlar jamiga kirmaydi.</span>
             <x-filament::button tag="a" size="sm" color="gray" icon="heroicon-o-globe-asia-australia" :href="\App\Filament\Pages\OverviewMap::getUrl()" style="margin-left:auto;">Xaritada</x-filament::button>
         </div>
     </x-filament::section>
@@ -104,8 +104,7 @@
                         <tr>
                             <th style="{{ $th }}text-align:left;">№</th>
                             <th style="{{ $th }}text-align:left;">Ko‘cha</th>
-                            <th style="{{ $th }}">Shakl</th>
-                            <th style="{{ $th }}">km</th>
+                                                        <th style="{{ $th }}">km</th>
                             {!! $head() !!}
                         </tr>
                     </thead>
@@ -113,16 +112,14 @@
                         <tr class="dk-total">
                             <td style="{{ $td }}"></td>
                             <td style="{{ $td }}text-align:left;">Tuman jami</td>
-                            <td style="{{ $td }}"></td>
                             <td style="{{ $td }}">{{ $km($sel['km']) }}</td>
                             {!! $cells($sel) !!}
                         </tr>
                         @foreach ($d['streets'] as $i => $s)
                             <tr wire:key="s-{{ $s['id'] }}" @class(['dk-sel' => $street === (int) $s['id']])>
                                 <td style="{{ $td }}text-align:left;opacity:.6;">{{ $i + 1 }}</td>
-                                <td style="{{ $td }}text-align:left;color:#d97706;white-space:normal;min-width:180px;">{{ $s['name'] }}</td>
-                                <td style="{{ $td }}font-size:12px;opacity:.7;">{{ $s['shape'] ? 'KMZ' : 'boshi→oxiri' }}</td>
-                                <td style="{{ $td }}">{{ ($s['length_km'] ?? $s['drawn_km']) !== null ? $km($s['length_km'] ?? $s['drawn_km']) : '—' }}</td>
+                                <td style="{{ $td }}text-align:left;white-space:normal;min-width:180px;">{{ $s['name'] }}@unless ($s['shape'])<div style="font-size:11px;opacity:.6;">chizmasi taxminiy (boshi va oxiri)</div>@endunless</td>
+                                                                <td style="{{ $td }}">{{ ($s['length_km'] ?? $s['drawn_km']) !== null ? $km($s['length_km'] ?? $s['drawn_km']) : '—' }}</td>
                                 {!! $cells($s) !!}
                             </tr>
                         @endforeach

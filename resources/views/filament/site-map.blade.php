@@ -15,11 +15,11 @@
 @endphp
 <style>.leaflet-container .leaflet-interactive:focus,.leaflet-container path:focus{outline:none}</style>
 @if (! $data['site'])
-    <div style="font-size:14px;color:#dc2626;">Obyektga koordinata kiritilmagan — «Tahrirlash» orqali kenglik va uzunlikni kiriting.</div>
+    <div style="font-size:14px;color:#dc2626;">Obyektga koordinata kiritilmagan.@if (\App\Filament\Resources\SiteResource::canEdit($site)) «Tahrirlash» orqali xaritada joyini belgilang.@endif</div>
 @else
     <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:13px;margin-bottom:8px;">
-        <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#2563eb;vertical-align:middle;"></span> Obyekt ({{ round($site->lat, 6) }}, {{ round($site->lng, 6) }}) — doira: tekshiruv ruxsat etilgan {{ $radius }} m</span>
-        @if ($data['boundary'])<span style="opacity:.8;">┅ {{ $data['district'] }} chegarasi</span>@endif
+        <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#2563eb;vertical-align:middle;"></span> Obyekt — doira: tekshiruv uchun ruxsat etilgan hudud ({{ $radius }} m)</span>
+        @if ($data['boundary'])<span><span style="display:inline-block;width:22px;border-top:2px dashed #475569;vertical-align:middle;"></span> {{ $data['district'] }} chegarasi</span>@endif
         @if ($visits->isNotEmpty())<span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#16a34a;vertical-align:middle;"></span> Tekshiruvlar ({{ $visits->count() }})</span>@endif
         @if ($rejected->isNotEmpty())<span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#dc2626;vertical-align:middle;"></span> Rad etilgan urinishlar ({{ $rejected->count() }})</span>@endif
     </div>

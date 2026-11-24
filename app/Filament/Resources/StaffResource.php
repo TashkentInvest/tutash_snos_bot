@@ -36,7 +36,7 @@ class StaffResource extends Resource
 
     private const STATUSES = [
         Staff::ACTIVE => 'Faol',
-        Staff::REGISTERING => 'Ro\'yxatdan o\'tmoqda',
+        Staff::REGISTERING => 'Ro‘yxatdan o‘tmoqda',
         Staff::AWAITING_PHONE => 'Telefon kutilmoqda',
         Staff::REJECTED => 'Rad etilgan',
         Staff::BLOCKED => 'Bloklangan',
@@ -115,7 +115,7 @@ class StaffResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('full_name')->label('F.I.SH')->searchable(),
-                Tables\Columns\TextColumn::make('phone')->label('Telefon')->searchable(),
+                Tables\Columns\TextColumn::make('phone')->label('Telefon')->formatStateUsing(fn ($state) => \App\Support\Phone::format($state))->searchable(),
                 Tables\Columns\TextColumn::make('role')->label('Rol')->badge()->formatStateUsing(fn ($state) => self::ROLES[$state] ?? '—')
                     ->color(fn ($state) => match ($state) { Staff::ROLE_CONTRACT => 'warning', Staff::ROLE_CADASTRE => 'info', Staff::ROLE_CITIZEN => 'gray', default => 'primary' }),
                 // barcha tumanlarni ko'radigan adminda 12 ta nishon o'rniga bitta yozuv; boshqalarda 3 tadan keyin "yana N ta"
@@ -200,7 +200,13 @@ class StaffResource extends Resource
                     }),
                 Tables\Actions\Action::make('block')->label('Bloklash')->color('danger')->icon('heroicon-o-no-symbol')
                     ->requiresConfirmation()->visible(fn (Staff $record) => $record->status !== Staff::BLOCKED && ! $record->trashed())
-                    ->action(fn (Staff $record) => $record->update(['status' => Staff::BLOCKED])),
+                    ->modalHeading(fn (Staff $record) => ($record->full_name ?: $record->phone).' bloklansinmi?')
+                    ->modalDescription('Bloklangan foydalanuvchi botdan foydalana olmaydi. Keyin «Tahrirlash» orqali holatini «Faol» qilib tiklash mumkin.')
+                    ->modalSubmitActionLabel('Ha, bloklash')
+                    ->action(function (Staff $record) {
+                        $record->update(['status' => Staff::BLOCKED]);
+                        Notification::make()->title('Bloklandi')->success()->send();
+                    }),
                 Tables\Actions\DeleteAction::make()->label('O‘chirish')
                     ->modalDescription('Xodim ro‘yxatdan olib tashlanadi va botdan foydalana olmaydi. Natijalari, davomati va videolari arxivda saqlanadi — «O‘chirilganlar» filtri orqali topiladi va tiklanadi. Botga qayta kirsa, yangidan ro‘yxatdan o‘tadi.')
                     ->successNotificationTitle('Xodim o‘chirildi (arxivga o‘tkazildi)')

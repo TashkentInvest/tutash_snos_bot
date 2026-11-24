@@ -2,7 +2,7 @@
 <html lang="uz">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Obyekt qo‘shish</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
@@ -47,10 +47,11 @@
             border: 1px solid var(--tg-theme-hint-color, #ccc); background: var(--tg-theme-secondary-bg-color, #f5f5f5); }
         .seg input { display: none; }
         .seg label.on { background: var(--tg-theme-button-color, #2481cc); color: var(--tg-theme-button-text-color, #fff); border-color: transparent; }
+            .pin-dot { width: 18px; height: 18px; border-radius: 50%; background: #2563eb; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45); box-sizing: border-box; }
     </style>
 </head>
 <body>
-<h1 id="title">➕ Yangi obyekt</h1>
+<h1 id="title">Yangi obyekt</h1>
 <div class="sub">Buzilishi kerak bo‘lgan joy. Admin tasdiqlagach ro‘yxatga qo‘shiladi.</div>
 <div id="note" class="note hidden"></div>
 
@@ -72,7 +73,7 @@
     <label>Joylashuv <small>(xaritada obyekt joyini bosing, belgini surib aniqlashtiring)</small></label>
     <div id="map"></div>
     <div id="coords" class="hint">Joy tanlanmagan</div>
-    <button type="button" id="goLoc" class="secondary">📍 Turgan joyimni olish</button>
+    <button type="button" id="goLoc" class="secondary">Turgan joyimni olish</button>
 
     <label>Buzilish holati</label>
     <div class="seg">
@@ -132,13 +133,13 @@ function Combo(id, word) {
     const exact = () => items.find(i => norm(i.name) === norm(inp.value));
     const showHint = () => {
         const isNew = !picked && !exact() && norm(inp.value).length >= 3;
-        hint.textContent = isNew ? `➕ «${inp.value.trim()}» — yangi ${word} sifatida qo‘shiladi` : '';
+        hint.textContent = isNew ? `«${inp.value.trim()}» — yangi ${word} sifatida qo‘shiladi` : '';
         hint.classList.toggle('hidden', !isNew);
     };
     const render = () => {
         const s = norm(inp.value), list = items.filter(i => !s || norm(i.name).includes(s)).slice(0, 40);
         let html = list.map(i => `<div data-id="${i.id}">${esc(i.name)}</div>`).join('');
-        if (s.length >= 3 && !exact()) html += `<div class="add" data-new="1">➕ «${esc(inp.value.trim())}» — yangi ${word} qo‘shish</div>`;
+        if (s.length >= 3 && !exact()) html += `<div class="add" data-new="1">+ «${esc(inp.value.trim())}» — yangi ${word} qo‘shish</div>`;
         box.innerHTML = html || `<div class="empty">${items.length ? 'Topilmadi' : 'Ro‘yxat bo‘sh'} — nomini yozing (kamida 3 harf)</div>`;
         box.classList.remove('hidden');
     };
@@ -179,7 +180,7 @@ $('district').onchange = () => {
 
 // ---- xarita: bosilgan joy — obyekt; belgini surib aniqlashtiriladi
 let map = null, marker = null, point = null;
-const pin = () => L.divIcon({ className: 'pin', html: '📍', iconSize: [30, 30], iconAnchor: [15, 28] });
+const pin = () => L.divIcon({ className: 'pin', html: '<div class="pin-dot"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
 function setPoint(lat, lng, zoom) {
     point = { lat: +lat, lng: +lng };
     if (!marker) {
@@ -187,12 +188,12 @@ function setPoint(lat, lng, zoom) {
         marker.on('dragend', () => { const p = marker.getLatLng(); setPoint(p.lat, p.lng); });
     } else marker.setLatLng([point.lat, point.lng]);
     zoom && map.setView([point.lat, point.lng], Math.max(map.getZoom(), zoom));
-    $('coords').textContent = `✅ Tanlandi: ${point.lat.toFixed(6)}, ${point.lng.toFixed(6)}`;
+    $('coords').textContent = 'Joy belgilandi. Kerak bo‘lsa belgini surib aniqlashtiring.';
     $('coords').className = 'hint ok';
 }
 function initMap(center) {
     if (!window.L) { $('coords').textContent = 'Xarita yuklanmadi — «Turgan joyimni olish» tugmasini bosing.'; return; }
-    map = L.map('map').setView(center || [41.3111, 69.2797], center ? 14 : 11);
+    map = L.map('map').setView(center || [41.3111, 69.2797], center ? 14 : 11); map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank">Leaflet</a>');
     // tile.openstreetmap.org va CARTO Telegram oynasini bloklaydi (Referer yo'q) — Esri kalitsiz ishlaydi;
     // sun'iy yo'ldosh — obyektni tomidan topish uchun (nomlar ustida)
     const esri = name => L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/${name}/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19, attribution: '© Esri' });
@@ -200,8 +201,8 @@ function initMap(center) {
     const sat = L.layerGroup([esri('World_Imagery'), esri('Reference/World_Boundaries_and_Places'), esri('Reference/World_Transportation')]);
     streets.addTo(map);
     // gastronomik ko'chalar (KMZ) — bosilsa ham nuqta tanlanadi (hodisa xaritaga o'tadi)
-    const g = L.layerGroup(gastro.map(s => L.polyline(s.l, { color: '#f59e0b', weight: 5, opacity: .85 }).bindTooltip('🍽 ' + s.n, { sticky: true }))).addTo(map);
-    L.control.layers({ 'Xarita': streets, 'Sun’iy yo’ldosh': sat }, gastro.length ? { 'Gastronomik ko‘chalar': g } : null, { position: 'topright' }).addTo(map);
+    const g = L.layerGroup(gastro.map(s => L.polyline(s.l, { color: '#dc2626', weight: 4, opacity: .85 }).bindTooltip(s.n, { sticky: true }))).addTo(map);
+    L.control.layers({ 'Xarita': streets, 'Sun’iy yo‘ldosh': sat }, gastro.length ? { 'Gastronomik ko‘chalar': g } : null, { position: 'topright' }).addTo(map);
     map.on('click', e => setPoint(e.latlng.lat, e.latlng.lng));
     // Telegram oynani kengaytirganda / telefon burilganda xarita o'lchami yangilansin (aks holda kulrang bo'shliq qoladi)
     const fit = () => map.invalidateSize();
@@ -212,8 +213,8 @@ $('goLoc').onclick = async () => {
     $('goLoc').disabled = true; say('Joylashuv aniqlanmoqda…');
     try {
         const p = await TgLoc.get();
-        map ? setPoint(p.lat, p.lng, 17) : (point = { lat: p.lat, lng: p.lng }, $('coords').textContent = `✅ ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`);
-        say('📍 Joylashuv olindi' + (p.accuracy ? ` (aniqlik ~${Math.round(p.accuracy)} m). Kerak bo‘lsa belgini surib aniqlashtiring.` : ''), 'ok');
+        map ? setPoint(p.lat, p.lng, 17) : (point = { lat: p.lat, lng: p.lng }, $('coords').textContent = 'Joy belgilandi.');
+        say('Joylashuv olindi' + (p.accuracy ? ` (aniqlik ~${Math.round(p.accuracy)} m). Kerak bo‘lsa belgini surib aniqlashtiring.` : ''), 'ok');
     } catch (e) { say(e.message || 'Joylashuv aniqlanmadi.', 'err'); }
     $('goLoc').disabled = false;
 };
@@ -237,7 +238,7 @@ $('f').onsubmit = async ev => {
             org_inn: $('inn').value.trim() || null, court_number: $('courtNo').value.trim() || null,
             court_date: $('courtDate').value || null, court_status: $('courtStatus').value.trim() || null,
         });
-        if (ok) { $('f').classList.add('hidden'); say('✅ Yuborildi. Admin tasdiqlagach ro‘yxatga qo‘shiladi.', 'ok'); setTimeout(() => tg && tg.close(), 1500); return; }
+        if (ok) { $('f').classList.add('hidden'); say('Yuborildi. Moderator tasdiqlagach ro‘yxatga qo‘shiladi.', 'ok'); setTimeout(() => tg && tg.close(), 2500); return; }
         say(j.message || 'Yuborilmadi. Qayta urinib ko‘ring.', 'err');
     } catch (e) { say('Aloqa xatosi. Qayta urinib ko‘ring.', 'err'); }
     busy = false; $('goSave').disabled = false;
@@ -259,8 +260,8 @@ $('f').onsubmit = async ev => {
         gastro = j.gastro || [];
         initMap(s && s.lat ? [s.lat, s.lng] : d.center); // forma ko'ringandan keyin — xarita o'lchami to'g'ri chiqadi
         if (s) {
-            $('title').textContent = '✏️ Obyektni tahrirlash';
-            if (s.approval === 'rejected') { $('note').textContent = '❌ Rad etilgan' + (s.approval_note ? ': ' + s.approval_note : '') + '. Tuzatib, qayta yuboring.'; $('note').classList.remove('hidden'); }
+            $('title').textContent = 'Obyektni tahrirlash';
+            if (s.approval === 'rejected') { $('note').textContent = 'Rad etilgan' + (s.approval_note ? ': ' + s.approval_note : '') + '. Tuzatib, qayta yuboring.'; $('note').classList.remove('hidden'); }
             const set = (id, v) => { $(id).value = v == null ? '' : v; };
             mahalla.set(s.mahalla_id, (d.mahallas.find(x => x.id === s.mahalla_id) || {}).name);
             street.set(s.street_id, s.street);

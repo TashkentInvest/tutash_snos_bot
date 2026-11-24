@@ -89,7 +89,7 @@ class ReportSettings extends Page implements HasForms
                 ]),
                 Forms\Components\Placeholder::make("{$key}_preview")->hiddenLabel()
                     ->content(fn () => isset($preview[$key]) ? new \Illuminate\Support\HtmlString(
-                        '<a href="'.e($preview[$key]()).'" target="_blank" style="color:rgb(37,99,235);">🖼 Namuna rasmni ochish (bugungi ma’lumot bilan)</a>') : null)
+                        '<a href="'.e($preview[$key]()).'" target="_blank" class="text-primary-600 dark:text-primary-400" style="text-decoration:underline;">Namuna rasmni ochish (bugungi ma’lumot bilan)</a>') : null)
                     ->visible(isset($preview[$key])),
             ]))->values()->all()]);
     }
@@ -103,7 +103,7 @@ class ReportSettings extends Page implements HasForms
             ->numeric()->integer()->minValue(10)->maxValue($max)->suffix('m')->required()->helperText($help);
         $on = fn (string $k) => fn (Forms\Get $get) => (bool) $get("limits.{$k}");
 
-        return Forms\Components\Section::make('📍 Joylashuv cheklovlari')
+        return Forms\Components\Section::make('Joylashuv cheklovlari')->icon('heroicon-o-map-pin')
             ->description('Xodim qayerdan yubora olishi. Cheklov o‘chirilsa — xodim uzoqdan (masalan ofisdan, onlayn) ham yuboradi; masofa va GPS aniqligi tekshirilmaydi, koordinatasi esa saqlanadi va xaritada ko‘rinadi.')
             ->compact()->collapsible()->columns(3)
             ->schema([

@@ -49,9 +49,9 @@
                                         <span style="color:rgb(22,163,74);font-weight:600;" title="{{ $a->comment }}">{{ $a->responded_at?->format('H:i') }}</span>
                                         @if ($a->comment)<div style="font-size:.75rem;opacity:.75;max-width:12rem;margin:auto;" title="{{ $a->comment }}">{{ \Illuminate\Support\Str::limit($a->comment, 40) }}</div>@endif
                                         <div style="white-space:nowrap;">
-                                            @if ($a->lat)<a href="{{ \App\Support\Maps::url($a->lat, $a->lng) }}" target="_blank" style="color:rgb(37,99,235);">xarita</a>@endif
-                                            @if ($a->video_path) · <a href="{{ route('admin.attendance-video', ['attendance' => $a, 'v' => $a->updated_at?->timestamp]) }}" target="_blank" style="color:rgb(37,99,235);">video</a>@endif
-                                            @if ($a->face_video_path) · <a href="{{ route('admin.attendance-video', ['attendance' => $a, 'face' => 1]) }}" target="_blank" style="color:rgb(37,99,235);">yuz</a>@endif
+                                            @if ($a->lat)<a href="{{ \App\Support\Maps::url($a->lat, $a->lng) }}" target="_blank" class="text-primary-600 dark:text-primary-400">xarita</a>@endif
+                                            @if ($a->video_path) · <a href="{{ route('admin.attendance-video', ['attendance' => $a, 'v' => $a->updated_at?->timestamp]) }}" target="_blank" class="text-primary-600 dark:text-primary-400">video</a>@endif
+                                            @if ($a->face_video_path) · <a href="{{ route('admin.attendance-video', ['attendance' => $a, 'face' => 1]) }}" target="_blank" class="text-primary-600 dark:text-primary-400">old kamera</a>@endif
                                         </div>
                                     @elseif ($a->status === \App\Models\Attendance::ABSENT)
                                         <span style="color:rgb(217,119,6);" title="{{ $a->reason }}">Sabab bilan yo‘q</span>
@@ -65,19 +65,19 @@
                                     @php($c = $row['cells'][$slot] ?? null)
                                     <td style="{{ $cell }}">
                                         @if (! $c)
-                                            <span style="opacity:.35;">·</span>
+                                            <span style="opacity:.35;">—</span>
                                         @elseif ($c->status === \App\Models\Checkin::PRESENT)
                                             <span style="color:rgb(22,163,74);font-weight:600;" title="{{ $c->comment }}">{{ $c->responded_at?->format('H:i') }}</span>
                                             @if ($c->comment)<div style="font-size:.75rem;opacity:.75;max-width:9rem;margin:auto;" title="{{ $c->comment }}">{{ \Illuminate\Support\Str::limit($c->comment, 30) }}</div>@endif
                                             <div style="white-space:nowrap;">
-                                                @if ($c->lat)<a href="{{ \App\Support\Maps::url($c->lat, $c->lng) }}" target="_blank" style="color:rgb(37,99,235);">xarita</a>@endif
-                                                @if ($c->video_path) · <a href="{{ route('admin.checkin-video', ['checkin' => $c, 'v' => $c->updated_at?->timestamp]) }}" target="_blank" style="color:rgb(37,99,235);">video</a>@endif
+                                                @if ($c->lat)<a href="{{ \App\Support\Maps::url($c->lat, $c->lng) }}" target="_blank" class="text-primary-600 dark:text-primary-400">xarita</a>@endif
+                                                @if ($c->video_path) · <a href="{{ route('admin.checkin-video', ['checkin' => $c, 'v' => $c->updated_at?->timestamp]) }}" target="_blank" class="text-primary-600 dark:text-primary-400">video</a>@endif
                                                 {{-- birlashtirilmagan bo'lsa (hali navbatda yoki xato) — old kamera lavhasi alohida --}}
-                                                @if ($c->face_video_path) · <a href="{{ route('admin.checkin-video', ['checkin' => $c, 'face' => 1]) }}" target="_blank" style="color:rgb(37,99,235);">yuz</a>@endif
+                                                @if ($c->face_video_path) · <a href="{{ route('admin.checkin-video', ['checkin' => $c, 'face' => 1]) }}" target="_blank" class="text-primary-600 dark:text-primary-400">old kamera</a>@endif
                                             </div>
-                                            @if (! empty($c->flags))<div style="color:rgb(217,119,6);" title="{{ collect($c->flags)->map(fn ($f) => \App\Support\Gps::flagLabel($f))->join(', ') }}">belgi</div>@endif
+                                            @if (! empty($c->flags))<div style="color:rgb(217,119,6);" title="{{ collect($c->flags)->map(fn ($f) => \App\Support\Gps::flagLabel($f))->join(', ') }}">ogohlantirish</div>@endif
                                         @elseif ($c->status === \App\Models\Checkin::MISSED)
-                                            <span style="color:rgb(220,38,38);">yo‘q</span>
+                                            <span style="color:rgb(220,38,38);">javob bermagan</span>
                                         @else
                                             <span style="opacity:.6;">kutilmoqda</span>
                                         @endif

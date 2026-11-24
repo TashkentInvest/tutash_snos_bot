@@ -35,8 +35,8 @@ class CheckinController extends Controller
             'minSeconds' => (int) config('tutash.attendance.min_video_seconds'),
             'title' => 'Soatlik qayd',
             'endpoints' => ['state' => '/tg/checkin-state', 'location' => '/tg/checkin-location', 'video' => '/tg/checkin-video'],
-            'doneText' => '✅ Soatlik qaydingiz qabul qilindi. Oynani yopishingiz mumkin.',
-            'alreadyText' => '✅ Bu soatlik qayd allaqachon qabul qilingan.',
+            'doneText' => 'Soatlik qaydingiz qabul qilindi. Oynani yopishingiz mumkin.',
+            'alreadyText' => 'Bu soatlik qayd allaqachon qabul qilingan.',
             'noneText' => 'Hozir soatlik so‘rov yo‘q yoki javob muddati tugagan. Keyingi so‘rovni kuting.',
         ])->header('Cache-Control', 'no-store');
     }

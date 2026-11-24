@@ -68,7 +68,7 @@ class CheckinBoard extends Page
                         ->helperText(fn (Forms\Get $get) => 'Oluvchilar: '.(CheckinReminder::recipients($get('scope') ?? CheckinReminder::PENDING)->pluck('full_name')->join(', ') ?: 'yo‘q')),
                     Forms\Components\Textarea::make('text')->label('Xabar matni')->required()->rows(4)->maxLength(1000)
                         ->default(CheckinReminder::DEFAULT_TEXT)
-                        ->helperText('Javob kutilayotgan xodimga xabar «📍 Joylashuv va video yuborish» tugmasi bilan boradi.'),
+                        ->helperText('Javob kutilayotgan xodimga xabar «Joylashuv va video yuborish» tugmasi bilan boradi.'),
                 ])
                 ->action(function (array $data) {
                     $r = CheckinReminder::send($data['scope'], $data['text'], auth()->id());
