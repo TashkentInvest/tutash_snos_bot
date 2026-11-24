@@ -36,4 +36,10 @@ return [
         'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
     ],
 
+    // Dizayn-kod dashboardi: ko'chalar (GeoJSON) — «Umumiy xarita»dagi qatlam uchun; token bo'sh bo'lsa qatlam o'chiq
+    'dizayn_kod' => [
+        'url' => env('DIZAYN_KOD_API_URL', 'https://bot-thudud.toshkentinvest.uz/api/v1/streets'),
+        'token' => env('DIZAYN_KOD_TOKEN'),
+    ],
+
 ];

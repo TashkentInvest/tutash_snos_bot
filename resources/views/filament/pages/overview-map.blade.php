@@ -29,7 +29,7 @@
         (async () => {
             if (!window.L) { load(cdn + 'leaflet/1.9.4/leaflet.min.css', true); await load(cdn + 'leaflet/1.9.4/leaflet.min.js'); }
             if (!L.markerClusterGroup) { load(cdn + 'leaflet.markercluster/1.5.3/MarkerCluster.min.css', true); load(cdn + 'leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css', true); await load(cdn + 'leaflet.markercluster/1.5.3/leaflet.markercluster.min.js'); }
-            if (!window.OverviewMap) await load('{{ asset('js/overview-map.js') }}?v=2');
+            if (!window.OverviewMap) await load('{{ asset('js/overview-map.js') }}?v={{ filemtime(public_path('js/overview-map.js')) }}');
             window.OverviewMap.init($el, cfg);
         })();
     " wire:ignore>
@@ -58,6 +58,7 @@
                                 <span><span class="om-dot" style="background:{{ $color }}"></span>{{ $label }}</span>
                             @endforeach
                         </div>
+                        <div data-note="{{ $l['key'] }}" hidden style="font-size:12px;color:#d97706;margin:2px 0 0 26px;"></div>
                         <div class="om-op">Shaffoflik <input type="range" min="10" max="100" value="100" data-opacity="{{ $l['key'] }}"> <span data-opv="{{ $l['key'] }}">100%</span></div>
                     </div>
                 @endforeach

@@ -65,15 +65,27 @@ window.OverviewMap = {
             const g = groups[key], d = data[key];
             g.clearLayers(); polys[key]?.clearLayers();
             if (!d) return;
-            (d.lines || []).forEach(s => L.polyline(s.line, { color: colors[key].street || '#dc2626', weight: 4, opacity: .9 * state.opacity[key], lineCap: 'round' })
-                .bindTooltip(esc(s.name), { sticky: true }).addTo(g));
+            (d.lines || []).forEach(s => {
+                if (s.c) { // dizayn-kod ko'chasi: rang — bajarilish holati; haqiqiy shakl — yaxlit (oq g'ilof bilan), yo'q bo'lsa boshi → oxiri uzuq chiziq
+                    const c = colors[key][s.c] || '#64748b', o = state.opacity[key];
+                    s.shape && L.polyline(s.line, { color: '#fff', weight: 9, opacity: .9 * o, lineCap: 'round', interactive: false }).addTo(g);
+                    L.polyline(s.line, s.shape ? { color: c, weight: 5, opacity: o, lineCap: 'round' } : { color: c, weight: 3, opacity: o, dashArray: '8 7' })
+                        .bindTooltip(esc(s.tip), { sticky: true })
+                        .bindPopup(`<div class='om-pop'><b>${esc(s.t)}</b>${(s.rows || []).map(r => '<br>' + esc(r)).join('')}`
+                            + `${s.small ? `<br><small style='opacity:.7'>${esc(s.small)}</small>` : ''}</div>`).addTo(g);
+                    return;
+                }
+                L.polyline(s.line, { color: colors[key].street || '#dc2626', weight: 4, opacity: .9 * state.opacity[key], lineCap: 'round' })
+                    .bindTooltip(esc(s.name), { sticky: true }).addTo(g);
+            });
             (d.points || []).forEach(p => {
                 const c = colors[key][p.c] || '#64748b';
                 (p.poly || []).length >= 3 && polys[key] && L.polygon(p.poly, { color: c, weight: 2, fill: false, opacity: state.opacity[key], interactive: false }).addTo(polys[key]);
                 L.circleMarker(p.p, style(key, c)).bindPopup(popup(p)).addTo(g);
             });
-            const n = (d.points || []).length;
-            $(`[data-count=${key}]`).textContent = n;
+            $(`[data-count=${key}]`).textContent = d.count ?? (d.points || []).length;
+            const note = $(`[data-note=${key}]`);
+            if (note) { note.textContent = d.note || ''; note.hidden = !d.note; }
         };
 
         const params = () => new URLSearchParams({ district: fD.value, day: fDay.value, staff: fS.value }).toString();

@@ -29,6 +29,8 @@ class MapLayers
             'gastro' => ['Gastronomik ko‘chalar va ijara shartnomalari', [
                 'street' => ['#dc2626', 'gastronomik ko‘cha'], 'legal' => ['#2563eb', 'yuridik shaxs'],
                 'individual' => ['#16a34a', 'jismoniy shaxs'], 'remote' => ['#f59e0b', 'uzoqdan tuzilgan']]],
+            'designcode' => ['Dizayn-kod ko‘chalari', [
+                'new' => ['#64748b', 'boshlanmagan'], 'progress' => ['#f59e0b', 'jarayonda'], 'done' => ['#16a34a', 'to‘liq bajarilgan']]],
             'sites' => ['Obyektlar (holati bo‘yicha)', [
                 Site::NOT_DEMOLISHED => ['#64748b', 'buzilmagan'], Site::IN_PROGRESS => ['#f59e0b', 'jarayonda'],
                 Site::DEMOLISHED => ['#16a34a', 'buzilgan'], Site::EXEMPT => ['#2563eb', 'sud / buzilmaydi']]],
@@ -47,6 +49,7 @@ class MapLayers
     {
         return match ($layer) {
             'gastro' => self::gastro($district, $staff),
+            'designcode' => self::designcode($district),
             'sites' => self::sites($district),
             'attendance' => self::attendance($district, $day, $staff),
             'checkins' => self::checkins($district, $day, $staff),
@@ -81,6 +84,55 @@ class MapLayers
             ])->values();
 
         return ['lines' => $lines, 'points' => $points];
+    }
+
+    /**
+     * Dizayn-kod ko'chalari (boshqa tizimdan, API orqali; faqat tuman filtri). Har chiziq: line — [[lat, lng], ...] (MultiLineString'da
+     * qismlar ro'yxati), c — bajarilish holati, shape — KMZ'dagi haqiqiy shakl (yo'q bo'lsa boshi → oxiri, uzuq chiziq), t/rows/tip — popup va tooltip.
+     */
+    private static function designcode(?int $district): array
+    {
+        if (! DizaynKodStreets::configured()) {
+            return ['lines' => [], 'count' => 0, 'note' => 'Dizayn-kod API sozlanmagan (DIZAYN_KOD_TOKEN bo‘sh).'];
+        }
+        $num = fn ($v) => $v === null || $v === '' ? null : str_replace('.', ',', (string) round((float) $v, 2));
+        $pt = fn ($c) => is_array($c) && count($c) >= 2 ? [round((float) $c[1], 6), round((float) $c[0], 6)] : null; // GeoJSON [lon, lat] → [lat, lon]
+        $part = fn ($cs) => array_values(array_filter(array_map($pt, is_array($cs) ? $cs : [])));
+
+        $lines = collect(DizaynKodStreets::forDistrict($district))->map(function (array $f) use ($num, $part) {
+            $g = $f['geometry'] ?? [];
+            $line = match ($g['type'] ?? null) {
+                'LineString' => $part($g['coordinates'] ?? []),
+                'MultiLineString' => array_values(array_filter(array_map($part, $g['coordinates'] ?? []), fn ($p) => count($p) >= 2)),
+                default => [],
+            };
+            if (($g['type'] ?? null) === 'MultiLineString' ? $line === [] : count($line) < 2) {
+                return null;
+            }
+            $p = $f['properties'] ?? [];
+            $pct = (float) ($p['pct'] ?? 0);
+            $name = ($p['name_latin'] ?? null) ?: ($p['name'] ?? '—');
+            $len = $num($p['length_km'] ?? null);
+            $drawn = $num($p['drawn_km'] ?? null);
+
+            return [
+                'id' => $p['id'] ?? ($f['id'] ?? null), 'name' => $name, 'line' => $line,
+                'c' => $pct >= 100 ? 'done' : ((int) ($p['objects_installed'] ?? 0) === 0 && (int) ($p['objects_removed'] ?? 0) === 0 ? 'new' : 'progress'),
+                'shape' => (bool) ($p['has_shape'] ?? false),
+                't' => $name,
+                'rows' => array_values(array_filter([
+                    ($p['district_latin'] ?? null) ?: ($p['district'] ?? null),
+                    'Uzunligi: '.($len !== null ? $len.' km' : '—'),
+                    'Obyektlar: '.(int) ($p['objects_total'] ?? 0).' · dizayn-kodga keltirildi: '.(int) ($p['objects_installed'] ?? 0)
+                        .' · jarayonda: '.(int) ($p['objects_removed'] ?? 0),
+                    'Bajarilish: '.$num($pct).'%',
+                ])),
+                'small' => $drawn !== null ? 'xaritada chizilgani: '.$drawn.' km' : null,
+                'tip' => $name.(($len ?? $drawn) !== null ? ' · '.($len ?? $drawn).' km' : ''),
+            ];
+        })->filter()->values();
+
+        return ['lines' => $lines, 'count' => $lines->count()];
     }
 
     private static function sites(?int $district): array
