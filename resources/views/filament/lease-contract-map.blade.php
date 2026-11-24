@@ -7,25 +7,20 @@
 <div>
     <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:13px;margin-bottom:8px;">
         <span><span style="display:inline-block;width:12px;height:12px;background:#1d4ed8;opacity:.6;vertical-align:middle;"></span> Chizilgan tutash hudud</span>
-        <span><span style="display:inline-block;width:18px;height:4px;background:#f59e0b;vertical-align:middle;"></span> Gastronomik ko‘cha</span>
-        <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#dc2626;vertical-align:middle;"></span> Xodim turgan joy (GPS)</span>
+        <span><span style="display:inline-block;width:18px;height:4px;background:#dc2626;vertical-align:middle;"></span> Gastronomik ko‘cha</span>
+        <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#f59e0b;vertical-align:middle;"></span> Xodim turgan joy (GPS)</span>
     </div>
-    <div wire:ignore x-data="{ d: @js($data) }" x-init="
-        const draw = () => {
-            const map = L.map($refs.map);
-            const esri = n => L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/${n}/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19, attribution: '© Esri' });
-            const sat = L.layerGroup([esri('World_Imagery'), esri('Reference/World_Transportation')]).addTo(map);
-            L.control.layers({ 'Sun’iy yo’ldosh': sat, 'Xarita': esri('World_Street_Map') }).addTo(map);
-            d.street.length && L.polyline(d.street, { color: '#f59e0b', weight: 6, opacity: .9 }).addTo(map).bindTooltip(d.streetName || '', { sticky: true });
-            const pts = [d.gps];
-            if (d.polygon.length >= 3) { L.polygon(d.polygon, { color: '#1d4ed8', weight: 3, fillOpacity: .35 }).addTo(map); pts.push(...d.polygon); }
-            L.circleMarker(d.gps, { radius: 7, color: '#fff', weight: 2, fillColor: '#dc2626', fillOpacity: 1 }).addTo(map).bindTooltip('Xodim (GPS)');
-            map.fitBounds(pts, { padding: [40, 40], maxZoom: 19 });
-        };
-        if (window.L) return draw();
-        const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(css);
-        const js = document.createElement('script'); js.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'; js.onload = draw; document.head.appendChild(js);
-    ">
+    <div wire:ignore x-data="{ d: @js($data) }" x-init="(async () => {
+        if (!window.AdminMap) await new Promise(r => { const s = document.createElement('script'); s.src = '{{ asset('js/admin-map.js') }}?v={{ filemtime(public_path('js/admin-map.js')) }}'; s.onload = r; document.head.appendChild(s); });
+        await AdminMap.ready();
+        // hudud chizmasi aniq ko'rinsin — boshlang'ich fon sun'iy yo'ldosh (o'zgartirish mumkin)
+        const m = AdminMap.create($refs.map, d.gps, { zoom: 18, base: 'sat' });
+        d.street.length && L.polyline(d.street, { color: '#dc2626', weight: 5, opacity: .9, lineCap: 'round' }).addTo(m.map).bindTooltip(AdminMap.esc(d.streetName), { sticky: true });
+        const pts = [d.gps];
+        if (d.polygon.length >= 3) { L.polygon(d.polygon, { color: '#1d4ed8', weight: 3, fillOpacity: .35 }).addTo(m.map); pts.push(...d.polygon); }
+        L.circleMarker(d.gps, { radius: 7, color: '#fff', weight: 2, fillColor: '#f59e0b', fillOpacity: 1 }).addTo(m.map).bindTooltip('Xodim (GPS)');
+        m.fit(pts, { maxZoom: 19 });
+    })()">
         <div x-ref="map" style="height:420px;border-radius:12px;overflow:hidden;z-index:0;"></div>
     </div>
     @if ($photos)

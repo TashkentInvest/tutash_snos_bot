@@ -23,27 +23,19 @@
         @if ($visits->isNotEmpty())<span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#16a34a;vertical-align:middle;"></span> Tekshiruvlar ({{ $visits->count() }})</span>@endif
         @if ($rejected->isNotEmpty())<span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#dc2626;vertical-align:middle;"></span> Rad etilgan urinishlar ({{ $rejected->count() }})</span>@endif
     </div>
-    <div wire:ignore x-data="{ d: @js($data) }" x-init="
-        const draw = () => {
-            const map = L.map($refs.map);
-            const esri = n => L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/${n}/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19, attribution: '© Esri' });
-            const streets = esri('World_Street_Map').addTo(map);
-            const sat = L.layerGroup([esri('World_Imagery'), esri('Reference/World_Boundaries_and_Places'), esri('Reference/World_Transportation')]);
-            const gastro = L.layerGroup((d.gastro || []).map(s => L.polyline(s.l, { color: '#f59e0b', weight: 5, opacity: .85 }).bindTooltip('🍽 ' + s.n, { sticky: true }))).addTo(map);
-            L.control.layers({ 'Xarita': streets, 'Sun’iy yo’ldosh': sat }, { 'Gastronomik ko‘chalar': gastro }).addTo(map);
-            // tuman chegarasi (KMZ / NGIS) — obyekt shu tuman ichidami, ko'rinib tursin
-            (d.boundary || []).forEach(r => L.polygon(r, { color: '#64748b', weight: 2, dashArray: '5 5', fill: false, interactive: false }).addTo(map));
-            const ring = L.circle(d.site, { radius: d.radius, color: '#2563eb', weight: 1, fillOpacity: .1 }).addTo(map);
-            const pts = [d.site];
-            d.points.forEach(x => { pts.push(x.p); L.circleMarker(x.p, { radius: 7, color: '#fff', weight: 2, fillColor: x.c, fillOpacity: 1 }).addTo(map).bindTooltip(x.t); });
-            L.circleMarker(d.site, { radius: 10, color: '#fff', weight: 2, fillColor: '#2563eb', fillOpacity: 1 }).addTo(map).bindTooltip('Obyekt', { permanent: true, direction: 'top' });
-            map.setView(d.site, 16); // doira chegarasi xarita ulangandan keyin hisoblanadi
-            map.fitBounds(ring.getBounds().extend(L.latLngBounds(pts)), { padding: [30, 30], maxZoom: 17 });
-        };
-        if (window.L) return draw();
-        const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(css);
-        const js = document.createElement('script'); js.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'; js.onload = draw; document.head.appendChild(js);
-    ">
+    <div wire:ignore x-data="{ d: @js($data) }" x-init="(async () => {
+        if (!window.AdminMap) await new Promise(r => { const s = document.createElement('script'); s.src = '{{ asset('js/admin-map.js') }}?v={{ filemtime(public_path('js/admin-map.js')) }}'; s.onload = r; document.head.appendChild(s); });
+        await AdminMap.ready();
+        // umumiy standart (Umumiy xarita kabi): view darhol beriladi, keyin qatlamlar
+        const m = AdminMap.create($refs.map, d.site, { zoom: 16 });
+        m.boundary(d.boundary); // tuman chegarasi (KMZ / NGIS) — obyekt shu tuman ichidami, ko'rinib tursin
+        m.gastro(d.gastro);
+        const ring = L.circle(d.site, { radius: d.radius, color: '#2563eb', weight: 1, fillOpacity: .1, interactive: false }).addTo(m.map);
+        const pts = [d.site];
+        d.points.forEach(x => { pts.push(x.p); L.circleMarker(x.p, { radius: 7, color: '#fff', weight: 2, fillColor: x.c, fillOpacity: 1 }).addTo(m.map).bindTooltip(AdminMap.esc(x.t)); });
+        L.circleMarker(d.site, { radius: 10, color: '#fff', weight: 2, fillColor: '#2563eb', fillOpacity: 1 }).addTo(m.map).bindTooltip('Obyekt', { permanent: true, direction: 'top' });
+        m.fit(ring.getBounds().extend(L.latLngBounds(pts)), { padding: [30, 30] });
+    })()">
         <div x-ref="map" style="height:420px;border-radius:12px;overflow:hidden;z-index:0;"></div>
     </div>
 @endif
