@@ -16,7 +16,9 @@ class DesignCodeReport
 {
     private static function num(float $v, int $dec = 1): string
     {
-        return rtrim(rtrim(number_format($v, $dec, ',', ' '), '0'), ',');
+        $s = number_format($v, $dec, ',', ' ');
+
+        return $dec ? rtrim(rtrim($s, '0'), ',') : $s; // butun son: 0 — bo'sh katak emas, «0»
     }
 
     public static function png(int $buffer, \DateTimeInterface $day, ?callable $t = null): string

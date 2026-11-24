@@ -7,35 +7,35 @@ use Illuminate\Database\Seeder;
 
 class DistrictSeeder extends Seeder
 {
-    /** Tuman => mas'ul xodim telefoni (oxirgi 9 raqam). Manba: mas'ul xodimlar jadvali (Solijonov Sarvarbek — Yashnobod va Mirobod). */
+    /** Tuman => mas'ul xodim telefoni (oxirgi 9 raqam). Manba: mas'ul xodimlar jadvali (2026-10-29). Bir xodim bir nechta tumanga qarashi mumkin (Sanjar, Azim, Ibroxim). */
     public const PHONES = [
-        'Bektemir tumani' => '938068758',
-        "Mirzo Ulug'bek tumani" => '997610700',
-        'Mirobod tumani' => '930010301',
-        'Olmazor tumani' => '778788228',
-        'Sergeli tumani' => '992340101',
-        'Uchtepa tumani' => '931619099',
-        'Chilonzor tumani' => '974100313',
-        'Shayxontohur tumani' => '909380444',
-        'Yunusobod tumani' => '888665544',
-        'Yakkasaroy tumani' => '990043006',
-        'Yangihayot tumani' => '870429191',
-        'Yashnobod tumani' => '930010301',
+        'Bektemir tumani' => '942778855',
+        "Mirzo Ulug'bek tumani" => '943340333',
+        'Mirobod tumani' => '977009773',
+        'Olmazor tumani' => '908148977',
+        'Sergeli tumani' => '974766464',
+        'Uchtepa tumani' => '901210333',
+        'Chilonzor tumani' => '950507174',
+        'Shayxontohur tumani' => '978981899',
+        'Yunusobod tumani' => '943340333',
+        'Yakkasaroy tumani' => '977009773',
+        'Yangihayot tumani' => '974766464',
+        'Yashnobod tumani' => '974123335',
     ];
 
     public const NAMES = [
-        'Bektemir tumani' => 'Qoraboyev Abduvohid',
-        "Mirzo Ulug'bek tumani" => 'Rahimjonov Mahmud',
-        'Mirobod tumani' => 'Solijonov Sarvarbek',
-        'Olmazor tumani' => "G'afurov Abdumalik",
-        'Sergeli tumani' => 'Saydullayev Saydvali',
-        'Uchtepa tumani' => "Aribjanov G'ulomjon",
-        'Chilonzor tumani' => 'Pirmatov Shohjahon',
-        'Shayxontohur tumani' => "Sultanov Bahromxo'ja",
-        'Yunusobod tumani' => 'Boqiyev Obidjon',
-        'Yakkasaroy tumani' => 'Karimov Ilhom',
-        'Yangihayot tumani' => 'Alimov Chori',
-        'Yashnobod tumani' => 'Solijonov Sarvarbek',
+        'Bektemir tumani' => 'Sherzod',
+        "Mirzo Ulug'bek tumani" => 'Choriyev Sanjar',
+        'Mirobod tumani' => 'Xamidov Ibroxim',
+        'Olmazor tumani' => 'Ortikov Otabek',
+        'Sergeli tumani' => 'Isroilov Azimjon',
+        'Uchtepa tumani' => 'Mirodilov Mirkamol',
+        'Chilonzor tumani' => 'Sanjar 2',
+        'Shayxontohur tumani' => 'Shernafasov Shoxzod',
+        'Yunusobod tumani' => 'Choriyev Sanjar',
+        'Yakkasaroy tumani' => 'Xamidov Ibroxim',
+        'Yangihayot tumani' => 'Isroilov Azimjon',
+        'Yashnobod tumani' => 'Xasan',
     ];
 
     public function run(): void
