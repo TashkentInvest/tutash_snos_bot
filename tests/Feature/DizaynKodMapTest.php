@@ -118,6 +118,17 @@ class DizaynKodMapTest extends TestCase
         $this->get('/admin/designcode-svod')->assertOk()->assertSee('Toshkent shahar jami')->assertSee('Chilonzor tumani')->assertSee('25%');
         \Livewire\Livewire::test(\App\Filament\Pages\DesignCodeSvodPage::class)->call('pick', $ch->id)
             ->assertSee('Chilonzor tumani — ko‘chalar kesimida')->assertSee('Ko‘cha 1')->assertSee('Ko‘cha 2')->assertSee('40%');
+
+        // Telegram'ga yuboriladigan rasm va izoh (bosh sahifadagi «Buzilish hisobotini yuborish» oynasidan)
+        $png = $this->get(route('admin.designcode-svod.png', ['buffer' => 50]))->assertOk()->assertHeader('Content-Type', 'image/png')->getContent();
+        $this->assertSame("\x89PNG", substr($png, 0, 4));
+        $caption = \App\Telegram\Support\DesignCodeReport::caption(50, now());
+        $this->assertStringContainsString('Ko‘chalar: <b>2</b> ta', $caption);
+        $this->assertStringContainsString('Ko‘chadan 50 m ichidagi noqonuniy obyektlar: <b>4</b> ta', $caption);
+        $this->assertStringContainsString('Buzilgan: <b>1</b>', $caption);
+        $this->get('/admin')->assertOk();
+        \Livewire\Livewire::test(\App\Filament\Pages\Dashboard::class)->mountAction('sendInspectionReport')
+            ->setActionData(['images' => ['designcode'], 'buffer' => 100])->assertSee('Dizayn-kod ko‘chalari svodi')->assertSee('100 m ichida');
     }
 
     public function test_all_twelve_districts_match_api_names(): void

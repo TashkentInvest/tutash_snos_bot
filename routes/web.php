@@ -93,6 +93,13 @@ Route::get('/admin-lease-svod.png', function (\Illuminate\Http\Request $request)
         'Content-Type' => 'image/png', 'Cache-Control' => 'private, no-store',
     ]);
 })->middleware(['auth'])->name('admin.lease-svod.png');
+// Dizayn-kod svodi rasmi (Telegram'ga yuboriladigan) — faqat admin; ?buffer=25|50|100|200
+Route::get('/admin-designcode-svod.png', function (\Illuminate\Http\Request $request) {
+    abort_unless(\App\Models\User::currentIsAdmin(), 403);
+
+    return response(\App\Telegram\Support\DesignCodeReport::png(\App\Support\DesignCodeSvod::buffer($request->query('buffer')), now(),
+        fn (string $s) => \App\Telegram\Support\Script::apply($s)), 200, ['Content-Type' => 'image/png', 'Cache-Control' => 'private, no-store']);
+})->middleware(['auth'])->name('admin.designcode-svod.png');
 // ijara shartnomalari svodi (Excel) — faqat admin; ?from=&to=YYYY-MM-DD, unique=1, onsite=1
 Route::get('/admin-lease-svod.xlsx', function (\Illuminate\Http\Request $request) {
     abort_unless(\App\Models\User::currentIsAdmin(), 403);

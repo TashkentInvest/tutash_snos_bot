@@ -93,9 +93,13 @@ class Dashboard extends BaseDashboard
                 ->form(fn () => [
                     // gastronomik svod — alohida xabar (o'z izohi bilan) buzilish hisobotidan keyin
                     \Filament\Forms\Components\CheckboxList::make('images')->label('Rasmlar')
-                        ->options(InspectionReport::IMAGES + ['gastro' => 'Gastronomik ko‘chalar — ijara svodi'])
+                        ->options(InspectionReport::IMAGES + ['gastro' => 'Gastronomik ko‘chalar — ijara svodi', 'designcode' => 'Dizayn-kod ko‘chalari svodi'])
                         ->default(array_keys(InspectionReport::IMAGES))->columns(2)->live()->required()
                         ->validationMessages(['required' => 'Kamida bitta rasmni belgilang.']),
+                    \Filament\Forms\Components\Select::make('buffer')->label('Dizayn-kod: ko‘chadan masofa')->native(false)->live()
+                        ->options(collect(\App\Support\DesignCodeSvod::BUFFERS)->mapWithKeys(fn ($m) => [$m => $m.' m ichida'])->all())
+                        ->default(\App\Support\DesignCodeSvod::DEFAULT_BUFFER)->selectablePlaceholder(false)
+                        ->visible(fn (\Filament\Forms\Get $get) => in_array('designcode', $get('images') ?? [], true)),
                     self::recipientsField(ReportSetting::SVOD),
                     \Filament\Forms\Components\Placeholder::make('preview')->label('Botda shunday ko‘rinadi')
                         ->content(function (\Filament\Forms\Get $get) {
@@ -108,6 +112,10 @@ class Dashboard extends BaseDashboard
                             in_array('gastro', $images, true) && $html .= '<div style="height:.75rem"></div>'.self::previewHtml(
                                 [route('admin.lease-svod.png', ['day' => $day->toDateString(), 'onsite' => $onsite ? 1 : 0])],
                                 Script::apply(\App\Telegram\Support\LeaseReport::caption($day, $onsite)))->toHtml();
+                            $buffer = \App\Support\DesignCodeSvod::buffer($get('buffer'));
+                            in_array('designcode', $images, true) && $html .= '<div style="height:.75rem"></div>'.self::previewHtml(
+                                [route('admin.designcode-svod.png', ['buffer' => $buffer])],
+                                Script::apply(\App\Telegram\Support\DesignCodeReport::caption($buffer, now())))->toHtml();
 
                             return new \Illuminate\Support\HtmlString($html);
                         }),
@@ -118,7 +126,10 @@ class Dashboard extends BaseDashboard
                     $inspection = array_values(array_intersect(array_keys(InspectionReport::IMAGES), $images));
                     $sent = $inspection ? InspectionReport::send($bot, $this->period()->day, $to, $inspection) : 0;
 
-                    return $sent + (in_array('gastro', $images, true) ? \App\Telegram\Support\LeaseReport::send($bot, $this->period()->day, $to) : 0);
+                    $sent += in_array('gastro', $images, true) ? \App\Telegram\Support\LeaseReport::send($bot, $this->period()->day, $to) : 0;
+
+                    return $sent + (in_array('designcode', $images, true)
+                        ? \App\Telegram\Support\DesignCodeReport::send($bot, $to, now(), \App\Support\DesignCodeSvod::buffer($data['buffer'] ?? null)) : 0);
                 })),
 
             // davomat hisobotlari: ertalabki davomat, soatlik qayd (soat tanlanadi) yoki kun yakuni — hammasi rasm
