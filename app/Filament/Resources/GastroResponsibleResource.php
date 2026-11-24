@@ -71,7 +71,7 @@ class GastroResponsibleResource extends Resource
                         Forms\Components\Select::make('staff')->label('Mas’ul xodimlar — qidirib tanlang')->multiple()->searchable()->preload()
                             ->relationship('staff', 'full_name', fn ($query) => $query->where('status', Staff::ACTIVE)->whereNotNull('telegram_id')
                                 ->whereIn('role', Staff::DISTRICT_ROLES)->orderBy('full_name'))
-                            ->getOptionLabelFromRecordUsing(fn (Staff $s) => $s->full_name.' · '.AppSupportPhone::format($s->phone))
+                            ->getOptionLabelFromRecordUsing(fn (Staff $s) => $s->full_name.' · '.\App\Support\Phone::format($s->phone))
                             ->helperText('Botda ro‘yxatdan o‘tgan xodimlar: ism yoki telefon bo‘yicha qidiring. Har biri shu tuman ko‘chalarida shartnoma tuzadi. Xodimning «Tumanlar»iga (davomat, obyektlar) ta’sir qilmaydi.'),
                         Forms\Components\TextInput::make('tariff')->label('Tarif, 1 m² / oy (so‘m)')->numeric()->minValue(0)->maxValue(100000000)->step('0.01')
                             ->helperText('Faqat yangi shartnomalarga ta’sir qiladi; tuzilgan shartnomalar summasi o‘zgarmaydi.'),

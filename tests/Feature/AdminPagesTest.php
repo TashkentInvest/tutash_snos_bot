@@ -264,4 +264,25 @@ class AdminPagesTest extends TestCase
         $page->callTableAction('restore', $worker->getKey());
         $this->assertNotSoftDeleted($worker);
     }
+
+    /** Telefonlar panelda bir xil ko'rinishda (+998 …) — ro'yxat, obyekt sahifasidagi tekshiruvlar va tanlash oynalari ma'lumot bilan ochiladi. */
+    public function test_phones_are_formatted_on_pages_with_data(): void
+    {
+        $d = District::create(['name' => 'Test tumani', 'phone' => '991112233']);
+        $site = Site::create(['district_id' => $d->id, 'source_no' => 1, 'address' => 'Ko‘cha 1']);
+        $staff = Staff::create(['telegram_id' => 5, 'full_name' => 'Test Xodim', 'phone' => '942778855', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE]);
+        Inspection::create(['site_id' => $site->id, 'staff_id' => $staff->id, 'status' => 'submitted', 'step' => 'done', 'submitted_at' => now()]);
+        $admin = (new User)->forceFill(['name' => 'A', 'email' => 'a@t.test', 'password' => 'secret-pass-1', 'is_admin' => true]);
+        $admin->save();
+        $this->actingAs($admin);
+
+        $this->get('/admin/inspections')->assertOk()->assertSee('+998 94 277 88 55');
+        $this->get('/admin/staff')->assertOk()->assertSee('+998 94 277 88 55');
+        $this->get('/admin/districts')->assertOk()->assertSee('+998 99 111 22 33');
+        \Livewire\Livewire::test(\App\Filament\Resources\SiteResource\RelationManagers\InspectionsRelationManager::class, ['ownerRecord' => $site, 'pageClass' => \App\Filament\Resources\SiteResource\Pages\ViewSite::class])
+            ->assertOk()->assertSee('+998 94 277 88 55');
+        \Livewire\Livewire::test(\App\Filament\Resources\DistrictResource\Pages\ManageDistricts::class)->mountTableAction('edit', $d)->assertHasNoTableActionErrors();
+        $r = \App\Models\GastroResponsible::firstOrCreate(['district_id' => $d->id]);
+        \Livewire\Livewire::test(\App\Filament\Resources\GastroResponsibleResource\Pages\ManageGastroResponsibles::class)->mountTableAction('edit', $r)->assertHasNoTableActionErrors();
+    }
 }

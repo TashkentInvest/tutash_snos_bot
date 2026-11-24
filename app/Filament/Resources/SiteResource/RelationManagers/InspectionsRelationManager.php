@@ -21,7 +21,7 @@ class InspectionsRelationManager extends RelationManager
             ->columns([
                 Tables\Columns\TextColumn::make('submitted_at')->label('Sana')->dateTime('d.m.Y H:i'),
                 Tables\Columns\TextColumn::make('staff.full_name')->label('Kim yubordi')
-                    ->description(fn (Inspection $record) => collect([\App\Filament\Resources\StaffResource::ROLES[$record->staff?->role] ?? null, AppSupportPhone::format($record->staff?->phone)])->filter()->join(' · ')),
+                    ->description(fn (Inspection $record) => collect([\App\Filament\Resources\StaffResource::ROLES[$record->staff?->role] ?? null, \App\Support\Phone::format($record->staff?->phone)])->filter()->join(' · ')),
                 Tables\Columns\TextColumn::make('result')->label('Natija')->badge()
                     ->state(fn (Inspection $record) => InspectionResource::result($record))
                     ->color(fn (Inspection $record) => InspectionResource::resultColor($record)),

@@ -221,7 +221,7 @@ class InspectionResource extends Resource
                 Tables\Columns\TextColumn::make('site.district.name')->label('Tuman'),
                 Tables\Columns\TextColumn::make('site.address')->label('Obyekt')->limit(40)->searchable(),
                 Tables\Columns\TextColumn::make('staff.full_name')->label('Kim yubordi')->searchable()
-                    ->description(fn (Inspection $record) => collect([\App\Filament\Resources\StaffResource::ROLES[$record->staff?->role] ?? null, AppSupportPhone::format($record->staff?->phone)])->filter()->join(' · ')),
+                    ->description(fn (Inspection $record) => collect([\App\Filament\Resources\StaffResource::ROLES[$record->staff?->role] ?? null, \App\Support\Phone::format($record->staff?->phone)])->filter()->join(' · ')),
                 Tables\Columns\TextColumn::make('result')->label('Natija')->badge()
                     ->state(fn (Inspection $record) => self::result($record))
                     ->color(fn (Inspection $record) => self::resultColor($record)),

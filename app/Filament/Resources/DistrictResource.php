@@ -43,7 +43,7 @@ class DistrictResource extends Resource
                 ->helperText('Botda ro‘yxatdan o‘tgan xodimlar: ism yoki telefon bo‘yicha qidiring, bir nechtasini tanlang. Saqlangach shu tumanga darhol biriktiriladi.')
                 ->multiple()->searchable()->preload()
                 ->options(fn () => self::linkableStaff()->get()->mapWithKeys(fn (Staff $s) => [(string) $s->id => $s->full_name.' · '
-                    .(StaffResource::ROLES[$s->role] ?? $s->role).' · '.AppSupportPhone::format($s->phone)])->all())
+                    .(StaffResource::ROLES[$s->role] ?? $s->role).' · '.\App\Support\Phone::format($s->phone)])->all())
                 ->afterStateHydrated(fn ($component, ?District $record) => $component->state($record
                     ? self::linkableStaff()->whereIn('phone', $record->phones()->pluck('phone'))->pluck('id')->map(fn ($id) => (string) $id)->all() : []))
                 ->dehydrated(false)
