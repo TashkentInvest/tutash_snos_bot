@@ -208,21 +208,42 @@ class ReportSvodTest extends TestCase
         $this->get('/admin-svod.xlsx')->assertForbidden();
     }
 
-    public function test_broadcast_reaches_selected_district_staff(): void
+    /** Bosh sahifa → «Xabar yuborish»: bo'lim va tuman bo'yicha ro'yxat, aniq oluvchilar belgilanadi. */
+    public function test_broadcast_by_department_district_and_chosen_people(): void
     {
-        $a = Staff::create(['telegram_id' => 1001, 'full_name' => 'A', 'phone' => '901000001', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE]);
-        $b = Staff::create(['telegram_id' => 1002, 'full_name' => 'B', 'phone' => '901000002', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE]);
-        Staff::create(['telegram_id' => 1003, 'full_name' => 'C', 'phone' => '901000003', 'status' => Staff::BLOCKED, 'role' => Staff::ROLE_EMPLOYEE]);
+        $a = Staff::create(['telegram_id' => 1001, 'full_name' => 'A Xodim', 'phone' => '901000001', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE]);
+        $b = Staff::create(['telegram_id' => 1002, 'full_name' => 'B Xodim', 'phone' => '901000002', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE]);
+        Staff::create(['telegram_id' => 1003, 'full_name' => 'C Bloklangan', 'phone' => '901000003', 'status' => Staff::BLOCKED, 'role' => Staff::ROLE_EMPLOYEE]);
+        $k = Staff::create(['telegram_id' => 1004, 'full_name' => 'K Kadastr', 'phone' => '901000004', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CADASTRE]);
+        $g = Staff::create(['telegram_id' => 1005, 'full_name' => 'G Gastro', 'phone' => '901000005', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CONTRACT]);
+        Staff::create(['telegram_id' => 1006, 'full_name' => 'Aholi', 'phone' => '901000006', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_CITIZEN]);
         $a->districts()->sync([$this->bektemir->id]);
         $b->districts()->sync([$this->chilonzor->id]);
+        $k->districts()->sync([$this->chilonzor->id]);
+        \App\Models\GastroResponsible::create(['district_id' => $this->bektemir->id])->staff()->attach($g);
+        $ids = fn (array $d = [], array $gr = []) => \App\Support\Broadcast::recipients($d, $gr)->orderBy('telegram_id')->pluck('telegram_id')->all();
+
+        $this->assertSame([1001, 1002, 1004, 1005], $ids()); // bloklangan va aholi — yo'q
+        $this->assertSame([1004], $ids([], ['cadastre']));
+        $this->assertSame([1005], $ids([], ['gastro']));
+        $this->assertSame([1001, 1005], $ids([$this->bektemir->id])); // gastro mas'ul — o'z gastro tumani bo'yicha
+        $this->assertSame([1002, 1004], $ids([$this->chilonzor->id], ['employee', 'cadastre']));
+        $this->assertStringContainsString('G Gastro · gastro mas’ul · Bektemir', \App\Support\Broadcast::options()[(string) $g->id]);
 
         $bot = Nutgram::fake();
         $this->app->instance(Nutgram::class, $bot);
-
-        $this->assertSame(['sent' => 2, 'failed' => 0], \App\Support\Broadcast::send('Ertaga 08:00 da yig‘ilish', [], null));
-        $this->assertSame(['sent' => 1, 'failed' => 0], \App\Support\Broadcast::send('<b>Bektemir</b> uchun', [$this->bektemir->id], null));
+        $this->assertSame(['sent' => 1, 'failed' => 0], \App\Support\Broadcast::send('<b>Bektemir</b> uchun', [$a->id], null));
         $last = urldecode((string) collect($bot->getRequestHistory())->last()['request']->getBody());
         $this->assertStringContainsString('1001', $last);
         $this->assertStringContainsString('&lt;b&gt;Bektemir', $last); // matn HTML sifatida emas, oddiy matn sifatida
+
+        // bosh sahifadagi tugma: bo'lim tanlansa ro'yxat yangilanadi (hammasi belgilangan), keraksizi olib tashlanadi
+        $this->actingAs($this->user(true));
+        \Livewire\Livewire::test(\App\Filament\Pages\Dashboard::class)->mountAction('broadcast')
+            ->assertSee('Gastronomik ko‘chalar mas’ullari')
+            ->set('mountedActionsData.0.groups', ['employee'])->assertSet('mountedActionsData.0.people', [(string) $a->id, (string) $b->id])
+            ->set('mountedActionsData.0.people', [(string) $b->id])->set('mountedActionsData.0.text', 'Ertaga 08:00 da yig‘ilish')
+            ->callMountedAction()->assertHasNoActionErrors();
+        $this->assertSame(['sent' => 1, 'recipients' => 1, 'groups' => ['employee']], array_intersect_key(\App\Models\AuditLog::where('event', 'staff.broadcast')->latest('id')->first()->context, array_flip(['sent', 'recipients', 'groups'])));
     }
 }

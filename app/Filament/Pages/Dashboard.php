@@ -86,6 +86,7 @@ class Dashboard extends BaseDashboard
     protected function getHeaderActions(): array
     {
         return [
+            self::broadcastAction(),
             // buzilish hisoboti: rasmlar va oluvchilar shu yerda tanlanadi (oluvchilar — Sozlamalar → Hisobotlar'dagilar oldindan belgilangan)
             Action::make('sendInspectionReport')->label('Buzilish hisobotini yuborish')->icon('heroicon-o-paper-airplane')
                 ->modalHeading(fn () => 'Buzilish hisoboti — '.$this->period()->day->format('d.m.Y'))->modalWidth('3xl')->modalSubmitActionLabel('Yuborish')
@@ -165,6 +166,43 @@ class Dashboard extends BaseDashboard
                         $bot, $type, $this->attendanceReport($type, $data['slot'] ?? null), self::people($data['recipients'] ?? [])));
                 }),
         ];
+    }
+
+    /**
+     * Xabarnoma: bo'limlar (obyekt xodimlari, kadastr, shartnoma, gastro mas'ullar) va tumanlar tanlanadi —
+     * ro'yxatda shular chiqadi (hammasi belgilangan), keraksizini olib tashlab yuboriladi.
+     */
+    public static function broadcastAction(): Action
+    {
+        $all = fn (\Filament\Forms\Get $get) => array_map('strval', array_keys(\App\Support\Broadcast::options(array_map('intval', $get('districts') ?? []), $get('groups') ?? [])));
+        $refresh = fn (\Filament\Forms\Get $get, \Filament\Forms\Set $set) => $set('people', $all($get));
+
+        return Action::make('broadcast')->label('Xabar yuborish')->icon('heroicon-o-megaphone')->color('gray')
+            ->modalHeading('Xabarnoma')->modalDescription('Xabar botda yuboriladi. Bo‘lim va tumanni tanlang — ro‘yxatda shular chiqadi; keraksizini olib tashlang.')
+            ->modalWidth('3xl')->modalSubmitActionLabel('Yuborish')
+            ->visible(fn () => User::currentIsAdmin())
+            ->form([
+                \Filament\Forms\Components\CheckboxList::make('groups')->label('Bo‘limlar')->options(\App\Support\Broadcast::GROUPS)
+                    ->default(array_keys(\App\Support\Broadcast::GROUPS))->columns(2)->gridDirection('row')->required()->live()
+                    ->validationMessages(['required' => 'Kamida bitta bo‘limni belgilang.'])->afterStateUpdated($refresh),
+                \Filament\Forms\Components\Select::make('districts')->label('Tumanlar')->multiple()->native(false)
+                    ->options(fn () => \App\Models\District::orderBy('name')->pluck('name', 'id'))
+                    ->placeholder('Barcha tumanlar')->live()->afterStateUpdated($refresh),
+                \Filament\Forms\Components\CheckboxList::make('people')
+                    ->label(fn (\Filament\Forms\Get $get) => 'Kimlarga — belgilangan: '.count($get('people') ?? []).' ta')
+                    ->options(fn (\Filament\Forms\Get $get) => \App\Support\Broadcast::options(array_map('intval', $get('districts') ?? []), $get('groups') ?? []))
+                    ->default(fn () => array_map('strval', array_keys(\App\Support\Broadcast::options())))
+                    ->searchable()->bulkToggleable()->columns(2)->required()->live()
+                    ->noSearchResultsMessage('Topilmadi')->searchPrompt('Ism yoki tuman bo‘yicha qidirish')
+                    ->validationMessages(['required' => 'Kamida bitta oluvchini belgilang.']),
+                \Filament\Forms\Components\Textarea::make('text')->label('Xabar matni')->required()->minLength(3)->maxLength(3500)->rows(6),
+            ])
+            ->action(function (array $data) {
+                $r = \App\Support\Broadcast::send($data['text'], array_map('intval', $data['people'] ?? []), auth()->id(),
+                    ['groups' => $data['groups'] ?? [], 'districts' => array_map('intval', $data['districts'] ?? [])]);
+                Notification::make()->title("Yuborildi: {$r['sent']} ta".($r['failed'] ? ", yetkazilmadi: {$r['failed']} (botni bloklagan bo‘lishi mumkin)" : ''))
+                    ->{$r['sent'] ? 'success' : 'warning'}()->send();
+            });
     }
 
     /** Barcha ochiq (bajarilmagan) moderator izohlari bo'yicha xodimlarga eslatma — bosh sahifa va tekshiruvlar ro'yxatida. */
