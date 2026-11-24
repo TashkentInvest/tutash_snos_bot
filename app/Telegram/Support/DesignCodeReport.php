@@ -30,7 +30,7 @@ class DesignCodeReport
             $rows[] = [
                 'cells' => [$n ? (string) $n : '', $r['name'], (string) $r['streets'], self::num($r['km']),
                     self::num($r['dk_total'], 0), self::num($r['dk_installed'], 0), self::num($r['dk_pct']).'%',
-                    (string) $s['total'], (string) $s['not_demolished'], (string) $s['in_progress'], (string) $s['demolished'], (string) $s['left'],
+                    (string) $s['total'], (string) $s['not_demolished'], (string) $s['in_progress'], (string) $s['demolished'],
                     $s['total'] ? self::num($s['pct']).'%' : '—'],
                 'sum' => $n === 0,
                 'colors' => [5 => 'green', 9 => 'orange', 10 => 'green'],
@@ -40,8 +40,8 @@ class DesignCodeReport
         return Svod::table(
             'Dizayn-kod ko‘chalari va noqonuniy obyektlar (ko‘chadan '.$buffer.' m ichida), '.$day->format('d.m.Y'),
             ['№', 'Tuman nomi', "Ko‘cha-\nlar", 'km', "Dizayn-kod\nobyektlari", "Talabga\nkeltirildi", "Bajarilish\n(DK)",
-                "Noqonuniy\n(jami)", "Buzil-\nmagan", "Jarayon-\nda", "Buzil-\ngan", 'Qolgan', "Bajarilish\n(buzish)"],
-            [40, 210, 74, 64, 104, 98, 98, 98, 80, 80, 74, 76, 98], $rows, $t);
+                "Noqonuniy\n(jami)", "Buzil-\nmagan", "Jarayon-\nda", "Buzil-\ngan", "Bajarilish\n(buzish)"],
+            [40, 210, 74, 64, 104, 98, 98, 98, 80, 80, 74, 98], $rows, $t);
     }
 
     public static function caption(int $buffer, \DateTimeInterface $day): string
