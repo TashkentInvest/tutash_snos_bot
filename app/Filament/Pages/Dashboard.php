@@ -101,6 +101,12 @@ class Dashboard extends BaseDashboard
                         ->options(collect(\App\Support\DesignCodeSvod::BUFFERS)->mapWithKeys(fn ($m) => [$m => $m.' m ichida'])->all())
                         ->default(\App\Support\DesignCodeSvod::DEFAULT_BUFFER)->selectablePlaceholder(false)
                         ->visible(fn (\Filament\Forms\Get $get) => in_array('designcode', $get('images') ?? [], true)),
+                    // tanlangan tumanlar — har biri alohida rasm: tuman ko'chalari kesimida
+                    \Filament\Forms\Components\CheckboxList::make('dk_districts')->label('Dizayn-kod: tuman ko‘chalari kesimida ham yuborish')
+                        ->helperText('Belgilangan har bir tuman uchun alohida rasm — svod sahifasidagi ko‘chalar jadvali kabi.')
+                        ->options(fn (\Filament\Forms\Get $get) => \App\Telegram\Support\DesignCodeReport::districtOptions(\App\Support\DesignCodeSvod::buffer($get('buffer'))))
+                        ->columns(3)->gridDirection('row')->bulkToggleable()->live()
+                        ->visible(fn (\Filament\Forms\Get $get) => in_array('designcode', $get('images') ?? [], true)),
                     self::recipientsField(ReportSetting::SVOD),
                     \Filament\Forms\Components\Placeholder::make('preview')->label('Botda shunday ko‘rinadi')
                         ->content(function (\Filament\Forms\Get $get) {
@@ -115,7 +121,8 @@ class Dashboard extends BaseDashboard
                                 Script::apply(\App\Telegram\Support\LeaseReport::caption($day, $onsite)))->toHtml();
                             $buffer = \App\Support\DesignCodeSvod::buffer($get('buffer'));
                             in_array('designcode', $images, true) && $html .= '<div style="height:.75rem"></div>'.self::previewHtml(
-                                [route('admin.designcode-svod.png', ['buffer' => $buffer])],
+                                [route('admin.designcode-svod.png', ['buffer' => $buffer]),
+                                    ...array_map(fn ($id) => route('admin.designcode-svod.png', ['buffer' => $buffer, 'district' => (int) $id]), $get('dk_districts') ?? [])],
                                 Script::apply(\App\Telegram\Support\DesignCodeReport::caption($buffer, now())))->toHtml();
 
                             return new \Illuminate\Support\HtmlString($html);
@@ -130,7 +137,7 @@ class Dashboard extends BaseDashboard
                     $sent += in_array('gastro', $images, true) ? \App\Telegram\Support\LeaseReport::send($bot, $this->period()->day, $to) : 0;
 
                     return $sent + (in_array('designcode', $images, true)
-                        ? \App\Telegram\Support\DesignCodeReport::send($bot, $to, now(), \App\Support\DesignCodeSvod::buffer($data['buffer'] ?? null)) : 0);
+                        ? \App\Telegram\Support\DesignCodeReport::send($bot, $to, now(), \App\Support\DesignCodeSvod::buffer($data['buffer'] ?? null), $data['dk_districts'] ?? []) : 0);
                 })),
 
             // davomat hisobotlari: ertalabki davomat, soatlik qayd (soat tanlanadi) yoki kun yakuni — hammasi rasm

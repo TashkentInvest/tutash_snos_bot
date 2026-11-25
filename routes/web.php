@@ -97,8 +97,13 @@ Route::get('/admin-lease-svod.png', function (\Illuminate\Http\Request $request)
 Route::get('/admin-designcode-svod.png', function (\Illuminate\Http\Request $request) {
     abort_unless(\App\Models\User::currentIsAdmin(), 403);
 
-    return response(\App\Telegram\Support\DesignCodeReport::png(\App\Support\DesignCodeSvod::buffer($request->query('buffer')), now(),
-        fn (string $s) => \App\Telegram\Support\Script::apply($s)), 200, ['Content-Type' => 'image/png', 'Cache-Control' => 'private, no-store']);
+    $buffer = \App\Support\DesignCodeSvod::buffer($request->query('buffer'));
+    $t = fn (string $s) => \App\Telegram\Support\Script::apply($s);
+    $png = $request->filled('district') // ?district=ID — shu tuman ko'chalari kesimida
+        ? \App\Telegram\Support\DesignCodeReport::districtPng($buffer, (int) $request->query('district'), now(), $t)
+        : \App\Telegram\Support\DesignCodeReport::png($buffer, now(), $t);
+
+    return response($png, 200, ['Content-Type' => 'image/png', 'Cache-Control' => 'private, no-store']);
 })->middleware(['auth'])->name('admin.designcode-svod.png');
 // ijara shartnomalari svodi (Excel) — faqat admin; ?from=&to=YYYY-MM-DD, unique=1, onsite=1
 Route::get('/admin-lease-svod.xlsx', function (\Illuminate\Http\Request $request) {

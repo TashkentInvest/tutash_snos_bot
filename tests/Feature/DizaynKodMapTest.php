@@ -126,6 +126,14 @@ class DizaynKodMapTest extends TestCase
         $this->assertStringContainsString('Ko‘chalar: <b>2</b> ta', $caption);
         $this->assertStringContainsString('Ko‘chadan 50 m ichidagi noqonuniy obyektlar: <b>4</b> ta', $caption);
         $this->assertStringContainsString('Buzilgan: <b>1</b>', $caption);
+        // tuman ko'chalari kesimida — alohida rasm va izoh
+        $png = $this->get(route('admin.designcode-svod.png', ['buffer' => 50, 'district' => $ch->id]))->assertOk()->getContent();
+        $this->assertSame("\x89PNG", substr($png, 0, 4));
+        $this->assertStringContainsString('Chilonzor tumani — Dizayn-kod ko‘chalari', \App\Telegram\Support\DesignCodeReport::districtCaption(50, $ch->id, now()));
+        $this->assertSame([(string) $ch->id => 'Chilonzor tumani (2 ko‘cha)'], \App\Telegram\Support\DesignCodeReport::districtOptions());
+        $bot = \SergiX44\Nutgram\Nutgram::fake();
+        $to = collect([\App\Models\Staff::create(['telegram_id' => 9001, 'full_name' => 'Oluvchi', 'phone' => '909000001', 'status' => \App\Models\Staff::ACTIVE, 'role' => \App\Models\Staff::ROLE_EMPLOYEE])]);
+        $this->assertSame(2, \App\Telegram\Support\DesignCodeReport::send($bot, $to, now(), 50, [$ch->id])); // shahar + tuman
         $this->get('/admin')->assertOk();
         \Livewire\Livewire::test(\App\Filament\Pages\Dashboard::class)->mountAction('sendInspectionReport')
             ->setActionData(['images' => ['designcode'], 'buffer' => 100])->assertSee('Dizayn-kod ko‘chalari svodi')->assertSee('100 m ichida');
