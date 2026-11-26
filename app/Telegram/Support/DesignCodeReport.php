@@ -30,17 +30,17 @@ class DesignCodeReport
             $rows[] = [
                 'cells' => [$n ? (string) $n : '', $r['name'], (string) $r['streets'], self::num($r['km']),
                     self::num($r['dk_total'], 0), self::num($r['dk_installed'], 0), self::num($r['dk_pct']).'%',
-                    (string) $s['total'], (string) $s['not_demolished'], (string) $s['in_progress'], (string) $s['demolished'],
+                    (string) $s['total'], (string) $s['demolished'], (string) $s['in_progress'], (string) $s['not_demolished'],
                     $s['total'] ? self::num($s['pct']).'%' : '—'],
                 'sum' => $n === 0,
-                'colors' => [5 => 'green', 9 => 'orange', 10 => 'green'],
+                'colors' => [5 => 'green', 8 => 'green', 9 => 'orange'],
             ];
         }
 
         return Svod::table(
             'Dizayn-kod ko‘chalari va noqonuniy obyektlar (ko‘chadan '.$buffer.' m ichida), '.$day->format('d.m.Y'),
             ['№', 'Tuman nomi', "Ko‘cha-\nlar", 'km', "Dizayn-kod\nobyektlari", "Talabga\nkeltirildi", "Bajarilish\n(DK)",
-                "Noqonuniy\n(jami)", "Buzil-\nmagan", "Jarayon-\nda", "Buzil-\ngan", "Bajarilish\n(buzish)"],
+                "Noqonuniy\n(jami)", "Buzil-\ngan", "Jarayon-\nda", "Buzil-\nmagan", "Bajarilish\n(buzish)"],
             [40, 210, 74, 64, 104, 98, 98, 98, 80, 80, 74, 98], $rows, $t);
     }
 
@@ -68,17 +68,17 @@ class DesignCodeReport
             $rows[] = [
                 'cells' => [$n ? (string) $n : '', $r['name'].($n && empty($r['shape']) ? ' *' : ''), self::num((float) $km),
                     self::num($r['dk_total'] ?? 0, 0), self::num($r['dk_installed'] ?? 0, 0), self::num($r['dk_pct'] ?? 0).'%',
-                    (string) $s['total'], (string) $s['not_demolished'], (string) $s['in_progress'], (string) $s['demolished'],
+                    (string) $s['total'], (string) $s['demolished'], (string) $s['in_progress'], (string) $s['not_demolished'],
                     $s['total'] ? self::num($s['pct']).'%' : '—'],
                 'sum' => $n === 0,
-                'colors' => [4 => 'green', 8 => 'orange', 9 => 'green'],
+                'colors' => [4 => 'green', 7 => 'green', 8 => 'orange'],
             ];
         }
 
         return Svod::table(
             ($d['name'] ?? 'Tuman').' — Dizayn-kod ko‘chalari kesimida (ko‘chadan '.$buffer.' m ichida), '.$day->format('d.m.Y'),
             ['№', 'Ko‘cha nomi', 'km', "Dizayn-kod\nobyektlari", "Talabga\nkeltirildi", "Bajarilish\n(DK)",
-                "Noqonuniy\n(jami)", "Buzil-\nmagan", "Jarayon-\nda", "Buzil-\ngan", "Bajarilish\n(buzish)"],
+                "Noqonuniy\n(jami)", "Buzil-\ngan", "Jarayon-\nda", "Buzil-\nmagan", "Bajarilish\n(buzish)"],
             [40, 300, 64, 104, 98, 98, 98, 80, 80, 74, 98], $rows, $t);
     }
 

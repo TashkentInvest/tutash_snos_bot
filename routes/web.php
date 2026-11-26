@@ -93,6 +93,12 @@ Route::get('/admin-lease-svod.png', function (\Illuminate\Http\Request $request)
         'Content-Type' => 'image/png', 'Cache-Control' => 'private, no-store',
     ]);
 })->middleware(['auth'])->name('admin.lease-svod.png');
+// post rasmi / videosi (panelda ko'rish) — faqat admin
+Route::get('/admin-post/{post}/media', function (\App\Models\Post $post) {
+    abort_unless(\App\Models\User::currentIsAdmin() && $post->media_path && \Illuminate\Support\Facades\Storage::disk('local')->exists($post->media_path), 404);
+
+    return \Illuminate\Support\Facades\Storage::disk('local')->response($post->media_path, null, ['Cache-Control' => 'private, max-age=3600']);
+})->middleware(['auth'])->name('admin.post-media');
 // Dizayn-kod svodi rasmi (Telegram'ga yuboriladigan) — faqat admin; ?buffer=25|50|100|200
 Route::get('/admin-designcode-svod.png', function (\Illuminate\Http\Request $request) {
     abort_unless(\App\Models\User::currentIsAdmin(), 403);

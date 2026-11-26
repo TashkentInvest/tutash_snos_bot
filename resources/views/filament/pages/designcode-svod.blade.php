@@ -16,16 +16,16 @@
             .'<td style="'.$td.$green.'">'.$n($r['dk_installed']).'</td>'
             .'<td style="'.$td.'font-weight:600;">'.$p($r['dk_pct']).'</td>'
             .'<td style="'.$td.$sep.'font-weight:700;">'.$n($s['total']).'</td>'
-            .'<td style="'.$td.'">'.$n($s['not_demolished']).'</td>'
-            .'<td style="'.$td.$amber.'">'.$n($s['in_progress']).'</td>'
             .'<td style="'.$td.$green.'">'.$n($s['demolished']).'</td>'
+            .'<td style="'.$td.$amber.'">'.$n($s['in_progress']).'</td>'
+            .'<td style="'.$td.'">'.$n($s['not_demolished']).'</td>'
             .'<td style="'.$td.'">'.$n($s['left']).'</td>'
             .'<td style="'.$td.'font-weight:600;">'.$p($s['pct']).'</td>';
     };
     $head = function () use ($th, $sep, $buffer) {
         return '<th style="'.$th.$sep.'">Obyektlar</th><th style="'.$th.'">Talabga keltirildi</th><th style="'.$th.'">Bajarilish</th>'
-            .'<th style="'.$th.$sep.'">Jami</th><th style="'.$th.'">Buzilmagan</th><th style="'.$th.'">Jarayonda</th>'
-            .'<th style="'.$th.'">Buzilgan</th><th style="'.$th.'">Qolgan</th><th style="'.$th.'">Bajarilish</th>';
+            .'<th style="'.$th.$sep.'">Jami</th><th style="'.$th.'">Buzilgan</th><th style="'.$th.'">Jarayonda</th>'
+            .'<th style="'.$th.'">Buzilmagan</th><th style="'.$th.'">Qolgan</th><th style="'.$th.'">Bajarilish</th>';
     };
     $groups = '<th></th><th></th><th></th><th></th>'
         .'<th colspan="3" style="'.$th.$sep.'text-align:center;color:#0891b2;">Dizayn-kod</th>'

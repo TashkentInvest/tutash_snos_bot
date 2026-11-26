@@ -24,10 +24,15 @@ class Broadcast
         'gastro' => 'Gastronomik ko‘chalar mas’ullari',
     ];
 
+    /** Aholi — faqat postlarda va faqat belgilansa (xabarnomada yo'q); tuman bo'yicha saralanmaydi. */
+    public const CITIZENS = 'citizen';
+
     /** Botda faol, aholi bo'lmagan foydalanuvchilar. */
-    private static function base(): Builder
+    private static function base(bool $citizens = false): Builder
     {
-        return Staff::where('status', Staff::ACTIVE)->whereIn('role', Staff::DISTRICT_ROLES)->whereNotNull('telegram_id');
+        return Staff::whereNotNull('telegram_id')->where(fn (Builder $q) => $q
+            ->where(fn ($q) => $q->where('status', Staff::ACTIVE)->whereIn('role', Staff::DISTRICT_ROLES))
+            ->when($citizens, fn ($q) => $q->orWhere(fn ($q) => $q->where('role', Staff::ROLE_CITIZEN)->where('status', Staff::CITIZEN))));
     }
 
     /**
@@ -36,17 +41,19 @@ class Broadcast
      */
     public static function recipients(array $districtIds = [], array $groups = []): Builder
     {
-        $groups = array_values(array_intersect($groups ?: array_keys(self::GROUPS), array_keys(self::GROUPS)));
+        $citizens = in_array(self::CITIZENS, $groups, true);
+        $groups = array_values(array_intersect($groups ?: ($citizens ? [] : array_keys(self::GROUPS)), array_keys(self::GROUPS)));
         $roles = array_values(array_diff($groups, ['gastro']));
         $gastro = in_array('gastro', $groups, true);
 
-        return self::base()->where(function (Builder $q) use ($roles, $gastro, $districtIds) {
+        return self::base($citizens)->where(function (Builder $q) use ($roles, $gastro, $districtIds, $citizens) {
+            $citizens && $q->orWhere('role', Staff::ROLE_CITIZEN);
             $roles && $q->orWhere(fn (Builder $q) => $q->whereIn('role', $roles)
                 ->when($districtIds, fn ($q) => $q->whereHas('districts', fn ($q) => $q->whereIn('districts.id', $districtIds))));
             $gastro && $q->orWhereIn('id', fn ($q) => $q->select('gastro_responsible_staff.staff_id')->from('gastro_responsible_staff')
                 ->join('gastro_responsibles', 'gastro_responsibles.id', '=', 'gastro_responsible_staff.gastro_responsible_id')
                 ->when($districtIds, fn ($q) => $q->whereIn('gastro_responsibles.district_id', $districtIds)));
-            $roles || $gastro || $q->whereRaw('1 = 0');
+            $roles || $gastro || $citizens || $q->whereRaw('1 = 0');
         });
     }
 
@@ -58,11 +65,11 @@ class Broadcast
 
         return self::recipients($districtIds, $groups)->with('districts:id,name')->orderBy('full_name')->get()
             ->mapWithKeys(function (Staff $s) use ($gastro) {
-                $where = $s->is_global ? ['barcha tumanlar'] : ($gastro[$s->id] ?? null ?: $s->districts->pluck('name')->all());
+                $where = $s->role === Staff::ROLE_CITIZEN ? [] : ($s->is_global ? ['barcha tumanlar'] : ($gastro[$s->id] ?? null ?: $s->districts->pluck('name')->all()));
                 $where = array_map(fn ($n) => str_replace(' tumani', '', $n), $where);
 
                 return [(string) $s->id => trim(($s->full_name ?: Phone::format($s->phone)).' · '
-                    .(isset($gastro[$s->id]) ? 'gastro mas’ul' : mb_strtolower(\App\Filament\Resources\StaffResource::ROLES[$s->role] ?? $s->role))
+                    .(isset($gastro[$s->id]) ? 'gastro mas’ul' : ($s->role === Staff::ROLE_CITIZEN ? 'aholi' : mb_strtolower(\App\Filament\Resources\StaffResource::ROLES[$s->role] ?? $s->role)))
                     .($where ? ' · '.implode(', ', array_slice($where, 0, 3)).(count($where) > 3 ? '…' : '') : ''))];
             })->all();
     }

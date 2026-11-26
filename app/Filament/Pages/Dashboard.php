@@ -86,6 +86,7 @@ class Dashboard extends BaseDashboard
     protected function getHeaderActions(): array
     {
         return [
+            \App\Filament\Actions\PostAction::make(),
             self::broadcastAction(),
             // buzilish hisoboti: rasmlar va oluvchilar shu yerda tanlanadi (oluvchilar — Sozlamalar → Hisobotlar'dagilar oldindan belgilangan)
             Action::make('sendInspectionReport')->label('Buzilish hisobotini yuborish')->icon('heroicon-o-paper-airplane')
@@ -181,27 +182,12 @@ class Dashboard extends BaseDashboard
      */
     public static function broadcastAction(): Action
     {
-        $all = fn (\Filament\Forms\Get $get) => array_map('strval', array_keys(\App\Support\Broadcast::options(array_map('intval', $get('districts') ?? []), $get('groups') ?? [])));
-        $refresh = fn (\Filament\Forms\Get $get, \Filament\Forms\Set $set) => $set('people', $all($get));
-
         return Action::make('broadcast')->label('Xabar yuborish')->icon('heroicon-o-megaphone')->color('gray')
             ->modalHeading('Xabarnoma')->modalDescription('Xabar botda yuboriladi. Bo‘lim va tumanni tanlang — ro‘yxatda shular chiqadi; keraksizini olib tashlang.')
             ->modalWidth('3xl')->modalSubmitActionLabel('Yuborish')
             ->visible(fn () => User::currentIsAdmin())
             ->form([
-                \Filament\Forms\Components\CheckboxList::make('groups')->label('Bo‘limlar')->options(\App\Support\Broadcast::GROUPS)
-                    ->default(array_keys(\App\Support\Broadcast::GROUPS))->columns(2)->gridDirection('row')->required()->live()
-                    ->validationMessages(['required' => 'Kamida bitta bo‘limni belgilang.'])->afterStateUpdated($refresh),
-                \Filament\Forms\Components\Select::make('districts')->label('Tumanlar')->multiple()->native(false)
-                    ->options(fn () => \App\Models\District::orderBy('name')->pluck('name', 'id'))
-                    ->placeholder('Barcha tumanlar')->live()->afterStateUpdated($refresh),
-                \Filament\Forms\Components\CheckboxList::make('people')
-                    ->label(fn (\Filament\Forms\Get $get) => 'Kimlarga — belgilangan: '.count($get('people') ?? []).' ta')
-                    ->options(fn (\Filament\Forms\Get $get) => \App\Support\Broadcast::options(array_map('intval', $get('districts') ?? []), $get('groups') ?? []))
-                    ->default(fn () => array_map('strval', array_keys(\App\Support\Broadcast::options())))
-                    ->searchable()->bulkToggleable()->columns(2)->required()->live()
-                    ->noSearchResultsMessage('Topilmadi')->searchPrompt('Ism yoki tuman bo‘yicha qidirish')
-                    ->validationMessages(['required' => 'Kamida bitta oluvchini belgilang.']),
+                ...\App\Filament\Actions\PostAction::audience(false),
                 \Filament\Forms\Components\Textarea::make('text')->label('Xabar matni')->required()->minLength(3)->maxLength(3500)->rows(6),
             ])
             ->action(function (array $data) {
