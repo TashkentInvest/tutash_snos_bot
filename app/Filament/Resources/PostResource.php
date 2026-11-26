@@ -88,6 +88,8 @@ class PostResource extends Resource
             ])
             ->actions([Tables\Actions\ViewAction::make()->label('Batafsil'), self::recall(Tables\Actions\Action::class),
                 Tables\Actions\DeleteAction::make()->label('Ro‘yxatdan o‘chirish')
+                    // avval botdan: ro'yxatdan o'chsa, xabarlar raqami ham yo'qoladi va botdan o'chirib bo'lmaydi
+                    ->visible(fn (Post $record) => $record->recalled_at || $record->status === Post::SENDING || $record->created_at->lt(now()->subHours(48)) || ! $record->delivered)
                 ->modalHeading('Post panel ro‘yxatidan o‘chirilsinmi?')->modalDescription('Botdagi xabarlar o‘chmaydi — buning uchun avval «Botdan o‘chirish». Bu yerda faqat statistika va fayl o‘chadi.')])
             ->recordUrl(fn (Post $p) => self::getUrl('view', ['record' => $p]))
             ->poll('15s')
