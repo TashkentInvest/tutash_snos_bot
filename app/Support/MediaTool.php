@@ -79,6 +79,27 @@ class MediaTool
         return true;
     }
 
+    /**
+     * Video o'lchami va davomiyligi (Telegram'ga aytilmasa, u videoni noto'g'ri nisbatda — cho'zilgan holda ko'rsatadi).
+     * Burilgan (telefonda tik olingan) videoda eni va bo'yi almashtiriladi.
+     * @return array{width?: int, height?: int, duration?: int}
+     */
+    public function probe(string $video): array
+    {
+        $p = new Process(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height:stream_tags=rotate:stream_side_data=rotation:format=duration', '-of', 'json', $video]);
+        $p->setTimeout(20);
+        $p->run();
+        $j = $p->isSuccessful() ? json_decode($p->getOutput(), true) : null;
+        $s = $j['streams'][0] ?? [];
+        if (empty($s['width']) || empty($s['height'])) {
+            return [];
+        }
+        $rotate = abs((int) ($s['tags']['rotate'] ?? ($s['side_data_list'][0]['rotation'] ?? 0)));
+        [$w, $h] = in_array($rotate, [90, 270], true) ? [$s['height'], $s['width']] : [$s['width'], $s['height']];
+
+        return array_filter(['width' => (int) $w, 'height' => (int) $h, 'duration' => (int) round((float) ($j['format']['duration'] ?? 0))]);
+    }
+
     private function hasAudio(string $file): bool
     {
         $probe = new Process(['ffprobe', '-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', $file]);

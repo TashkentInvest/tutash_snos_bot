@@ -94,6 +94,32 @@ class PostTest extends TestCase
         $this->get(route('admin.post-media', $post))->assertOk();
     }
 
+    /** Video: eni/bo'yi va davomiyligi Telegram'ga aytiladi (aks holda cho'zilib ko'rinadi); matn alifbosi o'zgarmaydi. */
+    public function test_video_is_sent_with_its_size_and_caption_as_typed(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('posts/v.mp4', random_bytes(2000));
+        $this->app->bind(\App\Support\MediaTool::class, fn () => new class extends \App\Support\MediaTool {
+            public function probe(string $video): array
+            {
+                return ['width' => 852, 'height' => 480, 'duration' => 198];
+            }
+        });
+        config(['tutash.alphabet' => 'new']); // botning o'z matnlari yangi alifboda — post matni esa yozilganidek
+        $s = Staff::create(['telegram_id' => 4001, 'full_name' => 'X', 'phone' => '904000001', 'status' => Staff::ACTIVE, 'role' => Staff::ROLE_EMPLOYEE]);
+        $post = Post::create(['caption' => 'yo‘l qo‘yilgan xatolar', 'media_type' => 'video', 'media_path' => 'posts/v.mp4', 'total' => 1]);
+        PostDelivery::create(['post_id' => $post->id, 'staff_id' => $s->id]);
+
+        $bot = Nutgram::fake();
+        (new SendPost($post->id))->handle($bot);
+        $body = urldecode((string) collect($bot->getRequestHistory())->first()['request']->getBody());
+        foreach (['width' => '852', 'height' => '480', 'duration' => '198'] as $field => $v) {
+            $this->assertMatchesRegularExpression('/name="'.$field.'"\r\nContent-Length: \d+\r\n\r\n'.$v.'\r\n/', $body);
+        }
+        $this->assertStringContainsString('yo‘l qo‘yilgan xatolar', $body);
+        $this->assertSame(1, $post->refresh()->delivered);
+    }
+
     public function test_text_only_post_and_non_admin_cannot_see(): void
     {
         Queue::fake();

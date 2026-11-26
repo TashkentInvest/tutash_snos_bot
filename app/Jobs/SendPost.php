@@ -32,9 +32,10 @@ class SendPost implements ShouldQueue
     {
     }
 
+    /** Admin yozgan matn — aynan shunday (bot sozlamasidagi alifboga o'girilmaydi), HTML emas, oddiy matn. */
     public static function caption(Post $post): ?string
     {
-        return filled($post->caption) ? Script::apply(Ui::e(trim($post->caption))) : null;
+        return filled($post->caption) ? Ui::e(trim($post->caption)) : null;
     }
 
     public function handle(Nutgram $bot): void
@@ -44,16 +45,19 @@ class SendPost implements ShouldQueue
             return;
         }
         $caption = self::caption($post);
-        $markup = $post->ack_button ? Ui::markup([[Ui::btn('✅ Tanishdim', 'pa:'.$post->id)]]) : null;
+        $markup = $post->ack_button ? Ui::markup([[Ui::btn(Script::apply('✅ Tanishdim'), 'pa:'.$post->id)]]) : null;
+        // video: o'lchami va davomiyligi aytiladi — aks holda Telegram uni cho'zib ko'rsatadi
+        $video = $post->media_type === 'video' && $post->media_path
+            ? app(\App\Support\MediaTool::class)->probe(Storage::disk('local')->path($post->media_path)) : [];
 
         $post->deliveries()->where('status', PostDelivery::PENDING)->with('staff:id,telegram_id')->orderBy('id')
-            ->chunkById(200, function ($rows) use ($bot, $post, $caption, $markup) {
+            ->chunkById(200, function ($rows) use ($bot, $post, $caption, $markup, $video) {
                 foreach ($rows as $d) {
                     $opt = array_filter(['chat_id' => $d->staff?->telegram_id, 'parse_mode' => ParseMode::HTML, 'reply_markup' => $markup]);
                     try {
                         $msg = match ($post->media_type) {
                             'photo' => $bot->sendPhoto($this->media($post), $opt + array_filter(['caption' => $caption])),
-                            'video' => $bot->sendVideo($this->media($post), $opt + array_filter(['caption' => $caption, 'supports_streaming' => true])),
+                            'video' => $bot->sendVideo($this->media($post), $opt + $video + array_filter(['caption' => $caption, 'supports_streaming' => true])),
                             default => $bot->sendMessage($caption ?? '—', $opt + ['disable_web_page_preview' => true]),
                         };
                         if (! $post->file_id && $post->media_type) { // keyingilarga qayta yuklanmaydi
