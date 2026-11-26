@@ -11,7 +11,7 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 /** Bosh sahifa: bot foydalanuvchilari — bo'limlar bo'yicha, bugun faol, yangi qo'shilganlar. */
 class UsersStats extends StatsOverviewWidget
 {
-    protected static ?int $sort = 4;
+    protected static ?int $sort = -1; // bosh sahifaning eng tepasida
 
     protected static ?string $pollingInterval = '120s';
 
