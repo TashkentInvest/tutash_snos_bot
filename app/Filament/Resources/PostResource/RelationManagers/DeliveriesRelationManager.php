@@ -33,8 +33,9 @@ class DeliveriesRelationManager extends RelationManager
                 Tables\Columns\TextColumn::make('staff.role')->label('Bo‘lim')->badge()->color('gray')
                     ->formatStateUsing(fn ($state) => StaffResource::ROLES[$state] ?? $state),
                 Tables\Columns\TextColumn::make('status')->label('Yetkazildi')->badge()
-                    ->formatStateUsing(fn ($state) => [PostDelivery::SENT => 'Ha', PostDelivery::FAILED => 'Yo‘q', PostDelivery::PENDING => 'Navbatda'][$state] ?? $state)
-                    ->color(fn ($state) => [PostDelivery::SENT => 'success', PostDelivery::FAILED => 'danger'][$state] ?? 'warning')
+                    ->formatStateUsing(fn ($state, PostDelivery $d) => $d->recalled_at ? 'Ha · botdan o‘chirildi'
+                        : ([PostDelivery::SENT => 'Ha', PostDelivery::FAILED => 'Yo‘q', PostDelivery::PENDING => 'Navbatda'][$state] ?? $state))
+                    ->color(fn ($state, PostDelivery $d) => $d->recalled_at ? 'gray' : ([PostDelivery::SENT => 'success', PostDelivery::FAILED => 'danger'][$state] ?? 'warning'))
                     ->tooltip(fn (PostDelivery $d) => $d->error),
                 Tables\Columns\TextColumn::make('ack_at')->label('Tanishdim')->dateTime('d.m H:i')->placeholder('—')->color('success')->sortable(),
                 Tables\Columns\TextColumn::make('staff.last_seen_at')->label('Oxirgi faollik')->since()->placeholder('—')

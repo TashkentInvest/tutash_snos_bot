@@ -12,9 +12,9 @@ class Post extends Model
     public const SENDING = 'sending';
     public const SENT = 'sent';
 
-    protected $fillable = ['caption', 'media_type', 'media_path', 'file_id', 'audience', 'ack_button', 'status', 'total', 'delivered', 'failed', 'created_by', 'finished_at'];
+    protected $fillable = ['caption', 'media_type', 'media_path', 'file_id', 'audience', 'ack_button', 'status', 'total', 'delivered', 'failed', 'created_by', 'finished_at', 'recalled_at', 'recalled', 'recall_failed'];
 
-    protected $casts = ['audience' => 'array', 'ack_button' => 'boolean', 'finished_at' => 'datetime'];
+    protected $casts = ['audience' => 'array', 'ack_button' => 'boolean', 'finished_at' => 'datetime', 'recalled_at' => 'datetime'];
 
     protected static function booted(): void
     {

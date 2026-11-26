@@ -12,9 +12,9 @@ class PostDelivery extends Model
     public const SENT = 'sent';
     public const FAILED = 'failed';
 
-    protected $fillable = ['post_id', 'staff_id', 'status', 'message_id', 'sent_at', 'ack_at', 'error'];
+    protected $fillable = ['post_id', 'staff_id', 'status', 'message_id', 'sent_at', 'ack_at', 'error', 'recalled_at'];
 
-    protected $casts = ['sent_at' => 'datetime', 'ack_at' => 'datetime'];
+    protected $casts = ['sent_at' => 'datetime', 'ack_at' => 'datetime', 'recalled_at' => 'datetime'];
 
     public function post(): BelongsTo
     {

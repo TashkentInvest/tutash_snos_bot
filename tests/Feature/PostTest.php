@@ -92,6 +92,21 @@ class PostTest extends TestCase
             ->assertSee('Xodim Bir')->assertSee('Aholi Bir')
             ->filterTable('view', 'ack')->assertSee('Aholi Bir')->assertDontSee('Xodim Bir');
         $this->get(route('admin.post-media', $post))->assertOk();
+
+        // «Botdan o'chirish»: oluvchilar chatidan o'chiriladi, statistika qoladi
+        Queue::fake();
+        Livewire::test(\App\Filament\Resources\PostResource\Pages\ViewPost::class, ['record' => $post->id])
+            ->assertActionVisible('recall')->callAction('recall')->assertHasNoActionErrors();
+        Queue::assertPushed(\App\Jobs\RecallPost::class);
+        $bot = Nutgram::fake();
+        (new \App\Jobs\RecallPost($post->id))->handle($bot);
+        $this->assertStringContainsString('deleteMessage', (string) collect($bot->getRequestHistory())->first()['request']->getUri());
+        $post->refresh();
+        $this->assertSame([2, 0], [$post->recalled, $post->recall_failed]);
+        $this->assertSame(2, $post->stats()['delivered']); // statistika o'zgarmadi
+        $this->assertSame(1, $post->stats()['ack']);
+        $this->get('/admin/posts/'.$post->id)->assertOk()->assertSee('Botdan o‘chirildi: 2');
+        Livewire::test(\App\Filament\Resources\PostResource\Pages\ViewPost::class, ['record' => $post->id])->assertActionHidden('recall');
     }
 
     /** Video: eni/bo'yi va davomiyligi Telegram'ga aytiladi (aks holda cho'zilib ko'rinadi); matn alifbosi o'zgarmaydi. */

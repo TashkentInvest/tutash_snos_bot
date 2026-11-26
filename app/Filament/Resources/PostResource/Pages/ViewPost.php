@@ -13,4 +13,9 @@ class ViewPost extends ViewRecord
     {
         return 'Post — '.$this->record->created_at->format('d.m.Y H:i');
     }
+
+    protected function getHeaderActions(): array
+    {
+        return [PostResource::recall(\Filament\Actions\Action::class)];
+    }
 }

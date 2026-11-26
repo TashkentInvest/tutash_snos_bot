@@ -51,6 +51,17 @@ class PostResource extends Resource
 
     public const MEDIA = ['photo' => 'Rasm', 'video' => 'Video'];
 
+    public static function statusLabel(Post $p): string
+    {
+        if ($p->recalled_at) {
+            $done = $p->recalled + $p->recall_failed;
+
+            return $done ? "Botdan o‘chirildi: {$p->recalled}".($p->recall_failed ? " (o‘chmadi: {$p->recall_failed})" : '') : 'Botdan o‘chirilmoqda…';
+        }
+
+        return $p->status === Post::SENDING ? 'Yuborilmoqda' : 'Yuborildi';
+    }
+
     /** «N (x%)» — yetkazilganlarga nisbatan. */
     public static function share(int $n, int $of): string
     {
@@ -63,7 +74,7 @@ class PostResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('created_at')->label('Sana')->dateTime('d.m.Y H:i')->sortable(),
                 Tables\Columns\TextColumn::make('caption')->label('Post')->state(fn (Post $p) => $p->title())->wrap()
-                    ->description(fn (Post $p) => self::MEDIA[$p->media_type] ?? 'Matn'),
+                    ->description(fn (Post $p) => (self::MEDIA[$p->media_type] ?? 'Matn').($p->recalled_at ? ' · '.self::statusLabel($p) : '')),
                 Tables\Columns\TextColumn::make('total')->label('Oluvchilar')->alignEnd(),
                 Tables\Columns\TextColumn::make('delivered')->label('Yetkazildi')->alignEnd()
                     ->description(fn (Post $p) => $p->failed ? "yetkazilmadi: {$p->failed}" : null)
@@ -75,8 +86,9 @@ class PostResource extends Resource
                     ->tooltip('«Tanishdim» bosgan yoki post kelgandan keyin botdan foydalangan'),
                 Tables\Columns\TextColumn::make('author.name')->label('Kim yubordi')->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->actions([Tables\Actions\ViewAction::make()->label('Batafsil'), Tables\Actions\DeleteAction::make()->label('O‘chirish')
-                ->modalHeading('Post panel ro‘yxatidan o‘chirilsinmi?')->modalDescription('Botda yuborilgan xabarlar o‘chmaydi — faqat statistika va fayl o‘chadi.')])
+            ->actions([Tables\Actions\ViewAction::make()->label('Batafsil'), self::recall(Tables\Actions\Action::class),
+                Tables\Actions\DeleteAction::make()->label('Ro‘yxatdan o‘chirish')
+                ->modalHeading('Post panel ro‘yxatidan o‘chirilsinmi?')->modalDescription('Botdagi xabarlar o‘chmaydi — buning uchun avval «Botdan o‘chirish». Bu yerda faqat statistika va fayl o‘chadi.')])
             ->recordUrl(fn (Post $p) => self::getUrl('view', ['record' => $p]))
             ->poll('15s')
             ->emptyStateHeading('Hali post yuborilmagan')->emptyStateDescription('Bosh sahifadagi «Post yuborish» tugmasi orqali.')
@@ -92,7 +104,7 @@ class PostResource extends Resource
                 Infolists\Components\TextEntry::make('media_type')->label('Turi')->formatStateUsing(fn ($state) => self::MEDIA[$state] ?? 'Matn')->placeholder('Matn')
                     ->url(fn (Post $p) => $p->media_path ? route('admin.post-media', $p) : null, true),
                 Infolists\Components\TextEntry::make('status')->label('Holat')->badge()
-                    ->formatStateUsing(fn ($state) => $state === Post::SENDING ? 'Yuborilmoqda' : 'Yuborildi')->color(fn ($state) => $state === Post::SENDING ? 'warning' : 'success'),
+                    ->state(fn (Post $p) => self::statusLabel($p))->color(fn (Post $p) => $p->recalled_at ? 'danger' : ($p->status === Post::SENDING ? 'warning' : 'success')),
                 Infolists\Components\TextEntry::make('caption')->label('Matn')->columnSpanFull()->placeholder('—')->extraAttributes(['style' => 'white-space:pre-line']),
             ]),
             Infolists\Components\Section::make('Statistika')->columns(5)
@@ -105,6 +117,29 @@ class PostResource extends Resource
                     'Ko‘rgan (taxminan)' => self::share($p->stats()['seen'], $p->delivered),
                 ])->map(fn ($v, $k) => Infolists\Components\TextEntry::make('s'.md5($k))->label($k)->state($v)->size(Infolists\Components\TextEntry\TextEntrySize::Large)->weight('bold'))->values()->all()),
         ]);
+    }
+
+    /**
+     * «Botdan o'chirish»: post oluvchilar chatidan o'chiriladi (navbatda). Telegram 48 soatdan eski xabarni o'chirmaydi.
+     * @param  class-string  $class  jadval yoki sahifa tugmasi
+     */
+    public static function recall(string $class): \Filament\Actions\Action|Tables\Actions\Action
+    {
+        return $class::make('recall')->label('Botdan o‘chirish')->icon('heroicon-o-trash')->color('danger')
+            ->visible(fn (Post $record) => User::currentIsAdmin() && $record->status === Post::SENT && ! $record->recalled_at && $record->delivered > 0)
+            ->requiresConfirmation()
+            ->modalHeading('Post barcha oluvchilar chatidan o‘chirilsinmi?')
+            ->modalDescription(fn (Post $record) => "Botda {$record->delivered} ta oluvchidan o‘chiriladi. Statistika panelda qoladi. "
+                .($record->created_at->lt(now()->subHours(48))
+                    ? 'Diqqat: post 48 soatdan oldin yuborilgan — Telegram eski xabarlarni o‘chirishga ruxsat bermaydi, ko‘pchiligi o‘chmasligi mumkin.'
+                    : 'Telegram faqat 48 soat ichida o‘chirishga ruxsat beradi — '.now()->diffInHours($record->created_at->copy()->addHours(48)).' soat qoldi.'))
+            ->modalSubmitActionLabel('Ha, botdan o‘chirish')
+            ->action(function (Post $record) {
+                $record->update(['recalled_at' => now()]);
+                \App\Models\AuditLog::record('post.recalled', null, ['post' => $record->id, 'by' => auth()->id()]);
+                \App\Jobs\RecallPost::dispatch($record->id);
+                \Filament\Notifications\Notification::make()->title('Post botdan o‘chirilmoqda')->body('Natija shu sahifada ko‘rinadi.')->success()->send();
+            });
     }
 
     public static function getRelations(): array
