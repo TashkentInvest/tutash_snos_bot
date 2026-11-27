@@ -50,3 +50,16 @@ Har kecha 02:30 (UTC, Toshkent 07:30) `snos-backup.timer` → `/usr/local/bin/sn
 ## Eslatmalar
 - Server PHP 8.4: `openspout` v4.32 ga yangilandi (4.25 PHP 8.4 ni qo'llamaydi). Laravel 10 uchun rasmiy qo'llab-quvvatlash tugagan — Laravel 11/12 ga o'tish rejalashtirilsin.
 - Parollarni (admin, bot token, DB, webhook secret) almashtirish egasi tomonidan amalga oshiriladi.
+
+## Tarmoq tezligi (2026-11-27)
+
+Server Germaniyada (Fornex), foydalanuvchilar O'zbekistonda: kechikish 160–280 ms, bitta ulanish tezligi ~20 KB/s edi.
+Qilingan sozlamalar (serverda, repoda emas):
+
+- **TCP BBR + fq** — `/etc/sysctl.d/90-snos-bbr.conf`, `/etc/modules-load.d/bbr.conf` (o'tkazish tezligi ~2 baravar oshdi).
+  Qaytarish: faylni o'chirib `sysctl -w net.ipv4.tcp_congestion_control=cubic net.core.default_qdisc=fq_codel`.
+- **HTTP/2** — `/etc/nginx/sites-available/snos`: `listen 443 ssl http2`.
+- **Statik fayllar keshi** — o'sha faylda `location ~* ^/(css|js|images)/...` (7 kun). Fon rasmi almashtirilsa — fayl nomini o'zgartiring.
+- Eski nginx sozlamasi nusxasi: `/root/nginx-snos.bak.*`.
+
+Eng katta yutuq — serverni O'zbekistondagi ma'lumotlar markaziga ko'chirish yoki domen oldiga Cloudflare qo'yish.
