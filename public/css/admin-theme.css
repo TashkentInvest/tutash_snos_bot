@@ -3,17 +3,18 @@
  * Fon: public/images/admin-bg.jpg. Tungi rejimda fon qorong'ilashtiriladi, panellar to'q shisha.
  */
 :root {
-    --g-bg: rgba(255, 255, 255, .62);
-    --g-bg-strong: rgba(255, 255, 255, .8);
-    --g-border: rgba(255, 255, 255, .7);
-    --g-shadow: 0 8px 32px rgba(30, 41, 59, .10);
-    --g-blur: blur(20px) saturate(1.35);
+    --g-bg: rgba(255, 255, 255, .80);
+    --g-bg-strong: rgba(255, 255, 255, .92);
+    --g-border: rgba(255, 255, 255, .75);
+    --g-shadow: 0 4px 20px rgba(30, 41, 59, .07);
+    /* fon rasmi oldindan xiralashtirilgan — brauzer yengil blur qiladi (tez ishlaydi) */
+    --g-blur: blur(8px);
     --g-text: #0f172a;
     --g-muted: #475569;
 }
 .dark {
-    --g-bg: rgba(17, 24, 39, .58);
-    --g-bg-strong: rgba(17, 24, 39, .82);
+    --g-bg: rgba(17, 24, 39, .78);
+    --g-bg-strong: rgba(17, 24, 39, .9);
     --g-border: rgba(255, 255, 255, .10);
     --g-shadow: 0 8px 32px rgba(0, 0, 0, .35);
     --g-text: #f1f5f9;
@@ -24,10 +25,16 @@
 .fi-body { background: transparent !important; }
 .fi-body::before {
     content: ""; position: fixed; inset: 0; z-index: -1;
-    background: linear-gradient(rgba(255, 255, 255, .18), rgba(255, 255, 255, .28)), url('/images/admin-bg.jpg') center / cover no-repeat;
+    /* rasm oldindan so'ndirilgan va xiralashtirilgan (10 KB webp); ustida yumshoq kulrang parda — ko'zni charchatmaydi */
+    background-color: #eef1f5;
+    background-image: linear-gradient(rgba(238, 241, 245, .45), rgba(238, 241, 245, .6)), url('/images/admin-bg.jpg');
+    background-image: linear-gradient(rgba(238, 241, 245, .45), rgba(238, 241, 245, .6)), image-set(url('/images/admin-bg.webp') type('image/webp'), url('/images/admin-bg.jpg') type('image/jpeg'));
+    background-position: center; background-size: cover; background-repeat: no-repeat;
 }
 .dark .fi-body::before {
-    background: linear-gradient(rgba(2, 6, 23, .72), rgba(2, 6, 23, .80)), url('/images/admin-bg.jpg') center / cover no-repeat;
+    background-color: #0b1120;
+    background-image: linear-gradient(rgba(2, 6, 23, .82), rgba(2, 6, 23, .88)), url('/images/admin-bg.jpg');
+    background-image: linear-gradient(rgba(2, 6, 23, .82), rgba(2, 6, 23, .88)), image-set(url('/images/admin-bg.webp') type('image/webp'), url('/images/admin-bg.jpg') type('image/jpeg'));
 }
 .fi-layout, .fi-main-ctn { background: transparent !important; }
 
@@ -87,7 +94,7 @@
 .fi-sidebar-nav-groups > li + li { border-top: 1px solid var(--g-border); padding-top: .5rem; }
 
 /* sahifa sarlavhasi fon ustida aniq o'qilsin */
-.fi-header-heading { color: var(--g-text) !important; text-shadow: 0 1px 12px rgba(255, 255, 255, .6); }
+.fi-header-heading { color: var(--g-text) !important; }
 .dark .fi-header-heading { text-shadow: none; }
 
 /* bosh sahifa vidjeti ranglari shisha bilan mos */
