@@ -24,6 +24,9 @@ use Illuminate\Support\Facades\DB;
  */
 class Overview extends Widget
 {
+    // sahifa bilan birga chiziladi: alohida so'rov (sekin tarmoqda har biri ~0,3–1 s) bo'lmaydi
+    protected static bool $isLazy = false;
+
     use InteractsWithPageFilters;
 
     protected static ?int $sort = -10;
@@ -32,7 +35,7 @@ class Overview extends Widget
 
     protected int|string|array $columnSpan = 'full';
 
-    protected static ?string $pollingInterval = '120s';
+    protected static ?string $pollingInterval = null; // sekin o'zgaradi — sahifa yangilanganda
 
     public static function canView(): bool
     {
@@ -71,14 +74,19 @@ class Overview extends Widget
         $demolishedAt = fn ($at) => Site::where('status', Site::DEMOLISHED)->where(fn ($q) => $q->whereNull('demolished_at')->orWhere('demolished_at', '<=', $at))->count();
         $pct = fn ($n) => $total ? round($n * 100 / $total, 1) : 0;
         $url = fn (?string $status = null) => SiteResource::getUrl('index', $status ? ['tableFilters' => ['status' => ['value' => $status]]] : []);
+        // 14 kunlik chiziqchalar (42 ta so'rov) — 10 daqiqa keshda; obyekt holati o'zgarsa kalit ham o'zgaradi
+        $stamp = md5(json_encode([today()->toDateString(), $total, $demolished, Site::max('updated_at')]));
+        $sparks = \Illuminate\Support\Facades\Cache::remember("overview:sparks:{$stamp}", 600, fn () => [
+            'created' => self::series($created), 'demolished' => self::series($demolishedAt),
+        ]);
         $kpis = [
             ['label' => 'Jami obyektlar', 'value' => $total, 'pct' => 100, 'color' => '#1d4ed8', 'url' => $url(),
-                'note' => $exempt ? "Sud qarori bekor qilingan {$exempt} ta hisobga olinmagan" : null, 'spark' => self::spark(self::series($created))],
+                'note' => $exempt ? "Sud qarori bekor qilingan {$exempt} ta hisobga olinmagan" : null, 'spark' => self::spark($sparks['created'])],
             ['label' => 'Buzilgan', 'value' => $demolished, 'pct' => $pct($demolished), 'color' => '#16a34a', 'url' => $url(Site::DEMOLISHED), 'showPct' => true,
-                'spark' => self::spark(self::series($demolishedAt))],
+                'spark' => self::spark($sparks['demolished'])],
             ['label' => 'Jarayonda', 'value' => $inProgress, 'pct' => $pct($inProgress), 'color' => '#d97706', 'url' => $url(Site::IN_PROGRESS), 'spark' => null],
             ['label' => 'Buzilmagan', 'value' => $left, 'pct' => $pct($left), 'color' => '#dc2626', 'url' => $url(Site::NOT_DEMOLISHED),
-                'spark' => self::spark(self::series(fn ($at) => $created($at) - $demolishedAt($at)))],
+                'spark' => self::spark(array_map(fn ($c, $d) => $c - $d, $sparks['created'], $sparks['demolished']))],
         ];
 
         // 2. tumanlar kesimida bajarilish (svod bilan bir xil hisob) va davomat

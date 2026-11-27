@@ -11,10 +11,13 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class StatsOverview extends StatsOverviewWidget
 {
+    // sahifa bilan birga chiziladi: alohida so'rov (sekin tarmoqda har biri ~0,3–1 s) bo'lmaydi
+    protected static bool $isLazy = false;
+
     protected static ?int $sort = 1;
 
     // standart 5 soniya o'rniga: sust aloqada sahifa og'irlashmasin
-    protected static ?string $pollingInterval = '60s';
+    protected static ?string $pollingInterval = '300s';
 
     // nazorat: tasdiq kutayotganlar, moderator izohlari, shubhali tekshiruvlar (jami / buzilgan / qolgan — «Overview» kartochkalarida)
     protected ?string $heading = 'Nazorat';

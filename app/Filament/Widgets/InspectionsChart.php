@@ -7,6 +7,9 @@ use Filament\Widgets\ChartWidget;
 
 class InspectionsChart extends ChartWidget
 {
+    // sahifa bilan birga chiziladi: alohida so'rov (sekin tarmoqda har biri ~0,3–1 s) bo'lmaydi
+    protected static bool $isLazy = false;
+
     protected static ?int $sort = 2;
 
     protected static ?string $pollingInterval = null; // grafik kunlik ma'lumot — qayta so'ralmaydi

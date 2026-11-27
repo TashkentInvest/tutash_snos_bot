@@ -14,11 +14,14 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
  */
 class PeriodStats extends StatsOverviewWidget
 {
+    // sahifa bilan birga chiziladi: alohida so'rov (sekin tarmoqda har biri ~0,3–1 s) bo'lmaydi
+    protected static bool $isLazy = false;
+
     use InteractsWithPageFilters;
 
     protected static ?int $sort = 0;
 
-    protected static ?string $pollingInterval = '60s';
+    protected static ?string $pollingInterval = '300s';
 
     private function period(): ReportPeriod
     {

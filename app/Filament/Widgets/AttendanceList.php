@@ -12,6 +12,9 @@ use Filament\Widgets\TableWidget as BaseWidget;
 /** Dashboard: bugungi davomat ro'yxati (vaqt, joylashuv xaritasi, video, sabab). */
 class AttendanceList extends BaseWidget
 {
+    // sahifa bilan birga chiziladi: alohida so'rov (sekin tarmoqda har biri ~0,3–1 s) bo'lmaydi
+    protected static bool $isLazy = false;
+
     use InteractsWithPageFilters;
 
     public static function canView(): bool

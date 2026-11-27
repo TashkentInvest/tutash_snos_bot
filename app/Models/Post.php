@@ -38,6 +38,13 @@ class Post extends Model
      */
     public function stats(): array
     {
+        return $this->statsCache ??= $this->computeStats(); // jadvalda bir qatorda 3 ustun — bir marta hisoblanadi
+    }
+
+    private ?array $statsCache = null;
+
+    private function computeStats(): array
+    {
         $sent = fn () => PostDelivery::where('post_deliveries.post_id', $this->id)->where('post_deliveries.status', PostDelivery::SENT)
             ->join('staff', 'staff.id', '=', 'post_deliveries.staff_id');
         $after = fn ($q) => $q->whereColumn('staff.last_seen_at', '>', 'post_deliveries.sent_at');

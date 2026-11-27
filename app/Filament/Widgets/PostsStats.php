@@ -12,6 +12,9 @@ use Filament\Widgets\TableWidget as BaseWidget;
 /** Bosh sahifa: oxirgi postlar statistikasi (yetkazildi, tanishdi, ko'rgan — taxminan). */
 class PostsStats extends BaseWidget
 {
+    // sahifa bilan birga chiziladi: alohida so'rov (sekin tarmoqda har biri ~0,3–1 s) bo'lmaydi
+    protected static bool $isLazy = false;
+
     protected static ?int $sort = -9; // «Overview» dan keyin
 
     protected int|string|array $columnSpan = 'full';
@@ -41,6 +44,6 @@ class PostsStats extends BaseWidget
             ])
             ->recordUrl(fn (Post $p) => PostResource::getUrl('view', ['record' => $p]))
             ->paginated(false)
-            ->poll('30s');
+            ->poll('120s');
     }
 }
