@@ -1,11 +1,23 @@
 <x-filament-panels::page>
     @php($cell = 'border:1px solid rgba(128,128,128,.25);padding:.45rem .4rem;text-align:center;vertical-align:middle;')
-    <div style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;">
+    <div class="fi-section" style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;padding:.75rem 1rem;">
+        {{-- kunlik jadval / oylik statistika --}}
+        <x-filament::tabs>
+            <x-filament::tabs.item :active="$mode === 'day'" wire:click="$set('mode', 'day')" icon="heroicon-o-calendar">Kunlik</x-filament::tabs.item>
+            <x-filament::tabs.item :active="$mode === 'month'" wire:click="$set('mode', 'month')" icon="heroicon-o-chart-bar">Oylik statistika</x-filament::tabs.item>
+        </x-filament::tabs>
+        @if ($mode === 'month')
+            <label style="font-size:.875rem;font-weight:600;">Oy</label>
+            <x-filament::input.wrapper>
+                <x-filament::input type="month" wire:model.live="month" max="{{ today()->format('Y-m') }}" style="color-scheme:light dark;" />
+            </x-filament::input.wrapper>
+        @else
         <label style="font-size:.875rem;font-weight:600;">Kun</label>
         {{-- Filament'ning o'z maydonlari — qorong'i rejimda ham variantlar va kalendar o'qiladi --}}
         <x-filament::input.wrapper>
             <x-filament::input type="date" wire:model.live="day" max="{{ today()->toDateString() }}" style="color-scheme:light dark;" />
         </x-filament::input.wrapper>
+        @endif
         <x-filament::input.wrapper style="min-width:260px;">
             <x-filament::input.select wire:model.live="who">
                 <option value="all">Hammasi</option>
@@ -18,6 +30,9 @@
         </span>
     </div>
 
+    @if ($mode === 'month')
+        @include('filament.pages.checkin-board-month', ['m' => $m, 'slots' => $slots, 'cell' => $cell])
+    @else
     <x-filament::section>
         @if ($rows->isEmpty())
             <div style="font-size:.875rem;">Soatlik qayd yuritiladigan xodim yo‘q. Xodimlar sahifasida rolni «Shartnoma» qiling yoki xodimga «Soatlik qayd» belgisini yoqing.</div>
@@ -91,4 +106,5 @@
             </div>
         @endif
     </x-filament::section>
+    @endif
 </x-filament-panels::page>

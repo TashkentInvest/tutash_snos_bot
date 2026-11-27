@@ -116,6 +116,14 @@ class CheckinTest extends TestCase
         $this->actingAs($admin)->get('/admin/checkin-board')->assertOk()->assertSee('Aslanov Sanjar')->assertSee('10:20')->assertSee('yo‘q', false);
         $this->get('/admin/checkins')->assertOk()->assertSee('Qayd etildi');
         $this->get(route('admin.checkin-video', $row))->assertOk();
+
+        // oylik statistika: oy jami, xodim qatori (javob / so'rov), foiz
+        $present = Checkin::where('status', Checkin::PRESENT)->count();
+        $total = Checkin::count();
+        $this->assertGreaterThan(0, $present);
+        $this->get('/admin/checkin-board?mode=month')->assertOk()->assertSee('Soatlik qayd — oylik statistika')->assertSee('Aslanov Sanjar')
+            ->assertSee("{$present} / {$total}")->assertSee('Javob bermagan so‘rovlar');
+        $this->get('/admin/checkin-board?mode=month&month='.today()->subMonths(2)->format('Y-m'))->assertOk()->assertSee('0 / 0');
     }
 
     /** Ikkinchi vazifa: oddiy xodim «Soatlik qayd» belgisi bilan so'rov oladi, obyektlar bilan ishlashda davom etadi. */

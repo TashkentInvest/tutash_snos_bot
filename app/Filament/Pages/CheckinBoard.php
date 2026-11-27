@@ -38,6 +38,14 @@ class CheckinBoard extends Page
     #[Url]
     public string $who = 'all';
 
+    /** day — kunlik jadval, month — oylik statistika (har kun: javob / so'rov, davomat; oy jami va foiz). */
+    #[Url]
+    public string $mode = 'day';
+
+    /** Oylik ko'rinishda oy: YYYY-MM. */
+    #[Url]
+    public ?string $month = null;
+
     public static function canAccess(): bool
     {
         return User::currentIsAdmin() || User::currentIsCheckinsOnly();
@@ -46,6 +54,64 @@ class CheckinBoard extends Page
     public function mount(): void
     {
         $this->day ??= today()->toDateString();
+        $this->month ??= today()->format('Y-m');
+    }
+
+    public function getTitle(): string
+    {
+        return $this->mode === 'month' ? 'Soatlik qayd — oylik statistika' : 'Soatlik qayd — kunlik jadval';
+    }
+
+    /** Oylik statistika: qatorda xodim, ustunda oy kunlari (javob / so'rov va ertalabki davomat), oxirida oy jami. */
+    private function monthData($staff): array
+    {
+        try {
+            $from = Carbon::createFromFormat('Y-m-d', ($this->month ?: today()->format('Y-m')).'-01')->startOfDay();
+        } catch (\Throwable) {
+            $from = today()->startOfMonth();
+        }
+        $to = $from->copy()->endOfMonth()->min(today()->endOfDay());
+        $days = $from->greaterThan(today()) ? [] : collect(range(1, $to->day))->map(fn ($d) => $from->copy()->day($d))->all();
+        $ids = $staff->pluck('id');
+
+        $checkins = Checkin::whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->whereIn('staff_id', $ids)
+            ->get(['staff_id', 'date', 'status'])->groupBy(fn ($c) => $c->staff_id.'|'.Carbon::parse($c->date)->toDateString());
+        $attendance = Attendance::whereDate('date', '>=', $from->toDateString())->whereDate('date', '<=', $to->toDateString())->whereIn('staff_id', $ids)
+            ->get(['staff_id', 'date', 'status'])->keyBy(fn ($a) => $a->staff_id.'|'.Carbon::parse($a->date)->toDateString());
+
+        $dayTotals = [];
+        $rows = $staff->map(function (Staff $s) use ($days, $checkins, $attendance, &$dayTotals) {
+            $cells = [];
+            $sum = ['present' => 0, 'total' => 0, 'missed' => 0, 'att_present' => 0, 'att_absent' => 0, 'att_missed' => 0, 'att_total' => 0];
+            foreach ($days as $d) {
+                $key = $s->id.'|'.$d->toDateString();
+                $list = $checkins[$key] ?? collect();
+                $present = $list->where('status', Checkin::PRESENT)->count();
+                $missed = $list->where('status', Checkin::MISSED)->count();
+                $att = ($attendance[$key] ?? null)?->status;
+                $cells[$d->day] = ['present' => $present, 'total' => $list->count(), 'att' => $att];
+                $sum['present'] += $present;
+                $sum['total'] += $list->count();
+                $sum['missed'] += $missed;
+                if ($att) {
+                    $sum['att_total']++;
+                    $att === Attendance::PRESENT && $sum['att_present']++;
+                    $att === Attendance::ABSENT && $sum['att_absent']++;
+                    $att === Attendance::MISSED && $sum['att_missed']++;
+                }
+                $dayTotals[$d->day]['present'] = ($dayTotals[$d->day]['present'] ?? 0) + $present;
+                $dayTotals[$d->day]['total'] = ($dayTotals[$d->day]['total'] ?? 0) + $list->count();
+            }
+            $sum['pct'] = $sum['total'] ? round($sum['present'] * 100 / $sum['total'], 1) : null;
+
+            return ['staff' => $s, 'cells' => $cells, 'sum' => $sum];
+        });
+
+        $grand = ['present' => $rows->sum('sum.present'), 'total' => $rows->sum('sum.total'), 'missed' => $rows->sum('sum.missed'),
+            'att_present' => $rows->sum('sum.att_present'), 'att_total' => $rows->sum('sum.att_total')];
+        $grand['pct'] = $grand['total'] ? round($grand['present'] * 100 / $grand['total'], 1) : null;
+
+        return ['from' => $from, 'days' => $days, 'rows' => $rows->sortBy(fn ($r) => $r['sum']['pct'] ?? 101)->values(), 'dayTotals' => $dayTotals, 'grand' => $grand];
     }
 
     /** Barchaga birdan eslatma: hozirgi so'rovga javob bermaganlar (yuborish tugmasi bilan) yoki barcha shartnoma xodimlari. */
@@ -88,10 +154,14 @@ class CheckinBoard extends Page
         $staff = Staff::hourlyCheckin()->where('status', Staff::ACTIVE)
             ->when(in_array($this->who, Staff::WORK_ROLES, true), fn ($q) => $q->where('role', $this->who))
             ->orderBy('full_name')->get();
-        $checkins = Checkin::whereDate('date', $day)->whereIn('staff_id', $staff->pluck('id'))->get()->groupBy('staff_id');
+        if ($this->mode === 'month') {
+            return ['mode' => 'month', 'slots' => Checkin::slots(), 'm' => $this->monthData($staff), 'date' => today()];
+        }
+        $checkins =Checkin::whereDate('date', $day)->whereIn('staff_id', $staff->pluck('id'))->get()->groupBy('staff_id');
         $attendance = Attendance::whereDate('date', $day)->whereIn('staff_id', $staff->pluck('id'))->get()->keyBy('staff_id');
 
         return [
+            'mode' => 'day',
             'date' => $day,
             'slots' => Checkin::slots(),
             'rows' => $staff->map(fn (Staff $s) => [
