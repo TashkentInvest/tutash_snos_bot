@@ -93,6 +93,16 @@ Route::get('/admin-lease-svod.png', function (\Illuminate\Http\Request $request)
         'Content-Type' => 'image/png', 'Cache-Control' => 'private, no-store',
     ]);
 })->middleware(['auth'])->name('admin.lease-svod.png');
+// kunlik PDF hisobot (namuna uslubida) — faqat admin; ?day=YYYY-MM-DD; murojaat — kirgan foydalanuvchi nomi
+Route::get('/admin-report.pdf', function (\Illuminate\Http\Request $request) {
+    abort_unless(\App\Models\User::currentIsAdmin(), 403);
+    $day = \App\Support\ReportPeriod::fromFilter($request->query('day'))->day;
+
+    return response(\App\Support\ReportPdf::render($day, auth()->user()?->name), 200, [
+        'Content-Type' => 'application/pdf', 'Cache-Control' => 'private, no-store',
+        'Content-Disposition' => 'inline; filename="'.\App\Support\ReportPdf::filename($day).'"',
+    ]);
+})->middleware(['auth'])->name('admin.report.pdf');
 // post rasmi / videosi (panelda ko'rish) — faqat admin
 Route::get('/admin-post/{post}/media', function (\App\Models\Post $post) {
     abort_unless(\App\Models\User::currentIsAdmin() && $post->media_path && \Illuminate\Support\Facades\Storage::disk('local')->exists($post->media_path), 404);

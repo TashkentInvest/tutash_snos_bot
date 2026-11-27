@@ -88,6 +88,10 @@ class Dashboard extends BaseDashboard
         return [
             \App\Filament\Actions\PostAction::make(),
             self::broadcastAction(),
+            // kunlik PDF hisobot (namuna uslubida) — tanlangan kun uchun yuklab olish
+            Action::make('reportPdf')->label('PDF hisobot')->icon('heroicon-o-document-arrow-down')->color('gray')
+                ->visible(fn () => User::currentIsAdmin())
+                ->url(fn () => route('admin.report.pdf', ['day' => $this->period()->day->toDateString()]), true),
             // buzilish hisoboti: rasmlar va oluvchilar shu yerda tanlanadi (oluvchilar — Sozlamalar → Hisobotlar'dagilar oldindan belgilangan)
             Action::make('sendInspectionReport')->label('Buzilish hisobotini yuborish')->icon('heroicon-o-paper-airplane')
                 ->modalHeading(fn () => 'Buzilish hisoboti — '.$this->period()->day->format('d.m.Y'))->modalWidth('3xl')->modalSubmitActionLabel('Yuborish')
@@ -95,7 +99,8 @@ class Dashboard extends BaseDashboard
                 ->form(fn () => [
                     // gastronomik svod — alohida xabar (o'z izohi bilan) buzilish hisobotidan keyin
                     \Filament\Forms\Components\CheckboxList::make('images')->label('Rasmlar')
-                        ->options(InspectionReport::IMAGES + ['gastro' => 'Gastronomik ko‘chalar — ijara svodi', 'designcode' => 'Dizayn-kod ko‘chalari svodi'])
+                        ->options(InspectionReport::IMAGES + ['gastro' => 'Gastronomik ko‘chalar — ijara svodi', 'designcode' => 'Dizayn-kod ko‘chalari svodi',
+                            'pdf' => 'PDF hisobot (har oluvchiga — ismi bilan)'])
                         ->default(array_keys(InspectionReport::IMAGES))->columns(2)->live()->required()
                         ->validationMessages(['required' => 'Kamida bitta rasmni belgilang.']),
                     \Filament\Forms\Components\Select::make('buffer')->label('Dizayn-kod: ko‘chadan masofa')->native(false)->live()
@@ -125,6 +130,8 @@ class Dashboard extends BaseDashboard
                                 [route('admin.designcode-svod.png', ['buffer' => $buffer]),
                                     ...array_map(fn ($id) => route('admin.designcode-svod.png', ['buffer' => $buffer, 'district' => (int) $id]), $get('dk_districts') ?? [])],
                                 Script::apply(\App\Telegram\Support\DesignCodeReport::caption($buffer, now())))->toHtml();
+                            in_array('pdf', $images, true) && $html .= '<div style="height:.75rem"></div><div style="border:1px solid rgba(128,128,128,.3);border-radius:.75rem;padding:.75rem;">'
+                                .'PDF fayl — har oluvchiga «Hurmatli [F.I.Sh]!» murojaati bilan. <a href="'.e(route('admin.report.pdf', ['day' => $day->toDateString()])).'" target="_blank" style="text-decoration:underline;" class="text-primary-600">Namunani ochish</a></div>';
 
                             return new \Illuminate\Support\HtmlString($html);
                         }),
@@ -137,8 +144,10 @@ class Dashboard extends BaseDashboard
 
                     $sent += in_array('gastro', $images, true) ? \App\Telegram\Support\LeaseReport::send($bot, $this->period()->day, $to) : 0;
 
-                    return $sent + (in_array('designcode', $images, true)
-                        ? \App\Telegram\Support\DesignCodeReport::send($bot, $to, now(), \App\Support\DesignCodeSvod::buffer($data['buffer'] ?? null), $data['dk_districts'] ?? []) : 0);
+                    $sent += in_array('designcode', $images, true)
+                        ? \App\Telegram\Support\DesignCodeReport::send($bot, $to, now(), \App\Support\DesignCodeSvod::buffer($data['buffer'] ?? null), $data['dk_districts'] ?? []) : 0;
+
+                    return $sent + (in_array('pdf', $images, true) ? \App\Support\ReportPdf::send($bot, $this->period()->day, $to) : 0);
                 })),
 
             // davomat hisobotlari: ertalabki davomat, soatlik qayd (soat tanlanadi) yoki kun yakuni — hammasi rasm
