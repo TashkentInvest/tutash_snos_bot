@@ -1,12 +1,13 @@
 /*
- * Admin panel mavzusi — «shisha» (glass): yorqin Toshkent foni ustida yarim shaffof, xira (blur) panellar.
- * Fon: public/images/admin-bg.jpg. Tungi rejimda fon qorong'ilashtiriladi, panellar to'q shisha.
+ * Admin panel mavzusi — «shisha» (glass): shomdagi Toshkent (shahar hokimligi binosi, teleminora) foni ustida
+ * yarim shaffof oq panellar. Fon: public/images/admin-bg.webp (55 KB, jpg — zaxira; Higgsfield'da yasalgan).
+ * Fon ustidagi matnlar (sarlavha, yo'l ko'rsatkich, vidjet sarlavhalari) — oq. Tungi rejimda panellar to'q shisha.
  */
 :root {
-    --g-bg: rgba(255, 255, 255, .80);
-    --g-bg-strong: rgba(255, 255, 255, .92);
-    --g-border: rgba(255, 255, 255, .75);
-    --g-shadow: 0 4px 20px rgba(30, 41, 59, .07);
+    --g-bg: rgba(255, 255, 255, .88);
+    --g-bg-strong: rgba(255, 255, 255, .95);
+    --g-border: rgba(255, 255, 255, .55);
+    --g-shadow: 0 10px 30px rgba(2, 6, 23, .25);
     /* fon rasmi oldindan xiralashtirilgan — brauzer yengil blur qiladi (tez ishlaydi) */
     --g-blur: blur(8px);
     --g-text: #0f172a;
@@ -25,17 +26,31 @@
 .fi-body { background: transparent !important; }
 .fi-body::before {
     content: ""; position: fixed; inset: 0; z-index: -1;
-    /* rasm oldindan so'ndirilgan va xiralashtirilgan (10 KB webp); ustida yumshoq kulrang parda — ko'zni charchatmaydi */
-    background-color: #eef1f5;
-    background-image: linear-gradient(rgba(238, 241, 245, .45), rgba(238, 241, 245, .6)), url('/images/admin-bg.jpg');
-    background-image: linear-gradient(rgba(238, 241, 245, .45), rgba(238, 241, 245, .6)), image-set(url('/images/admin-bg.webp') type('image/webp'), url('/images/admin-bg.jpg') type('image/jpeg'));
+    /* rasm yengil xiralashtirilgan; ustida yengil to'q parda — panellar va matn ajralib tursin */
+    background-color: #0f1a33;
+    background-image: linear-gradient(rgba(2, 6, 23, .18), rgba(2, 6, 23, .38)), url('/images/admin-bg.jpg');
+    background-image: linear-gradient(rgba(2, 6, 23, .18), rgba(2, 6, 23, .38)), image-set(url('/images/admin-bg.webp') type('image/webp'), url('/images/admin-bg.jpg') type('image/jpeg'));
     background-position: center; background-size: cover; background-repeat: no-repeat;
 }
 .dark .fi-body::before {
     background-color: #0b1120;
-    background-image: linear-gradient(rgba(2, 6, 23, .82), rgba(2, 6, 23, .88)), url('/images/admin-bg.jpg');
-    background-image: linear-gradient(rgba(2, 6, 23, .82), rgba(2, 6, 23, .88)), image-set(url('/images/admin-bg.webp') type('image/webp'), url('/images/admin-bg.jpg') type('image/jpeg'));
+    background-image: linear-gradient(rgba(2, 6, 23, .6), rgba(2, 6, 23, .72)), url('/images/admin-bg.jpg');
+    background-image: linear-gradient(rgba(2, 6, 23, .6), rgba(2, 6, 23, .72)), image-set(url('/images/admin-bg.webp') type('image/webp'), url('/images/admin-bg.jpg') type('image/jpeg'));
 }
+
+/* fon ustida turgan matnlar — oq (kartochka ichidagilar o'zgarmaydi) */
+.fi-header-heading,
+.fi-header-subheading,
+.fi-breadcrumbs a, .fi-breadcrumbs span, .fi-breadcrumbs svg,
+.fi-wi-stats-overview > div > .fi-wi-stats-overview-header-heading,
+.fi-wi-stats-overview-header-heading,
+.fi-wi-stats-overview-header-description,
+.fi-resource-relation-manager > header,
+.fi-page > section > header .fi-header-heading {
+    color: #fff !important;
+    text-shadow: 0 1px 10px rgba(2, 6, 23, .55);
+}
+.fi-breadcrumbs a:hover { color: #bfdbfe !important; }
 .fi-layout, .fi-main-ctn { background: transparent !important; }
 
 /* shisha yuzalar: menyu, yuqori panel, kartochkalar, jadvallar, bo'limlar */
@@ -94,7 +109,6 @@
 .fi-sidebar-nav-groups > li + li { border-top: 1px solid var(--g-border); padding-top: .5rem; }
 
 /* sahifa sarlavhasi fon ustida aniq o'qilsin */
-.fi-header-heading { color: var(--g-text) !important; }
 .dark .fi-header-heading { text-shadow: none; }
 
 /* bosh sahifa vidjeti ranglari shisha bilan mos */
