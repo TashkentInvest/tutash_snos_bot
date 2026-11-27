@@ -40,6 +40,8 @@ class AdminPanelProvider extends PanelProvider
             ])
             // ixcham menyu: bandlar va guruhlar orasidagi bo'shliq kichikroq
             ->renderHook(\Filament\View\PanelsRenderHook::HEAD_END, fn () => '<style>.fi-sidebar-nav{padding-top:1rem!important;padding-bottom:1rem!important;row-gap:1rem!important}.fi-sidebar-nav-groups{row-gap:.75rem!important}.fi-sidebar-group-items{row-gap:0!important}.fi-sidebar-item-button{padding-top:.375rem!important;padding-bottom:.375rem!important}</style>')
+            // mavzu: to'q ko'k menyu, ochiq kulrang fon (public/css/admin-theme.css)
+            ->renderHook(\Filament\View\PanelsRenderHook::HEAD_END, fn () => '<link rel="stylesheet" href="'.asset('css/admin-theme.css').'?v='.@filemtime(public_path('css/admin-theme.css')).'">')
             // jadvallar ekran kengligida (standart ~1280 px cheklovsiz)
             ->maxContentWidth(\Filament\Support\Enums\MaxWidth::Full)
             ->renderHook(\Filament\View\PanelsRenderHook::USER_MENU_BEFORE, fn () => \App\Models\User::currentIsAdmin() ? \Illuminate\Support\Facades\Blade::render("@livewire('unregistered-districts-bell') @livewire('pending-inspections-bell')") : '')
@@ -55,10 +57,8 @@ class AdminPanelProvider extends PanelProvider
             ->widgets([
                 \App\Filament\Widgets\StatsOverview::class,
                 \App\Filament\Widgets\SvodTable::class,
-                \App\Filament\Widgets\AttendanceToday::class,
                 \App\Filament\Widgets\AttendanceList::class,
                 \App\Filament\Widgets\InspectionsChart::class,
-                \App\Filament\Widgets\DistrictProgress::class,
             ])
             ->middleware([
                 EncryptCookies::class,

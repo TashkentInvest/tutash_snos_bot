@@ -18,6 +18,9 @@ class DistrictProgress extends Widget
 {
     use InteractsWithPageFilters;
 
+    // bosh sahifada endi «Overview» ichida (2-variant dizayn) — alohida vidjet chiqmaydi
+    protected static bool $isDiscovered = false;
+
     protected static ?int $sort = 3;
 
     protected static string $view = 'filament.widgets.district-progress';

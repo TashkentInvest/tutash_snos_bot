@@ -51,7 +51,8 @@ class PostTest extends TestCase
 
         $this->actingAs($this->admin());
         $this->get('/admin')->assertOk(); // vidjetlar sahifadan keyin yuklanadi — alohida tekshiriladi
-        Livewire::test(\App\Filament\Widgets\UsersStats::class)->assertSee('Bot foydalanuvchilari')->assertSee('Jami foydalanuvchilar')->assertSee('Aholi');
+        Livewire::test(\App\Filament\Widgets\Overview::class)->assertSee('Bot foydalanuvchilari')->assertSee('Aholi')
+            ->assertSee('Tumanlar kesimida bajarilish')->assertSee('Jami obyektlar')->assertSee('Ijara shartnomalari');
         Livewire::test(Dashboard::class)->mountAction('post')->assertSee('Aholi (botdagi barcha aholi)')
             ->set('mountedActionsData.0.groups', ['employee', 'citizen'])
             ->assertSet('mountedActionsData.0.people', [(string) $cit->id, (string) $emp->id, (string) $emp2->id])
@@ -151,6 +152,6 @@ class PostTest extends TestCase
         $viewer->save();
         $this->actingAs($viewer);
         $this->assertFalse(\App\Filament\Resources\PostResource::canViewAny());
-        $this->assertFalse(\App\Filament\Widgets\UsersStats::canView());
+        $this->assertFalse(\App\Filament\Widgets\Overview::canView());
     }
 }

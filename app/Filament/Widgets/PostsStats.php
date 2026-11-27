@@ -12,7 +12,7 @@ use Filament\Widgets\TableWidget as BaseWidget;
 /** Bosh sahifa: oxirgi postlar statistikasi (yetkazildi, tanishdi, ko'rgan — taxminan). */
 class PostsStats extends BaseWidget
 {
-    protected static ?int $sort = 5;
+    protected static ?int $sort = -9; // «Overview» dan keyin
 
     protected int|string|array $columnSpan = 'full';
 

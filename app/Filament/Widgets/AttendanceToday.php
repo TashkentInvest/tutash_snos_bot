@@ -17,6 +17,9 @@ class AttendanceToday extends StatsOverviewWidget
         return \App\Models\User::currentIsAdmin();
     }
 
+    // bosh sahifada endi «Overview» ichida (2-variant dizayn) — alohida vidjet chiqmaydi
+    protected static bool $isDiscovered = false;
+
     protected static ?int $sort = 1;
 
     // standart 5 soniya o'rniga: sust aloqada sahifa og'irlashmasin

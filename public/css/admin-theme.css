@@ -1,0 +1,95 @@
+/*
+ * Admin panel mavzusi — «shisha» (glass): yorqin Toshkent foni ustida yarim shaffof, xira (blur) panellar.
+ * Fon: public/images/admin-bg.jpg. Tungi rejimda fon qorong'ilashtiriladi, panellar to'q shisha.
+ */
+:root {
+    --g-bg: rgba(255, 255, 255, .62);
+    --g-bg-strong: rgba(255, 255, 255, .8);
+    --g-border: rgba(255, 255, 255, .7);
+    --g-shadow: 0 8px 32px rgba(30, 41, 59, .10);
+    --g-blur: blur(20px) saturate(1.35);
+    --g-text: #0f172a;
+    --g-muted: #475569;
+}
+.dark {
+    --g-bg: rgba(17, 24, 39, .58);
+    --g-bg-strong: rgba(17, 24, 39, .82);
+    --g-border: rgba(255, 255, 255, .10);
+    --g-shadow: 0 8px 32px rgba(0, 0, 0, .35);
+    --g-text: #f1f5f9;
+    --g-muted: #cbd5e1;
+}
+
+/* fon rasmi — butun sahifa ortida, aylantirilganda qimirlamaydi */
+.fi-body { background: transparent !important; }
+.fi-body::before {
+    content: ""; position: fixed; inset: 0; z-index: -1;
+    background: linear-gradient(rgba(255, 255, 255, .18), rgba(255, 255, 255, .28)), url('/images/admin-bg.jpg') center / cover no-repeat;
+}
+.dark .fi-body::before {
+    background: linear-gradient(rgba(2, 6, 23, .72), rgba(2, 6, 23, .80)), url('/images/admin-bg.jpg') center / cover no-repeat;
+}
+.fi-layout, .fi-main-ctn { background: transparent !important; }
+
+/* shisha yuzalar: menyu, yuqori panel, kartochkalar, jadvallar, bo'limlar */
+.fi-sidebar,
+.fi-topbar > nav,
+.fi-section,
+.fi-wi-stats-overview-stat,
+.fi-ta-ctn,
+.fi-wi-chart > section,
+.fi-fo-tabs,
+.fi-in-section,
+.ov-card {
+    background: var(--g-bg) !important;
+    -webkit-backdrop-filter: var(--g-blur);
+    backdrop-filter: var(--g-blur);
+    border: 1px solid var(--g-border) !important;
+    box-shadow: var(--g-shadow) !important;
+}
+.fi-section, .fi-wi-stats-overview-stat, .fi-ta-ctn, .ov-card { border-radius: 1rem !important; }
+.fi-ta-ctn { overflow: hidden; }
+/* jadval ichi — fon shishadan ko'rinsin */
+.fi-ta-ctn .fi-ta-content, .fi-ta-ctn table, .fi-ta-ctn thead, .fi-ta-ctn tbody, .fi-ta-ctn tr, .fi-ta-header-ctn { background: transparent !important; }
+.fi-ta-ctn thead tr { background: rgba(255, 255, 255, .35) !important; }
+.dark .fi-ta-ctn thead tr { background: rgba(255, 255, 255, .04) !important; }
+.fi-ta-ctn tbody tr:hover { background: rgba(255, 255, 255, .45) !important; }
+.dark .fi-ta-ctn tbody tr:hover { background: rgba(255, 255, 255, .05) !important; }
+
+/* modal oynalar va ochiladigan menyular — o'qilishi uchun zichroq shisha */
+.fi-modal-window, .fi-dropdown-panel {
+    background: var(--g-bg-strong) !important;
+    -webkit-backdrop-filter: var(--g-blur);
+    backdrop-filter: var(--g-blur);
+    border: 1px solid var(--g-border) !important;
+}
+
+/* yuqori panel — suzib turuvchi */
+.fi-topbar > nav { margin: .75rem .75rem 0; border-radius: 1rem; }
+@media (min-width: 1024px) { .fi-topbar { position: sticky; } }
+
+/* menyu: suzib turuvchi shisha ustun */
+@media (min-width: 1024px) {
+    .fi-sidebar { margin: .75rem 0 .75rem .75rem; height: calc(100vh - 1.5rem) !important; border-radius: 1.25rem; }
+}
+.fi-sidebar-header { background: transparent !important; box-shadow: none !important; border-bottom: 1px solid var(--g-border) !important; }
+.fi-sidebar .fi-logo { color: var(--g-text) !important; font-weight: 800 !important; letter-spacing: -.01em; }
+.fi-sidebar-group-label { color: var(--g-muted) !important; letter-spacing: .05em; text-transform: uppercase; font-size: .7rem !important; }
+.fi-sidebar-item-label { color: var(--g-text) !important; }
+.fi-sidebar-item-icon { color: var(--g-muted) !important; }
+.fi-sidebar-item-button { border-radius: .75rem !important; transition: background .15s; }
+.fi-sidebar-item-button:hover { background: rgba(255, 255, 255, .45) !important; }
+.dark .fi-sidebar-item-button:hover { background: rgba(255, 255, 255, .06) !important; }
+.fi-sidebar-item-active .fi-sidebar-item-button { background: rgba(255, 255, 255, .85) !important; box-shadow: 0 2px 10px rgba(30, 41, 59, .08); }
+.dark .fi-sidebar-item-active .fi-sidebar-item-button { background: rgba(255, 255, 255, .12) !important; }
+.fi-sidebar-item-active .fi-sidebar-item-label, .fi-sidebar-item-active .fi-sidebar-item-icon { color: #1d4ed8 !important; font-weight: 700; }
+.dark .fi-sidebar-item-active .fi-sidebar-item-label, .dark .fi-sidebar-item-active .fi-sidebar-item-icon { color: #93c5fd !important; }
+.fi-sidebar-nav-groups > li + li { border-top: 1px solid var(--g-border); padding-top: .5rem; }
+
+/* sahifa sarlavhasi fon ustida aniq o'qilsin */
+.fi-header-heading { color: var(--g-text) !important; text-shadow: 0 1px 12px rgba(255, 255, 255, .6); }
+.dark .fi-header-heading { text-shadow: none; }
+
+/* bosh sahifa vidjeti ranglari shisha bilan mos */
+.ov { --ov-card: var(--g-bg); --ov-border: var(--g-border); --ov-text: var(--g-text); --ov-muted: var(--g-muted); --ov-track: rgba(15, 23, 42, .08); }
+.dark .ov { --ov-track: rgba(255, 255, 255, .08); }
