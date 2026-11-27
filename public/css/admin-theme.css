@@ -4,7 +4,7 @@
  * Fon ustidagi matnlar (sarlavha, yo'l ko'rsatkich, vidjet sarlavhalari) — oq. Tungi rejimda panellar to'q shisha.
  */
 :root {
-    --g-bg: rgba(255, 255, 255, .88);
+    --g-bg: rgba(255, 255, 255, .9);
     --g-bg-strong: rgba(255, 255, 255, .95);
     --g-border: rgba(255, 255, 255, .55);
     --g-shadow: 0 10px 30px rgba(2, 6, 23, .25);
@@ -14,7 +14,7 @@
     --g-muted: #475569;
 }
 .dark {
-    --g-bg: rgba(17, 24, 39, .78);
+    --g-bg: rgba(17, 24, 39, .86);
     --g-bg-strong: rgba(17, 24, 39, .9);
     --g-border: rgba(255, 255, 255, .10);
     --g-shadow: 0 8px 32px rgba(0, 0, 0, .35);
@@ -64,13 +64,17 @@
 .fi-in-section,
 .ov-card {
     background: var(--g-bg) !important;
-    -webkit-backdrop-filter: var(--g-blur);
-    backdrop-filter: var(--g-blur);
     border: 1px solid var(--g-border) !important;
     box-shadow: var(--g-shadow) !important;
 }
+/*
+ * backdrop-filter faqat menyuda. Kartochka va yuqori panelda yo'q: u har bir blokni alohida qatlamga aylantiradi —
+ * kalendar, filtr, foydalanuvchi menyusi kabi ochiladigan oynalar qo'shni kartochka ostida qolib, kesilib ketadi.
+ */
+.fi-sidebar { -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); }
 .fi-section, .fi-wi-stats-overview-stat, .fi-ta-ctn, .ov-card { border-radius: 1rem !important; }
-.fi-ta-ctn { overflow: hidden; }
+/* ochiq kalendar / tanlov ro'yxati — keyingi kartochkalar ustida */
+.fi-section:focus-within, .fi-ta-ctn:focus-within, .fi-fo-field-wrp:focus-within { position: relative; z-index: 30; }
 /* jadval ichi — fon shishadan ko'rinsin */
 .fi-ta-ctn .fi-ta-content, .fi-ta-ctn table, .fi-ta-ctn thead, .fi-ta-ctn tbody, .fi-ta-ctn tr, .fi-ta-header-ctn { background: transparent !important; }
 .fi-ta-ctn thead tr { background: rgba(255, 255, 255, .35) !important; }

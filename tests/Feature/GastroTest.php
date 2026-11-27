@@ -37,7 +37,10 @@ class GastroTest extends TestCase
         $admin->save();
         $this->actingAs($admin);
         $this->get('/admin/gastro-responsibles')->assertOk()->assertSee('Chilonzor tumani')->assertSee('botga hali kirmagan');
-        $this->get('/admin/gastro-map')->assertOk()->assertSee('Qatortol')->assertSee('Aslanov Sanjar')->assertSee('977777777 (botga kirmagan)');
+        $this->get('/admin/gastro-map')->assertOk()->assertSee('Qatortol')->assertSee('Aslanov Sanjar')->assertSee('977777777 (botga kirmagan)')
+            // x-init atributi ichida qo'sh tirnoq bo'lmasin — aks holda HTML parchalanib, JS kod sahifada matn bo'lib chiqadi
+            ->assertDontSee('href="https://leafletjs.com"', false);
+        $this->get('/admin/sites/create')->assertOk()->assertDontSee('href="https://leafletjs.com"', false);
 
         // bir tumanga bir nechta mas'ul — faqat shu yerda; xodimlarning «Tumanlar»i o'zgarmaydi
         $page = fn () => \Livewire\Livewire::test(\App\Filament\Resources\GastroResponsibleResource\Pages\ManageGastroResponsibles::class);

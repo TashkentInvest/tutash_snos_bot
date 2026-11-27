@@ -43,7 +43,7 @@
             const point = this.current();
             // Toshkent markazi — koordinata hali kiritilmagan bo'lsa
             this.map = L.map(this.$refs.map).setView(point ?? [41.3111, 69.2797], point ? 17 : 12);
-            this.map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank">Leaflet</a>');
+            this.map.attributionControl.setPrefix('<a href=\x22https://leafletjs.com\x22 target=\x22_blank\x22>Leaflet</a>'); // atribut ichida: qo'sh tirnoq — \x22
             // Asosiy qatlam — 2GIS (Toshkent bo'yicha batafsil, kalit talab qilmaydi). tile.openstreetmap.org bizning sahifalardan
             // (Referrer-Policy: same-origin) 'Access blocked' qaytargani uchun asosiy qilinmadi; unga sayt domeni yuboriladi.
             const layers = {

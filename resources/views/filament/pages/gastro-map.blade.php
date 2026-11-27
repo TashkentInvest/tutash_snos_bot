@@ -20,7 +20,7 @@
 
             const draw = () => {
                 const map = L.map($refs.map, { zoomControl: true, preferCanvas: true });
-                map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank">Leaflet</a>');
+                map.attributionControl.setPrefix('<a href=\x22https://leafletjs.com\x22 target=\x22_blank\x22>Leaflet</a>'); // atribut ichida: qo'sh tirnoq — \x22
                 const esri = (n, o = {}) => L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/${n}/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 19, attribution: '© Esri', ...o });
                 // och kulrang fon (ko'chalar va obyektlar aniq ko'rinadi); kerak bo'lsa — oddiy xarita yoki sun'iy yo'ldosh
                 const gray = L.layerGroup([esri('Canvas/World_Light_Gray_Base', { maxNativeZoom: 16 }), esri('Canvas/World_Light_Gray_Reference', { maxNativeZoom: 16 })]).addTo(map);
