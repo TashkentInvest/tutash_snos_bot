@@ -74,7 +74,7 @@ class RegistrationHandler
     /** Kirish turini (xodim yoki aholi) tanlash. */
     public function askRole(Nutgram $bot): void
     {
-        Ui::show($bot, "👋 Assalomu alaykum!\n\n<b>«Tutash snos»</b> axborot tizimiga xush kelibsiz.\nIltimos, tizimga kirish turini tanlang:", Ui::markup([
+        Ui::show($bot, "👋 Assalomu alaykum!\n\n<b>«Tutash hudud»</b> axborot tizimiga xush kelibsiz.\nIltimos, tizimga kirish turini tanlang:", Ui::markup([
             [Ui::btn('👷 Xodim sifatida', 'role:employee')],
             [Ui::btn('👤 Aholi sifatida', 'role:citizen')],
         ]));

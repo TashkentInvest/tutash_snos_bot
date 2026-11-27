@@ -257,7 +257,7 @@ class BrowseHandler
         $bot->callbackQuery() && $bot->answerCallbackQuery();
 
         $head = $staff->isCitizen()
-            ? '<b>«Tutash snos» axborot tizimi</b>'
+            ? '<b>«Tutash hudud» axborot tizimi</b>'
             : '👋 <b>'.Ui::e($staff->full_name).'</b>, xush kelibsiz.';
         if ($hourly) {
             ($button = self::checkinButton($staff)) && array_unshift($rows, [$button]);

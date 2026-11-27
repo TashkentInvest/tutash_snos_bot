@@ -28,7 +28,7 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
-            ->brandName('Tutash Snos')
+            ->brandName('Tutash hudud')
             ->sidebarCollapsibleOnDesktop()
             // menyu guruhlari: sarlavhani bosib yig'iladi/ochiladi (holati brauzerda eslab qolinadi)
             ->navigationGroups([
