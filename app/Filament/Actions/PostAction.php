@@ -43,6 +43,17 @@ class PostAction
         ];
     }
 
+    /** Post yuboriladigan botlar: Dizayn-kod boti faqat bazasiga ulanish bo'lsa. */
+    public static function bots(): array
+    {
+        return ['snos' => 'Tutash hudud boti (xodimlar)'] + (\App\Models\Dizayn\Model::available() ? ['dizayn' => 'Dizayn-kod boti'] : []);
+    }
+
+    private static function wants(?array $bots, string $bot): bool
+    {
+        return count(self::bots()) < 2 ? $bot === 'snos' : in_array($bot, $bots ?? [], true);
+    }
+
     public static function make(): Action
     {
         return Action::make('post')->label('Post yuborish')->icon('heroicon-o-photo')->color('gray')
@@ -61,29 +72,65 @@ class PostAction
                     ->maxLength(fn (Forms\Get $get) => blank($get('media')) ? 4000 : 1000)
                     ->helperText(fn (Forms\Get $get) => blank($get('media')) ? 'Rasm/videosiz — faqat matn (4000 belgigacha).' : 'Rasm/video ostidagi matn — 1000 belgigacha (Telegram cheklovi).')
                     ->validationMessages(['required' => 'Matn yozing yoki rasm/video qo‘shing.']),
-                ...self::audience(true),
+                Forms\Components\CheckboxList::make('bots')->label('Qaysi botda')->options(self::bots())
+                    ->default(['snos'])->columns(2)->required()->live()
+                    ->visible(fn () => count(self::bots()) > 1)
+                    ->validationMessages(['required' => 'Kamida bitta botni belgilang.']),
+                Forms\Components\Section::make('Tutash hudud boti — kimlarga')->compact()
+                    ->schema(self::audience(true))
+                    ->visible(fn (Forms\Get $get) => self::wants($get('bots'), 'snos')),
+                Forms\Components\Section::make('Dizayn-kod boti — kimlarga')->compact()
+                    ->schema([
+                        Forms\Components\CheckboxList::make('dizayn_groups')->label('Bo‘limlar')
+                            ->options(fn () => \App\Support\DizaynPost::groupOptions())
+                            ->default([\App\Support\DizaynPost::STAFF, \App\Support\DizaynPost::LEADERS])->columns(3)->required()
+                            ->helperText('Aholi — botdan konsepsiya yuklab olgan fuqarolar; faqat belgilansa boradi.')
+                            ->validationMessages(['required' => 'Kamida bitta bo‘limni belgilang.']),
+                    ])
+                    ->visible(fn (Forms\Get $get) => self::wants($get('bots'), 'dizayn')),
                 Forms\Components\Toggle::make('ack_button')->label('«✅ Tanishdim» tugmasi')->default(true)
                     ->helperText('Telegram shaxsiy chatda kim ko‘rganini botga bermaydi — tugma bosganlar aniq sanaladi.'),
             ])
             ->action(function (array $data) {
                 $path = is_array($data['media'] ?? null) ? (array_values($data['media'])[0] ?? null) : ($data['media'] ?? null);
                 $mime = $path ? (Storage::disk('local')->mimeType($path) ?: '') : '';
-                $ids = Broadcast::recipients([], [...array_keys(Broadcast::GROUPS), Broadcast::CITIZENS])
-                    ->whereKey(array_map('intval', $data['people'] ?? []))->pluck('id');
-                $post = Post::create([
-                    'caption' => filled($data['caption'] ?? null) ? trim($data['caption']) : null,
-                    'media_type' => $path ? (str_starts_with($mime, 'video/') ? 'video' : 'photo') : null, 'media_path' => $path,
-                    'audience' => ['groups' => $data['groups'] ?? [], 'districts' => array_map('intval', $data['districts'] ?? [])],
-                    'ack_button' => (bool) ($data['ack_button'] ?? true), 'status' => Post::SENDING, 'total' => $ids->count(), 'created_by' => auth()->id(),
-                ]);
-                $now = now();
-                foreach ($ids->chunk(500) as $chunk) {
-                    PostDelivery::insert($chunk->map(fn ($id) => ['post_id' => $post->id, 'staff_id' => $id, 'status' => PostDelivery::PENDING, 'created_at' => $now, 'updated_at' => $now])->all());
+                $type = $path ? (str_starts_with($mime, 'video/') ? 'video' : 'photo') : null;
+                $caption = filled($data['caption'] ?? null) ? trim($data['caption']) : null;
+                $ack = (bool) ($data['ack_button'] ?? true);
+                $bots = count(self::bots()) > 1 ? ($data['bots'] ?? []) : ['snos'];
+                $done = [];
+
+                if (in_array('snos', $bots, true)) {
+                    $ids = Broadcast::recipients([], [...array_keys(Broadcast::GROUPS), Broadcast::CITIZENS])
+                        ->whereKey(array_map('intval', $data['people'] ?? []))->pluck('id');
+                    $post = Post::create([
+                        'caption' => $caption, 'media_type' => $type, 'media_path' => $path,
+                        'audience' => ['groups' => $data['groups'] ?? [], 'districts' => array_map('intval', $data['districts'] ?? [])],
+                        'ack_button' => $ack, 'status' => Post::SENDING, 'total' => $ids->count(), 'created_by' => auth()->id(),
+                    ]);
+                    $now = now();
+                    foreach ($ids->chunk(500) as $chunk) {
+                        PostDelivery::insert($chunk->map(fn ($id) => ['post_id' => $post->id, 'staff_id' => $id, 'status' => PostDelivery::PENDING, 'created_at' => $now, 'updated_at' => $now])->all());
+                    }
+                    \App\Models\AuditLog::record('post.created', null, ['post' => $post->id, 'by' => auth()->id(), 'recipients' => $ids->count()]);
+                    SendPost::dispatch($post->id);
+                    $done[] = "Tutash hudud boti: {$ids->count()} ta";
                 }
-                \App\Models\AuditLog::record('post.created', null, ['post' => $post->id, 'by' => auth()->id(), 'recipients' => $ids->count()]);
-                SendPost::dispatch($post->id);
-                Notification::make()->title("Post yuborilmoqda: {$ids->count()} ta oluvchi")
-                    ->body('Natija «Postlar» sahifasida va bosh sahifada ko‘rinadi.')->success()->send();
+
+                if (in_array('dizayn', $bots, true)) {
+                    try {
+                        $probe = $type === 'video' ? app(\App\Support\MediaTool::class)->probe(Storage::disk('local')->path($path)) : [];
+                        $dz = \App\Support\DizaynPost::create($caption, $path, $type, $probe, $data['dizayn_groups'] ?? [], $ack);
+                        \App\Models\AuditLog::record('dizayn.post.created', null, ['post' => $dz->id, 'by' => auth()->id(), 'recipients' => $dz->total]);
+                        $done[] = "Dizayn-kod boti: {$dz->total} ta";
+                    } catch (\Throwable $e) {
+                        report($e);
+                        Notification::make()->title('Dizayn-kod botiga yuborilmadi')->body($e->getMessage())->danger()->persistent()->send();
+                    }
+                }
+
+                $done && Notification::make()->title('Post yuborilmoqda — '.implode(', ', $done).' oluvchi')
+                    ->body('Natija «Postlar» sahifalarida ko‘rinadi.')->success()->send();
             });
     }
 }

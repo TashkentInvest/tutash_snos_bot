@@ -17,6 +17,22 @@ abstract class Model extends Base
 
     protected $guarded = [];
 
+    /** Bazadagi vaqt UTC (tz'siz) — panelda Toshkent vaqtida ko'rinadi. */
+    protected function asDateTime($value)
+    {
+        if (is_string($value) && $value !== '' && ! is_numeric($value)) {
+            return \Illuminate\Support\Carbon::parse($value, 'UTC')->setTimezone(config('app.timezone'));
+        }
+
+        return parent::asDateTime($value);
+    }
+
+    /** Yozishda — yana UTC'ga. */
+    public function fromDateTime($value)
+    {
+        return empty($value) ? $value : $this->asDateTime($value)->copy()->utc()->format('Y-m-d H:i:s');
+    }
+
     /** «Dizayn-kod boti» bo'limi ishlaydimi (sozlamada yoqilgan va bazaga ulanish bor). Ulanish natijasi so'rov davomida eslab qolinadi. */
     public static function available(): bool
     {
