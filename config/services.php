@@ -42,4 +42,12 @@ return [
         'token' => env('DIZAYN_KOD_TOKEN'),
     ],
 
+    // Dizayn-kod boti — SNOS panelidan boshqariladi (baza: database.connections.dizayn).
+    // enabled=false bo'lsa «Dizayn-kod boti» bo'limi menyuda ko'rinmaydi; papkalar — botning fayllari (o'sha serverda).
+    'dizayn_bot' => [
+        'enabled' => (bool) env('DIZAYN_BOT_ENABLED', true),
+        'data_dir' => env('DIZAYN_DATA_DIR', '/srv/tutash/data'),
+        'uploads_dir' => env('DIZAYN_UPLOADS_DIR', '/srv/tutash/uploads'),
+    ],
+
 ];

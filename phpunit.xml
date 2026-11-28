@@ -16,6 +16,8 @@
     </coverage>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <!-- Dizayn-kod boti bazasi testlarda yo'q; kerakli testlar Tests\Concerns\UsesDizaynDb bilan yoqadi -->
+        <env name="DIZAYN_BOT_ENABLED" value="false"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BOT_ALPHABET" value="classic"/>
         <env name="DEBUG_ALERT_PHONES" value=""/>

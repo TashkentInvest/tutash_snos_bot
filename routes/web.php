@@ -93,6 +93,16 @@ Route::get('/admin-lease-svod.png', function (\Illuminate\Http\Request $request)
         'Content-Type' => 'image/png', 'Cache-Control' => 'private, no-store',
     ]);
 })->middleware(['auth'])->name('admin.lease-svod.png');
+// Dizayn-kod boti: fuqaro yuborgan obyekt rasmi (bot papkasidan) — faqat admin
+Route::get('/admin-dizayn/photo/{id}', function (int $id) {
+    abort_unless(\App\Models\User::currentIsAdmin() && \App\Models\Dizayn\Model::available(), 403);
+    $photo = \App\Models\Dizayn\UserPhoto::findOrFail($id);
+    $root = realpath((string) config('services.dizayn_bot.uploads_dir'));
+    $file = $root ? realpath($root.'/'.ltrim((string) $photo->path, '/')) : false;
+    abort_unless($file && str_starts_with($file, $root.DIRECTORY_SEPARATOR) && is_file($file), 404); // papkadan tashqariga chiqilmaydi
+
+    return response()->file($file, ['Cache-Control' => 'private, max-age=86400']);
+})->whereNumber('id')->middleware(['auth'])->name('admin.dizayn.photo');
 // kunlik PDF hisobot (namuna uslubida) — faqat admin; ?day=YYYY-MM-DD; murojaat — kirgan foydalanuvchi nomi
 Route::get('/admin-report.pdf', function (\Illuminate\Http\Request $request) {
     abort_unless(\App\Models\User::currentIsAdmin(), 403);

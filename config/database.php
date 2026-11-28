@@ -78,6 +78,22 @@ return [
             'sslmode' => 'prefer',
         ],
 
+        // Dizayn-kod boti (@DizaynKodBot) bazasi — o'sha serverda, SNOS paneli shu yerdan boshqaradi.
+        // Ulanish ma'lumotlari SNOS bazasiniki (DB_*), faqat baza nomi boshqa; kerak bo'lsa DIZAYN_DB_* bilan alohida.
+        'dizayn' => [
+            'driver' => env('DIZAYN_DB_DRIVER', 'pgsql'),
+            'host' => env('DIZAYN_DB_HOST', env('DB_HOST', '127.0.0.1')),
+            'port' => env('DIZAYN_DB_PORT', env('DB_PORT', '5432')),
+            'database' => env('DIZAYN_DB_DATABASE', 'tutash'),
+            'username' => env('DIZAYN_DB_USERNAME', env('DB_USERNAME', 'forge')),
+            'password' => env('DIZAYN_DB_PASSWORD', env('DB_PASSWORD', '')),
+            'charset' => 'utf8',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => 'prefer',
+        ],
+
         'sqlsrv' => [
             'driver' => 'sqlsrv',
             'url' => env('DATABASE_URL'),

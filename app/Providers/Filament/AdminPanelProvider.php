@@ -35,6 +35,8 @@ class AdminPanelProvider extends PanelProvider
                 NavigationGroup::make('Obyektlar nazorati'),
                 NavigationGroup::make('Davomat'),
                 NavigationGroup::make('Gastronomik ko‘chalar'),
+                // ikkinchi bot — @DizaynKodBot (o'sha serverdagi bazasidan, shu panelning o'zidan boshqariladi)
+                NavigationGroup::make('Dizayn-kod boti'),
                 NavigationGroup::make('Foydalanuvchilar'),
                 NavigationGroup::make('Sozlamalar'),
             ])
