@@ -54,6 +54,10 @@ class DizaynOverview extends Page
                 'downloads' => \App\Filament\Resources\Dizayn\DownloadResource::getUrl(),
                 'feedback' => \App\Filament\Resources\Dizayn\FeedbackResource::getUrl(),
                 'feedback_open' => \App\Filament\Resources\Dizayn\FeedbackResource::getUrl('index', ['tableFilters' => ['status' => ['value' => 'new']]]),
+                'objects' => \App\Filament\Resources\Dizayn\DesignObjectResource::getUrl(),
+                'inspections' => \App\Filament\Resources\Dizayn\InspectionResource::getUrl(),
+                'process' => \App\Filament\Resources\Dizayn\InspectionResource::getUrl('index', ['activeTab' => 'process']),
+                'map' => DizaynMap::getUrl(),
             ],
         ];
     }

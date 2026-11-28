@@ -36,11 +36,35 @@
                     <div class="ov-track"><span style="width:{{ min(100, $t['pct']) }}%;background:#16a34a;"></span></div>
                     <span class="ov-muted" style="min-width:3rem;text-align:right;">{{ $p($t['pct']) }}</span>
                 </div>
-                <div class="ov-muted" style="margin-top:.4rem;">obyektlar: {{ $n($t['objects']) }} · peshtaxta yechildi: {{ $n($t['removed']) }} · tasdiq kutmoqda: {{ $t['review'] }}</div>
+                <div class="ov-muted" style="margin-top:.4rem;">peshtaxta yechildi: {{ $n($t['removed']) }} · <a href="{{ $urls['map'] }}" style="color:#3b82f6;">xaritada ko‘rish</a></div>
             </div>
         </div>
 
-        {{-- 2. 14 kunlik faollik + tumanlar --}}
+        {{-- 2. obyektlar va xodimlar ishi --}}
+        <div class="ov-grid ov-k">
+            <a href="{{ $urls['objects'] }}" class="ov-card" style="display:block;">
+                <div class="ov-label">Kiritilgan tadbirkorlar</div>
+                <div class="ov-big" style="margin-top:.35rem;">{{ $n($t['objects']) }} <span style="font-size:1rem;font-weight:600;color:var(--ov-muted);">/ {{ $n($t['planned']) }}</span></div>
+                <div class="ov-muted" style="margin-top:.4rem;">bugun: <b style="color:var(--ov-text);">+{{ $t['objects_today'] }}</b> · ro‘yxatda {{ $n($t['planned']) }} ta obyekt</div>
+            </a>
+            <a href="{{ $urls['inspections'] }}" class="ov-card" style="display:block;">
+                <div class="ov-label">Dalillar tasdiq kutmoqda</div>
+                <div class="ov-big" style="margin-top:.35rem;color:{{ $t['review'] ? '#d97706' : '#16a34a' }};">{{ $n($t['review']) }}</div>
+                <div class="ov-muted" style="margin-top:.4rem;">bugun yuborilgan: <b style="color:var(--ov-text);">{{ $t['evidence_today'] }}</b></div>
+            </a>
+            <a href="{{ $urls['process'] }}" class="ov-card" style="display:block;">
+                <div class="ov-label">Jarayonli tasdiqlangan</div>
+                <div class="ov-big" style="margin-top:.35rem;color:#3b82f6;">{{ $n($t['confirming']) }}</div>
+                <div class="ov-muted" style="margin-top:.4rem;">kamchilik tuzatilishi kutilmoqda</div>
+            </a>
+            <div class="ov-card">
+                <div class="ov-label">Tuman xodimlari</div>
+                <div class="ov-big" style="margin-top:.35rem;color:{{ $t['staff_linked'] < $t['staff'] ? '#d97706' : 'var(--ov-text)' }};">{{ $t['staff_linked'] }} <span style="font-size:1rem;font-weight:600;color:var(--ov-muted);">/ {{ $t['staff'] }}</span></div>
+                <div class="ov-muted" style="margin-top:.4rem;">botga bog‘langan · bugun faol: <b style="color:var(--ov-text);">{{ $t['staff_active_today'] }}</b></div>
+            </div>
+        </div>
+
+        {{-- 3. 14 kunlik faollik + tumanlar --}}
         <div class="ov-grid ov-mid">
             <div class="ov-card" style="display:flex;flex-direction:column;">
                 <div class="ov-h" style="display:flex;justify-content:space-between;align-items:baseline;gap:1rem;flex-wrap:wrap;margin-bottom:.2rem;">
@@ -81,7 +105,7 @@
             </div>
         </div>
 
-        {{-- 3. eng ko'p yuklangan ko'chalar --}}
+        {{-- 4. eng ko'p yuklangan ko'chalar --}}
         <div class="ov-card">
             <div class="ov-h">Eng ko‘p yuklab olingan ko‘chalar</div>
             @forelse ($top as $i => $r)

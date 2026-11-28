@@ -58,7 +58,9 @@ class DizaynStats
                 'installed' => $installed,
                 'planned' => $planned,
                 'pct' => $planned ? round($installed / $planned * 100, 1) : 0.0,
-                'review' => Inspection::where('review', 'pending')->count(),
+                'review' => Inspection::whereIn('review', Inspection::OPEN)->count(),
+                'confirming' => Inspection::where('review', Inspection::CONFIRMING)->count(),
+                'staff_active_today' => \Illuminate\Support\Facades\DB::connection('dizayn')->table('staff_days')->where('day', CarbonImmutable::now(self::TZ)->format('Y-m-d'))->count(),
                 'evidence_today' => Inspection::where('submitted_at', '>=', $today)->count(),
             ];
         });
