@@ -48,6 +48,7 @@ class DizaynOverview extends Page
             'top' => DizaynStats::topStreets(8),
             'districts' => DizaynStats::byDistrict(),
             'book' => DizaynStats::book(),
+            'xatlov' => DizaynStats::xatlov(),
             'urls' => [
                 'users' => \App\Filament\Resources\Dizayn\BotUserResource::getUrl(),
                 'registered' => \App\Filament\Resources\Dizayn\BotUserResource::getUrl('index', ['tableFilters' => ['registered' => ['isActive' => true]]]),

@@ -44,7 +44,10 @@ class DizaynInspectionTest extends TestCase
         $this->get('/admin/dizayn/obyektlar')->assertOk()->assertSee('Nur market')->assertSee('Lutfiy ko‘chasi')->assertSee('dalil tekshiruvda');
         $this->get('/admin/dizayn/obyektlar/'.$this->object)->assertOk()->assertSee('Xodim dalillari')->assertSee('Yangi peshtaxta')->assertSee('Karimov Botir');
         $this->get('/admin/dizayn/tekshiruvlar')->assertOk()->assertSee('Nur market')->assertSee('Tekshiruv kutmoqda');
-        $this->get('/admin/dizayn')->assertOk()->assertSee('Kiritilgan tadbirkorlar')->assertSee('Dalillar tasdiq kutmoqda')->assertSee('Tuman xodimlari');
+        $this->get('/admin/dizayn')->assertOk()->assertSee('Kiritilgan tadbirkorlar')->assertSee('Dalillar tasdiq kutmoqda')->assertSee('Tuman xodimlari')
+            ->assertSee('Ko‘chalar xatlovi')->assertSee('Lutfiy ko‘chasi');
+        $x = \App\Support\DizaynStats::xatlov();
+        $this->assertSame([1, 1, 'Uchtepa'], [$x['streets'], $x['entered'], $x['districts'][0]['name']]); // bazadagi ko'cha va undagi obyekt
         $this->get('/admin/dizayn/xarita')->assertOk()->assertSee('Dizayn-kod xaritasi')->assertSee('Lutfiy ko')->assertSee('Tasdiq kutmoqda');
     }
 

@@ -109,4 +109,32 @@ class DizaynStats
         return Download::query()->where('district', self::BOOK)->selectRaw('street, COUNT(*) as total')->groupBy('street')->orderByDesc('total')->get()
             ->mapWithKeys(fn ($r) => [Latin::of($r->street) => (int) $r->total]);
     }
+
+    /**
+     * Ko'chalar xatlovi — Dizayn-kod bazasidagi ko'chalardan (rasmiy ro'yxat u yerga avval kiritilgan): har bir ko'chada
+     * noturar obyektlar soni (streets.nonres_objects), tuman xodimlari kiritgan tadbirkorlar va dizayn-kod bo'yicha qo'yilganlar.
+     *
+     * @return array{streets: int, nonres: int, entered: int, installed: int, districts: list<array>}
+     */
+    public static function xatlov(): array
+    {
+        return Cache::remember('dizayn.stats.xatlov', 60, function (): array {
+            $counts = DesignObject::query()->where('is_active', true)
+                ->selectRaw("street_id, COUNT(*) AS entered, SUM(CASE WHEN status='installed' THEN 1 ELSE 0 END) AS installed")
+                ->groupBy('street_id')->get()->keyBy('street_id');
+
+            $districts = \App\Models\Dizayn\District::query()->orderBy('sort_order')->orderBy('id')
+                ->with(['streets' => fn ($query) => $query->where('is_active', true)->orderBy('sort_order')->orderBy('id')])->get()
+                ->map(function ($d) use ($counts) {
+                    $streets = $d->streets->map(fn (Street $s) => ['name' => Latin::of($s->name), 'nonres' => $s->nonres_objects,
+                        'entered' => (int) ($counts[$s->id]->entered ?? 0), 'installed' => (int) ($counts[$s->id]->installed ?? 0)]);
+
+                    return ['name' => preg_replace('/\s+tumani$/u', '', Latin::of($d->name)), 'streets' => $streets->all(), 'count' => $streets->count(),
+                        'nonres' => (int) $streets->sum('nonres'), 'entered' => (int) $streets->sum('entered'), 'installed' => (int) $streets->sum('installed')];
+                })->filter(fn ($d) => $d['count'] > 0)->values();
+
+            return ['streets' => (int) $districts->sum('count'), 'nonres' => (int) $districts->sum('nonres'),
+                'entered' => (int) $districts->sum('entered'), 'installed' => (int) $districts->sum('installed'), 'districts' => $districts->all()];
+        });
+    }
 }

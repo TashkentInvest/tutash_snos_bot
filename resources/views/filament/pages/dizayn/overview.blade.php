@@ -105,7 +105,58 @@
             </div>
         </div>
 
-        {{-- 4. eng ko'p yuklangan ko'chalar --}}
+        {{-- 4. ko'chalar xatlovi (Dizayn bazasidagi ko'chalar): noturar obyektlar va kiritilganlar --}}
+        @php($share = fn ($a, $b) => $b ? round($a * 100 / $b, 1) : 0)
+        <div class="ov-card">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;">
+                <div>
+                    <div class="ov-h" style="margin:0;">Ko‘chalar xatlovi</div>
+                    <div class="ov-muted" style="margin-top:.2rem;">Dizayn-kod ko‘chalari: noturar obyektlar va tuman xodimlari kiritgan tadbirkorlar</div>
+                </div>
+                <div style="display:flex;gap:1.75rem;flex-wrap:wrap;">
+                    <div><div class="ov-muted">Ko‘chalar</div><div style="font-weight:700;font-size:1.35rem;">{{ $n($xatlov['streets']) }}</div></div>
+                    <div><div class="ov-muted">Noturar obyektlar</div><div style="font-weight:700;font-size:1.35rem;">{{ $n($xatlov['nonres']) }}</div></div>
+                    <div><div class="ov-muted">Kiritilgan tadbirkorlar</div><div style="font-weight:700;font-size:1.35rem;color:#3b82f6;">{{ $n($xatlov['entered']) }} <span class="ov-muted" style="font-size:.85rem;font-weight:500;">{{ $p($share($xatlov['entered'], $xatlov['nonres'])) }}</span></div></div>
+                    <div><div class="ov-muted">Qo‘yildi</div><div style="font-weight:700;font-size:1.35rem;color:#16a34a;">{{ $n($xatlov['installed']) }}</div></div>
+                </div>
+            </div>
+            <div class="ov-xt">
+                <div class="ov-xt-row ov-xt-head ov-muted">
+                    <span>Tuman / ko‘cha</span><span>Ko‘chalar</span><span>Noturar obyektlar</span><span>Kiritilgan tadbirkorlar</span><span>Qamrov</span><span>Qo‘yildi</span>
+                </div>
+                @foreach ($xatlov['districts'] as $d)
+                    @php($pct = $share($d['entered'], $d['nonres']))
+                    <details>
+                        <summary class="ov-xt-row">
+                            <span style="font-weight:600;"><span class="ov-xt-caret">›</span> {{ $d['name'] }}</span>
+                            <span>{{ $d['count'] }}</span>
+                            <span>{{ $n($d['nonres']) }}</span>
+                            <span style="color:#3b82f6;font-weight:600;">{{ $n($d['entered']) }}</span>
+                            <span style="display:flex;align-items:center;gap:.5rem;"><span class="ov-track" style="height:.45rem;"><span style="width:{{ min(100, $pct) }}%;background:#3b82f6;"></span></span><span style="min-width:3rem;text-align:right;">{{ $p($pct) }}</span></span>
+                            <span style="color:#16a34a;font-weight:600;">{{ $n($d['installed']) }}</span>
+                        </summary>
+                        @foreach ($d['streets'] as $i => $s)
+                            <div class="ov-xt-row ov-xt-street">
+                                <span>{{ $i + 1 }}. {{ $s['name'] }}</span>
+                                <span></span>
+                                <span>{{ $s['nonres'] === null ? '—' : $n($s['nonres']) }}</span>
+                                <span>{{ $s['entered'] ?: '—' }}</span>
+                                <span>{{ $s['nonres'] ? $p($share($s['entered'], $s['nonres'])) : '' }}</span>
+                                <span>{{ $s['installed'] ?: '—' }}</span>
+                            </div>
+                        @endforeach
+                    </details>
+                @endforeach
+                <div class="ov-xt-row" style="font-weight:700;border-top:1px solid var(--ov-border);">
+                    <span>Jami</span><span>{{ $xatlov['streets'] }}</span><span>{{ $n($xatlov['nonres']) }}</span>
+                    <span style="color:#3b82f6;">{{ $n($xatlov['entered']) }}</span><span>{{ $p($share($xatlov['entered'], $xatlov['nonres'])) }}</span>
+                    <span style="color:#16a34a;">{{ $n($xatlov['installed']) }}</span>
+                </div>
+            </div>
+            <div class="ov-muted" style="margin-top:.5rem;font-size:.75rem;">Qamrov — kiritilgan tadbirkorlar noturar obyektlar soniga nisbatan. Tuman ustiga bosing — ko‘chalari ochiladi.</div>
+        </div>
+
+        {{-- 5. eng ko'p yuklangan ko'chalar --}}
         <div class="ov-card">
             <div class="ov-h">Eng ko‘p yuklab olingan ko‘chalar</div>
             @forelse ($top as $i => $r)
