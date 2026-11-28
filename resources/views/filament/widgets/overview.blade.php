@@ -127,5 +127,31 @@
                 <div class="ov-card ov-muted" style="display:flex;align-items:center;">Dizayn-kod ma’lumoti hozircha olinmadi.</div>
             @endif
         </div>
+
+        {{-- 4. Dizayn-kod boti (ikkinchi bot) --}}
+        @if ($dz)
+            <div class="ov-card">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
+                    <a href="{{ $dz['url'] }}" style="display:flex;gap:.8rem;align-items:center;">
+                        <span class="ov-ico" style="background:rgba(217,119,6,.12);color:#d97706;"><x-filament::icon icon="heroicon-o-paint-brush" style="width:1.3rem;height:1.3rem;"/></span>
+                        <span><span class="ov-h" style="margin:0;">Dizayn-kod boti</span><br><span class="ov-muted">@DizaynKodBot · batafsil →</span></span>
+                    </a>
+                    <div style="display:flex;align-items:center;gap:.75rem;min-width:16rem;flex:0 1 22rem;">
+                        <span class="ov-muted" style="white-space:nowrap;">qo‘yildi <b style="color:#16a34a;">{{ $n($dz['installed']) }}</b> / {{ $n($dz['planned']) }}</span>
+                        <div class="ov-track"><span style="width:{{ min(100, $dz['pct']) }}%;background:#16a34a;"></span></div>
+                        <b style="font-variant-numeric:tabular-nums;">{{ $p($dz['pct']) }}</b>
+                    </div>
+                </div>
+                <div class="ov-dz">
+                    @foreach ($dz['rows'] as [$label, $value, $sub, $url, $color])
+                        <a @if ($url) href="{{ $url }}" @endif style="display:block;min-width:0;{{ $url ? '' : 'cursor:default;' }}">
+                            <div class="ov-muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ $label }}</div>
+                            <div style="font-weight:700;font-size:1.35rem;{{ $color ? 'color:'.$color.';' : '' }}">{{ is_int($value) ? $n($value) : $value }}</div>
+                            <div class="ov-muted" style="font-size:.75rem;">{{ $sub }}</div>
+                        </a>
+                    @endforeach
+                </div>
+            </div>
+        @endif
     </div>
 </x-filament-widgets::widget>

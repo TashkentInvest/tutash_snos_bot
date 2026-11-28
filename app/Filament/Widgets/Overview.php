@@ -132,7 +132,26 @@ class Overview extends Widget
             report($e); // Dizayn-kod API ishlamasa — kartochka chiqmaydi, sahifa buzilmaydi
         }
 
-        return compact('kpis', 'districts', 'districtTotal', 'attendance', 'users', 'leases', 'dk', 'day');
+        // Dizayn-kod boti (ikkinchi bot) — qisqa blok; bazaga ulanish bo'lmasa chiqmaydi
+        $dz = null;
+        try {
+            if (\App\Models\Dizayn\Model::available()) {
+                $t = \App\Support\DizaynStats::totals();
+                $u = fn (string $r, array $q = []) => $r::getUrl('index', $q);
+                $dz = ['url' => \App\Filament\Pages\Dizayn\DizaynOverview::getUrl(), 'pct' => $t['pct'], 'installed' => $t['installed'], 'planned' => $t['planned'], 'rows' => [
+                    ['Bot foydalanuvchilari', $t['users'], 'bugun +'.$t['new_today'], $u(\App\Filament\Resources\Dizayn\BotUserResource::class), null],
+                    ['Yuklab olishlar', $t['downloads'], 'bugun +'.$t['downloads_today'], $u(\App\Filament\Resources\Dizayn\DownloadResource::class), null],
+                    ['Javobsiz murojaatlar', $t['feedback_open'], 'jami '.$t['feedback'], $u(\App\Filament\Resources\Dizayn\FeedbackResource::class, ['tableFilters' => ['status' => ['value' => 'new']]]), $t['feedback_open'] ? '#dc2626' : null],
+                    ['Kiritilgan tadbirkorlar', $t['objects'], 'bugun +'.$t['objects_today'], $u(\App\Filament\Resources\Dizayn\DesignObjectResource::class), null],
+                    ['Dalillar tasdiq kutmoqda', $t['review'], 'jarayonli: '.$t['confirming'], $u(\App\Filament\Resources\Dizayn\InspectionResource::class), $t['review'] ? '#d97706' : null],
+                    ['Tuman xodimlari', $t['staff_linked'].' / '.$t['staff'], 'bugun faol: '.$t['staff_active_today'], null, null],
+                ]];
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return compact('kpis', 'districts', 'districtTotal', 'attendance', 'users', 'leases', 'dk', 'day', 'dz');
     }
 
     /** 31 200 000 → «31,2 mln». */

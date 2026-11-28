@@ -5,6 +5,9 @@
         .ov-card{background:var(--ov-card);border:1px solid var(--ov-border);border-radius:.875rem;box-shadow:0 1px 2px rgba(15,23,42,.04);padding:1.1rem 1.25rem;color:var(--ov-text)}
         .ov-grid{display:grid;gap:1rem}
         .ov-k{grid-template-columns:repeat(4,minmax(0,1fr))}
+        .ov-dz{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:.75rem;margin-top:.9rem;padding-top:.8rem;border-top:1px solid var(--ov-border)}
+        @media (max-width:1280px){.ov-dz{grid-template-columns:repeat(3,minmax(0,1fr))}}
+        @media (max-width:640px){.ov-dz{grid-template-columns:repeat(2,minmax(0,1fr))}}
         .ov-mid{grid-template-columns:minmax(0,1.85fr) minmax(0,1fr)}
         .ov-low{grid-template-columns:repeat(3,minmax(0,1fr))}
         @media (max-width:1280px){.ov-k{grid-template-columns:repeat(2,minmax(0,1fr))}.ov-mid,.ov-low{grid-template-columns:minmax(0,1fr)}}

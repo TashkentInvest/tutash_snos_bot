@@ -48,6 +48,15 @@ class DizaynInspectionTest extends TestCase
         $this->get('/admin/dizayn/xarita')->assertOk()->assertSee('Dizayn-kod xaritasi')->assertSee('Lutfiy ko')->assertSee('Tasdiq kutmoqda');
     }
 
+    public function test_main_dashboard_has_dizayn_block(): void
+    {
+        \Livewire\Livewire::test(\App\Filament\Widgets\Overview::class)->assertSee('Dizayn-kod boti')->assertSee('Kiritilgan tadbirkorlar')
+            ->assertSee('Dalillar tasdiq kutmoqda')->assertSee('/admin/dizayn/obyektlar');
+        config(['services.dizayn_bot.enabled' => false]);
+        app()->forgetInstance('dizayn.available');
+        \Livewire\Livewire::test(\App\Filament\Widgets\Overview::class)->assertDontSee('Kiritilgan tadbirkorlar');
+    }
+
     public function test_process_then_approve_tells_staff_through_the_bot(): void
     {
         $i = Inspection::sole();
