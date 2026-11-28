@@ -36,6 +36,16 @@ $bot->onCallbackQueryData('q:{id}', [BrowseHandler::class, 'askSearch']);
 $bot->onCallbackQueryData('near:{id}', [BrowseHandler::class, 'askNear']);
 $bot->onCallbackQueryData('noop', fn (Nutgram $bot) => $bot->answerCallbackQuery());
 $bot->onCallbackQueryData('pa:{id}', [\App\Telegram\Handlers\PostHandler::class, 'ack']); // post: «Tanishdim»
+
+// botda boshqaruv («Botda boshqaruv» belgili xodim): hisobot yuborish, xodimlarga xabar / post
+$bot->onCommand('boshqaruv', [\App\Telegram\Handlers\ManagerHandler::class, 'menu']);
+$bot->onCallbackQueryData('mg', [\App\Telegram\Handlers\ManagerHandler::class, 'menu']);
+$bot->onCallbackQueryData('mg:r', [\App\Telegram\Handlers\ManagerHandler::class, 'reports']);
+$bot->onCallbackQueryData('mg:rs:{report}', [\App\Telegram\Handlers\ManagerHandler::class, 'reportTarget']);
+$bot->onCallbackQueryData('mg:rt:{report}:{target}', [\App\Telegram\Handlers\ManagerHandler::class, 'reportSend']);
+$bot->onCallbackQueryData('mg:p', [\App\Telegram\Handlers\ManagerHandler::class, 'post']);
+$bot->onCallbackQueryData('mg:pa:{audience}', [\App\Telegram\Handlers\ManagerHandler::class, 'postAudience']);
+$bot->onCallbackQueryData('mg:ps', [\App\Telegram\Handlers\ManagerHandler::class, 'postSend']);
 // Kadastr: o'zi qo'shgan obyektlar (yangi obyekt qo'shish — Mini App /tg/site-form)
 $bot->onCallbackQueryData('cad:mine', [BrowseHandler::class, 'mySites']);
 // ijara shartnomasi: tuman → gastronomik ko'cha → obyekt oldida to'ldirish

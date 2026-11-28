@@ -46,6 +46,11 @@ class MessageRouter
             return;
         }
 
+        // boshqaruv: post matni kutilmoqda
+        if ($staff->isActive() && ManagerHandler::capture($bot, $staff)) {
+            return;
+        }
+
         if ($staff->canBrowse()) {
             // 🔍 qidiruv bosilgan bo'lsa — matn qidiruv; eski tugallanmagan tekshiruv uni to'sib qo'ymasin
             $await = Cache::get("tg-await:{$bot->userId()}");
@@ -92,6 +97,8 @@ class MessageRouter
 
         if ($attendance = AttendanceHandler::open($staff)) {
             (new AttendanceHandler)->wrongInput($bot, $attendance);
+        } elseif (ManagerHandler::capture($bot, $staff)) {
+            // boshqaruv: post uchun video
         } elseif ($draft = InspectionHandler::draft($staff)) {
             (new InspectionHandler)->wrongInput($bot, $draft);
         }
@@ -135,6 +142,11 @@ class MessageRouter
                 ? $handler->videoNote($bot, $staff, $attendance)
                 : $handler->wrongInput($bot, $attendance);
 
+            return;
+        }
+
+        // boshqaruv: post uchun rasm
+        if ($method === 'photo' && ManagerHandler::capture($bot, $staff)) {
             return;
         }
 

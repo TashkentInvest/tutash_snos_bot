@@ -207,7 +207,13 @@ class BrowseHandler
                 default => 'javob kutilmoqda',
             }.'; soatlik qaydlar — '.($done ?: 'hali yo‘q').'.'
             .($button ? "\n\n⏳ Hozir javob kutilmoqda — pastdagi tugmani bosing." : '').$leaseText,
-            ($button || $leaseRows) ? Ui::markup([...($button ? [[$button]] : []), ...$leaseRows]) : null);
+            ($button || $leaseRows || $staff->bot_manager) ? Ui::markup([...($button ? [[$button]] : []), ...$leaseRows, ...self::managerRow($staff)]) : null);
+    }
+
+    /** «Botda boshqaruv» belgili xodimga — boshqaruv menyusi tugmasi. */
+    public static function managerRow(Staff $staff): array
+    {
+        return $staff->isActive() && $staff->bot_manager ? [[Ui::btn('⚙️ Boshqaruv: hisobot va xabar yuborish', 'mg')]] : [];
     }
 
     public function home(Nutgram $bot): void
@@ -236,19 +242,19 @@ class BrowseHandler
             // masalan tuman telefoni o'zgartirilgan — bo'sh ro'yxat o'rniga tushuntirish
             $bot->callbackQuery() && $bot->answerCallbackQuery();
             $button = $hourly ? self::checkinButton($staff) : null;
-            Ui::show($bot, '👋 <b>'.Ui::e($staff->full_name).'</b>'.($leaseRows ? '' : "\n\nSizga hozircha hudud biriktirilmagan. Tuman mas’uli yoki administratorga murojaat qiling.")
+            Ui::show($bot, '👋 <b>'.Ui::e($staff->full_name).'</b>'.($leaseRows || $staff->bot_manager ? '' : "\n\nSizga hozircha hudud biriktirilmagan. Tuman mas’uli yoki administratorga murojaat qiling.")
                 .($hourly ? "\n\n".self::checkinText($staff) : '').$leaseText,
-                ($button || $leaseRows) ? Ui::markup([...($button ? [[$button]] : []), ...$leaseRows]) : null);
+                ($button || $leaseRows || $staff->bot_manager) ? Ui::markup([...self::managerRow($staff), ...($button ? [[$button]] : []), ...$leaseRows]) : null);
 
             return;
         }
-        if ($districts->count() === 1 && ! $hourly && ! $staff->isCadastre() && ! $leaseRows) {
+        if ($districts->count() === 1 && ! $hourly && ! $staff->isCadastre() && ! $leaseRows && ! $staff->bot_manager) {
             $this->district($bot, (string) $districts->first()->id);
 
             return;
         }
 
-        $rows = [...$leaseRows, ...$districts->map(fn ($d) => [Ui::btn("{$d->name} · ".self::counts($staff, $d), "d:{$d->id}")])->all()];
+        $rows = [...self::managerRow($staff), ...$leaseRows, ...$districts->map(fn ($d) => [Ui::btn("{$d->name} · ".self::counts($staff, $d), "d:{$d->id}")])->all()];
         if ($staff->isCadastre()) {
             array_unshift($rows, [self::siteFormButton('➕ Obyekt qo‘shish')], [Ui::btn('📋 Men qo‘shgan obyektlar', 'cad:mine')]);
         }

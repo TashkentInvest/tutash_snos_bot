@@ -87,6 +87,10 @@ class StaffResource extends Resource
                     ->formatStateUsing(fn ($state, ?Staff $record) => $record?->isContract() ? true : (bool) $state)
                     ->disabled(fn (Forms\Get $get) => $get('role') === Staff::ROLE_CONTRACT)
                     ->visible($isWorker),
+                // panelga kirmasdan botning o'zida: hisobot yuborish va xodimlarga xabar / post yozish
+                Forms\Components\Toggle::make('bot_manager')->label('Botda boshqaruv')
+                    ->helperText('Botda «Boshqaruv» menyusi: hisobotlarni yuborish va xodimlarga xabar / post (matn, rasm, video) yozish.')
+                    ->visible(fn (Forms\Get $get) => $get('role') !== Staff::ROLE_CITIZEN),
                 // hisobot oluvchilar endi bitta joyda: Sozlamalar → Hisobotlar (har hisobot alohida)
                 Forms\Components\Placeholder::make('reports_hint')->label('Hisobotlar')
                     ->content(new \Illuminate\Support\HtmlString('Kimga qaysi hisobot borishi — <a href="'.\App\Filament\Pages\ReportSettings::getUrl().'" style="color:rgb(37,99,235);">Sozlamalar → Hisobotlar</a>')),
