@@ -21,6 +21,9 @@ class DizaynStats
 {
     public const TZ = 'Asia/Tashkent';
 
+    /** Botdagi «tuman» o'rnidagi umumiy dizayn-kod kitobi (tillar bo'yicha) — tumanlar va ko'chalar reytingiga kirmaydi. */
+    public const BOOK = 'Дизайн-код';
+
     private static function todayUtc(): CarbonImmutable
     {
         return CarbonImmutable::now(self::TZ)->startOfDay()->utc();
@@ -86,7 +89,7 @@ class DizaynStats
     /** Eng ko'p yuklab olingan ko'chalar: [tuman, ko'cha, soni] — nomlar lotinchada. */
     public static function topStreets(int $limit = 8): Collection
     {
-        return Download::query()->selectRaw('district, street, COUNT(*) as total')->groupBy('district', 'street')
+        return Download::query()->where('district', '!=', self::BOOK)->selectRaw('district, street, COUNT(*) as total')->groupBy('district', 'street')
             ->orderByDesc('total')->limit($limit)->get()
             ->map(fn ($r) => ['district' => Latin::of($r->district), 'street' => Latin::of($r->street), 'total' => (int) $r->total]);
     }
@@ -94,7 +97,14 @@ class DizaynStats
     /** Tumanlar bo'yicha yuklab olishlar: lotincha nom => soni. */
     public static function byDistrict(): Collection
     {
-        return Download::query()->selectRaw('district, COUNT(*) as total')->groupBy('district')->orderByDesc('total')->get()
+        return Download::query()->where('district', '!=', self::BOOK)->selectRaw('district, COUNT(*) as total')->groupBy('district')->orderByDesc('total')->get()
             ->mapWithKeys(fn ($r) => [Latin::of($r->district) => (int) $r->total]);
+    }
+
+    /** Umumiy dizayn-kod kitobi (tuman emas): til => yuklab olishlar soni. */
+    public static function book(): Collection
+    {
+        return Download::query()->where('district', self::BOOK)->selectRaw('street, COUNT(*) as total')->groupBy('street')->orderByDesc('total')->get()
+            ->mapWithKeys(fn ($r) => [Latin::of($r->street) => (int) $r->total]);
     }
 }

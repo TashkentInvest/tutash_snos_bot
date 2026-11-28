@@ -47,6 +47,7 @@ class DizaynOverview extends Page
             'users' => DizaynStats::perDay('users', 14),
             'top' => DizaynStats::topStreets(8),
             'districts' => DizaynStats::byDistrict(),
+            'book' => DizaynStats::book(),
             'urls' => [
                 'users' => \App\Filament\Resources\Dizayn\BotUserResource::getUrl(),
                 'registered' => \App\Filament\Resources\Dizayn\BotUserResource::getUrl('index', ['tableFilters' => ['registered' => ['isActive' => true]]]),

@@ -36,11 +36,14 @@ class DizaynPanelTest extends TestCase
         $this->dz('users', ['user_id' => 502, 'first_name' => 'Ivan', 'lang' => 'ru', 'first_seen' => $now, 'last_seen' => $now, 'blocked_at' => $now]);
         $this->dz('downloads', ['user_id' => 501, 'district' => 'Мирзо Улуғбек тумани', 'street' => 'Ахмад Дониш кўчаси', 'file_name' => 'a.pdf', 'sent_at' => $now]);
         $this->dz('downloads', ['user_id' => 501, 'district' => 'Мирзо Улуғбек тумани', 'street' => 'Ахмад Дониш кўчаси', 'file_name' => 'a.pdf', 'sent_at' => $now]);
+        $this->dz('downloads', ['user_id' => 501, 'district' => 'Дизайн-код', 'street' => 'Ўзбекча', 'file_name' => 'k.pdf', 'sent_at' => $now]);
+        $this->assertSame(['Mirzo Ulug‘bek tumani' => 2], \App\Support\DizaynStats::byDistrict()->all()); // umumiy kitob tuman emas
         $fb = $this->dz('feedback', ['user_id' => 501, 'level' => 'high', 'text' => 'Do‘konim oldida peshtaxta qanday bo‘lishi kerak?', 'created_at' => $now]);
 
         $this->actingAs($this->admin());
         $this->get('/admin/dizayn')->assertOk()->assertSee('Bot foydalanuvchilari')->assertSee('Mirzo Ulug‘bek')
-            ->assertSee('Axmad Donish ko‘chasi')->assertSee('javobsiz');
+            ->assertSee('Axmad Donish ko‘chasi')->assertSee('javobsiz')
+            ->assertSee('umumiy dizayn-kod kitobi: 1 (O‘zbekcha 1)')->assertSee('14 kunda');
         $this->get('/admin/dizayn/foydalanuvchilar')->assertOk()->assertSee('Karimov Alisher')->assertSee('+998 90 111 22 33');
         $this->get('/admin/dizayn/foydalanuvchilar/501')->assertOk()->assertSee('Yuklab olgan konsepsiyalar')->assertSee('Axmad Donish ko‘chasi');
         $this->get('/admin/dizayn/yuklab-olishlar')->assertOk()->assertSee('Mirzo Ulug‘bek tumani');
