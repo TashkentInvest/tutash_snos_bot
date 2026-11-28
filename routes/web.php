@@ -103,6 +103,46 @@ Route::get('/admin-dizayn/photo/{id}', function (int $id) {
 
     return response()->file($file, ['Cache-Control' => 'private, max-age=86400']);
 })->whereNumber('id')->middleware(['auth'])->name('admin.dizayn.photo');
+// Dizayn-kod boti: xodim dalili (jonli rasm yoki video) — faqat admin; video Range bilan (oldinga o'tkazish mumkin)
+Route::get('/admin-dizayn/inspection/{id}/{media}', function (int $id, string $media) {
+    abort_unless(\App\Models\User::currentIsAdmin() && \App\Models\Dizayn\Model::available() && in_array($media, ['photo', 'video'], true), 403);
+    $rel = \App\Models\Dizayn\Inspection::findOrFail($id)->{$media};
+    $root = realpath((string) config('services.dizayn_bot.uploads_dir'));
+    $file = $rel && $root ? realpath($root.'/'.ltrim((string) $rel, '/')) : false;
+    abort_unless($file && str_starts_with($file, $root.DIRECTORY_SEPARATOR) && is_file($file), 404);
+    $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+    $type = $media === 'photo' ? 'image/jpeg' : (in_array($ext, ['mp4', 'm4v', 'mov'], true) ? 'video/mp4' : 'video/webm');
+
+    return response()->file($file, ['Content-Type' => $type, 'X-Content-Type-Options' => 'nosniff', 'Cache-Control' => 'private, no-cache']);
+})->whereNumber('id')->middleware(['auth'])->name('admin.dizayn.inspection-media');
+// yonboshlagan rasmni to'g'rilash (faylning o'zi aylantiriladi — bot va boshqa joylarda ham to'g'ri)
+Route::post('/admin-dizayn/inspection/{id}/rotate/{dir}', function (int $id, string $dir) {
+    abort_unless(\App\Models\User::currentIsAdmin() && \App\Models\Dizayn\Model::available() && in_array($dir, ['left', 'right'], true) && function_exists('imagerotate'), 403);
+    $rel = \App\Models\Dizayn\Inspection::findOrFail($id)->photo;
+    $root = realpath((string) config('services.dizayn_bot.uploads_dir'));
+    $file = $rel && $root ? realpath($root.'/'.ltrim((string) $rel, '/')) : false;
+    abort_unless($file && str_starts_with($file, $root.DIRECTORY_SEPARATOR) && is_file($file), 404);
+    $img = @imagecreatefromstring((string) file_get_contents($file));
+    abort_unless($img, 422);
+    $tmp = $file.'.tmp';
+    imagejpeg(imagerotate($img, $dir === 'right' ? -90 : 90, 0), $tmp, 90);
+    abort_unless(@rename($tmp, $file), 500);
+
+    return response()->json(['ok' => true]);
+})->whereNumber('id')->middleware(['auth'])->name('admin.dizayn.inspection-rotate');
+// ko'cha konsepsiyasi (PDF) — botning data papkasidan
+Route::get('/admin-dizayn/file/{id}', function (int $id) {
+    abort_unless(\App\Models\User::currentIsAdmin() && \App\Models\Dizayn\Model::available(), 403);
+    $f = \App\Models\Dizayn\StreetFile::findOrFail($id);
+    $root = realpath((string) config('services.dizayn_bot.data_dir'));
+    $file = $root ? realpath($root.'/'.ltrim((string) $f->path, '/')) : false;
+    abort_unless($file && str_starts_with($file, $root.DIRECTORY_SEPARATOR) && is_file($file), 404);
+    $pdf = strtolower(pathinfo((string) $f->file_name, PATHINFO_EXTENSION)) === 'pdf';
+
+    return response()->file($file, ['Content-Type' => $pdf ? 'application/pdf' : 'application/octet-stream',
+        'Content-Disposition' => ($pdf ? 'inline' : 'attachment')."; filename*=UTF-8''".rawurlencode((string) $f->file_name),
+        'X-Content-Type-Options' => 'nosniff', 'Cache-Control' => 'private, no-cache']);
+})->whereNumber('id')->middleware(['auth'])->name('admin.dizayn.file');
 // kunlik PDF hisobot (namuna uslubida) — faqat admin; ?day=YYYY-MM-DD; murojaat — kirgan foydalanuvchi nomi
 Route::get('/admin-report.pdf', function (\Illuminate\Http\Request $request) {
     abort_unless(\App\Models\User::currentIsAdmin(), 403);

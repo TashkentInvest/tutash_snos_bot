@@ -33,7 +33,7 @@ class PostResource extends Resource
 
     protected static ?string $slug = 'dizayn/postlar';
 
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 7;
 
     public const MEDIA = ['photo' => 'Rasm', 'video' => 'Video'];
 

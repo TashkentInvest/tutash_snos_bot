@@ -31,7 +31,7 @@ class BotUserResource extends Resource
 
     protected static ?string $slug = 'dizayn/foydalanuvchilar';
 
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 5;
 
     public static function canViewAny(): bool
     {
